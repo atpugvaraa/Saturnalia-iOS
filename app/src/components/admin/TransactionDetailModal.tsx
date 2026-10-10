@@ -27,12 +27,14 @@ interface TransactionDetailModalProps {
   visible: boolean;
   transaction: PaymentTransaction | null;
   onClose: () => void;
+  onUpdateStatus?: (id: string, newStatus: string) => void;
 }
 
 const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
   visible,
   transaction,
   onClose,
+  onUpdateStatus,
 }) => {
   if (!transaction) return null;
 
@@ -353,6 +355,37 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
               />
             )}
           </View>
+
+          {/* Admin Override Controls */}
+          {onUpdateStatus && (
+            <View className="bg-[#2C2C2C] mx-4 mb-8 rounded-xl p-4">
+              <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-white text-lg mb-4">
+                Admin Controls
+              </Text>
+              
+              <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-gray-400 mb-4 leading-5">
+                Override the payment status manually. Warning: Marking as success will confirm associated registrations.
+              </Text>
+              
+              <View className="flex-row justify-between gap-3">
+                <TouchableOpacity 
+                  onPress={() => onUpdateStatus(transaction.id, "success")}
+                  className="flex-1 bg-green-500/20 border border-green-500/50 py-3 rounded-xl flex-row items-center justify-center"
+                >
+                  <CheckCircle size={18} color="#10B981" />
+                  <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-green-400 ml-2">Mark Success</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  onPress={() => onUpdateStatus(transaction.id, "failed")}
+                  className="flex-1 bg-red-500/20 border border-red-500/50 py-3 rounded-xl flex-row items-center justify-center"
+                >
+                  <XCircle size={18} color="#EF4444" />
+                  <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-red-400 ml-2">Mark Failed</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </ScrollView>
       </View>
     </Modal>

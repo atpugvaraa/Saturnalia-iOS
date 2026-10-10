@@ -154,16 +154,6 @@ func (a *API) checkRegistrable(ctx context.Context, e *models.Event, u *models.U
 		}
 	}
 
-	// Payments are not wired up. While PAYMENTS_ENFORCED is false a fee-bearing
-	// event still registers normally and the computed amount is recorded on the
-	// registration, but nothing collects it.
-	if a.Cfg.PaymentsEnforced {
-		if fee := e.FeeFor(u.IsHostCollegeStudent); fee > 0 {
-			return apierr.PaymentRequired("payment_required", "this event requires payment").
-				WithDetails(gin.H{"amount": fee, "currency": "INR"})
-		}
-	}
-
 	return nil
 }
 

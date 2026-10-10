@@ -31,6 +31,22 @@ type Config struct {
 	// true makes those registrations return 402 instead.
 	PaymentsEnforced bool
 
+	// Easebuzz payment gateway credentials.
+	// EasebuzzKey is the merchant key (public-facing, sent in the payment form).
+	// EasebuzzSalt is the secret used only for hash generation, never sent to clients.
+	// EasebuzzEnv is either "test" (staging) or "prod" (production).
+	EasebuzzKey  string
+	EasebuzzSalt string
+	EasebuzzEnv  string // "test" | "prod"
+
+	// AppBaseURL is the base URL of this API, used to construct surl/furl for Easebuzz.
+	// e.g. "https://api.saturnalia.in"
+	AppBaseURL string
+
+	// FrontendDeepLinkBase is the custom scheme used to redirect the mobile app
+	// after payment completes. e.g. "saturnalia://payment"
+	FrontendDeepLinkBase string
+
 	// ImageKitAccountsFile points at the JSON array of ImageKit accounts that
 	// internal/storage spreads uploads across. Optional: nothing constructs a
 	// storage.Store yet, and an API with no file uploads wired up should still
@@ -56,6 +72,11 @@ func Load() (*Config, error) {
 		ImageKitAccountsFile: os.Getenv("IMAGEKIT_ACCOUNTS_FILE"),
 		UseEmulator:          os.Getenv("FIRESTORE_EMULATOR_HOST") != "",
 		GroqAPIKey:           os.Getenv("GROQ_API_KEY"),
+		EasebuzzKey:          os.Getenv("EASEBUZZ_KEY"),
+		EasebuzzSalt:         os.Getenv("EASEBUZZ_SALT"),
+		EasebuzzEnv:          env("EASEBUZZ_ENV", "test"),
+		AppBaseURL:           env("APP_BASE_URL", "http://localhost:6767"),
+		FrontendDeepLinkBase: env("FRONTEND_DEEP_LINK_BASE", "saturnalia://payment"),
 	}
 
 	ttl, err := time.ParseDuration(env("EVENT_CACHE_TTL", "24h"))

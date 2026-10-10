@@ -3,7 +3,7 @@
 // Global API Base URL
 // Change this to your local IP or production URL
 // export const API_BASE_URL = "http://172.22.128.140:6767/api/v1";
-export const API_BASE_URL = "http://172.16.213.174:6767/api/v1";
+export const API_BASE_URL = "http://172.16.211.214:6767/api/v1";
 // export const API_BASE_URL = "http://api.saturnalia.in/api/v1";
 
 

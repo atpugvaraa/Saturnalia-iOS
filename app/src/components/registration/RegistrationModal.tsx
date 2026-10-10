@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { setStringAsync } from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
@@ -66,6 +67,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [createdInviteCode, setCreatedInviteCode] = useState<string>("");
+  const [createdTeamId, setCreatedTeamId] = useState<string>("");
   const [hasReferralCode, setHasReferralCode] = useState(false);
   const [referralCode, setReferralCode] = useState("");
   const [currentTeamSize, setCurrentTeamSize] = useState<number>(0);
@@ -110,6 +112,8 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
       setIsLoading(true);
       const result = await createEventTeam(event.eventId, teamName.trim(), []);
       setCreatedInviteCode(result.inviteCode || result.team?.inviteCode);
+      setCreatedTeamId(result.team?.teamId || "");
+      setCurrentTeamSize(1);
       setIsCreateTeamFlow(true);
       showModalAlert("Team Created!", "Share the invite code with your teammates.");
       setRegistrationStep("custom-fields");
@@ -169,6 +173,8 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
         if (isCreateTeamFlow) {
           const result = await createEventTeam(event.eventId, teamName.trim(), registrationData);
           setCreatedInviteCode(result.inviteCode || result.team?.inviteCode);
+          setCreatedTeamId(result.team?.teamId || "");
+          setCurrentTeamSize(1);
           showModalAlert("Team Created!", "Share the invite code with your teammates.");
           onSuccess();
           return;
@@ -456,12 +462,29 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
             >
               Your Team Invite Code:
             </Text>
-            <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-lg"
-            >
-              {createdInviteCode}
-            </Text>
+            <View className="flex-row items-center justify-between bg-[#ffffff] p-3 rounded-lg border border-[#A0B3D0]">
+              <Text
+                style={{ fontFamily: "Outfit_700Bold" }}
+                className="text-[#0C3572] text-lg flex-1"
+                selectable={true}
+              >
+                {createdInviteCode}
+              </Text>
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    await setStringAsync(createdInviteCode);
+                    showModalAlert("Copied", "Invite code copied to clipboard!");
+                  } catch (err) {
+                    showModalAlert("Error", "Failed to copy code");
+                  }
+                }}
+                className="bg-[#0C3572] p-2 rounded-lg ml-2 flex-row items-center"
+              >
+                <Ionicons name="copy-outline" size={18} color="white" />
+                <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-white text-xs ml-1">Copy</Text>
+              </TouchableOpacity>
+            </View>
             <Text
               style={{ fontFamily: "Outfit_500Medium" }}
               className="text-[#2175C0] text-sm mt-2"
@@ -559,10 +582,14 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
         ) : createdInviteCode ? (
           <View className="flex-row space-x-3 flex-1 gap-2 mt-6">
             <Button
-              title="View Registration"
+              title={event.paymentRequired ? "Complete Payment" : "View Registration"}
               onPress={() => {
                 onClose();
-                router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } });
+                if (event.paymentRequired) {
+                  router.push({ pathname: '/events/Payment', params: { eventId: event.eventId, teamId: createdTeamId } });
+                } else {
+                  router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } });
+                }
               }}
               variant="none"
               className="flex-1 bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl"
@@ -595,15 +622,13 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
     >
       <KeyboardAvoidingView
         className="flex-1 justify-end bg-black/50"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+        behavior="padding"
+        keyboardVerticalOffset={0}
       >
 
           <View
             className="bg-white rounded-t-3xl p-6"
-            style={{ 
-              maxHeight: "90%",
-              paddingBottom: Math.max(insets.bottom + 16, 24) }}
+            style={{ maxHeight: "90%", paddingBottom: Math.max(insets.bottom + 16, 24) }}
           >
             {/* Header */}
             <View className="flex-row justify-between items-center mb-4">

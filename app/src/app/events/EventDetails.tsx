@@ -52,6 +52,7 @@ const EventDetailsScreen: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
+      checkExistingRegistration();
       if (activeTab === 'feedback') {
         loadFeedbacks();
       }
@@ -97,10 +98,21 @@ const EventDetailsScreen: React.FC = () => {
 
   const handleRegisterClick = () => {
     if (!event) return;
+    if (userProfile?.roles?.includes('admin') && !event.isPublic) return;
+    
     if(event.eventType === 'externalLink' && event.externalUrl) {
       Linking.openURL(event.externalUrl);
       return;
     }
+
+    // If registered but payment is pending, go to payment screen.
+    if (existingRegistration?.paymentStatus === 'pending') {
+      const params: Record<string, string> = { eventId: event.eventId };
+      if (existingRegistration.teamId) params.teamId = existingRegistration.teamId;
+      router.push({ pathname: '/events/Payment', params });
+      return;
+    }
+
     if (existingRegistration) {
       router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } });
       return;
@@ -116,7 +128,6 @@ const EventDetailsScreen: React.FC = () => {
 
   const handleModalClose = async () => {
     setShowRegistrationModal(false);
-    await checkExistingRegistration();
   };
 
   if (!event?.eventId) {
@@ -159,6 +170,25 @@ const EventDetailsScreen: React.FC = () => {
         >
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
+
+        {/* Admin Public/Private Tag */}
+        {userProfile?.roles?.includes('admin') && (
+          <View className={`absolute top-4 left-16 px-3 py-2 rounded-xl flex-row items-center ${event.isPublic ? 'bg-green-500/90' : 'bg-red-500/90'}`}>
+            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-white text-sm">
+              {event.isPublic ? 'Public' : 'Private'}
+            </Text>
+          </View>
+        )}
+
+        {/* Payment Pending Badge */}
+        {existingRegistration && existingRegistration.paymentStatus === 'pending' && (
+          <View className="absolute bottom-4 left-4 bg-amber-500 px-3 py-2 rounded-xl flex-row items-center">
+            <Ionicons name="time" size={14} color="white" />
+            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-white text-xs ml-1">
+              Payment Pending
+            </Text>
+          </View>
+        )}
 
         {/* Featured Badge */}
         {event.isFeatured && (
@@ -452,18 +482,29 @@ const EventDetailsScreen: React.FC = () => {
       <View className="absolute bottom-0 left-0 right-0 bg-[#FFF] border-t border-gray-800 px-6 py-4">
         <Button
           title={
-            existingRegistration
-              ? 'View Registration'
-              : event.paymentRequired
-                ? 'Register Now'
-                : 'Register for Free'
+            userProfile?.roles?.includes('admin') && !event.isPublic
+              ? 'Registration Disabled (Private)'
+              : existingRegistration
+                ? existingRegistration.paymentStatus === 'pending'
+                  ? 'Complete Payment'
+                  : 'View Registration'
+                : event.paymentRequired
+                  ? 'Register Now'
+                  : 'Register for Free'
           }
           onPress={handleRegisterClick}
+          disabled={userProfile?.roles?.includes('admin') && !event.isPublic}
           variant="none" 
           size="large"
 
-          className="bg-[#95aad3] border-[#0C3572] border-2 py-4 rounded-xl"
-          textClassName="text-[#0C3572]"
+          className={`border-[#0C3572] border-2 py-4 rounded-xl ${
+            userProfile?.roles?.includes('admin') && !event.isPublic
+              ? 'bg-gray-200 opacity-60 border-gray-400'
+              : existingRegistration?.paymentStatus === 'pending'
+                ? 'bg-[#FEE59C]'
+                : 'bg-[#95aad3]'
+          }`}
+          textClassName={userProfile?.roles?.includes('admin') && !event.isPublic ? 'text-gray-500' : 'text-[#0C3572]'}
         />
       </View>
     </View>

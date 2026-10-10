@@ -22,13 +22,20 @@ const UserEventsScreen: React.FC = () => {
     }, [refresh])
   );
 
-  const events = rows.map((row: any) => ({
-    eventId: row.event?.eventId || row.registration?.eventId,
-    eventName: row.event?.title || row.registration?.eventName || 'Unknown Event',
-    eventCategory: row.event?.category || row.registration?.eventCategory || 'Uncategorized',
-    status: row.registration?.status || 'confirmed',
-    ...row.registration,
-  }));
+  const events = rows.map((row: any) => {
+    let displayStatus = row.registration?.status || 'confirmed';
+    if (row.registration?.paymentStatus === 'pending') {
+      displayStatus = 'payment_pending';
+    }
+    
+    return {
+      eventId: row.event?.eventId || row.registration?.eventId,
+      eventName: row.event?.title || row.registration?.eventName || 'Unknown Event',
+      eventCategory: row.event?.category || row.registration?.eventCategory || 'Uncategorized',
+      ...row.registration,
+      status: displayStatus,
+    };
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -82,7 +89,17 @@ const UserEventsScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  /* Removed API call */
+  const getStatusDisplayTitle = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'Confirmed';
+      case 'pending': return 'Pending';
+      case 'payment_pending': return 'Payment Due';
+      case 'rejected': return 'Rejected';
+      default: return status.charAt(0).toUpperCase() + status.slice(1);
+    }
+  };
+
+  const availableStatuses = Array.from(new Set(events.map(e => e.status)));
 
   if (loading) {
     return (
@@ -108,16 +125,20 @@ const UserEventsScreen: React.FC = () => {
 
 
       {/* Filters */}
-      <View className="px-6 py-4">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <FilterButton title="All" filterKey="all" />
-          <FilterButton title="Confirmed" filterKey="confirmed" />
-          <FilterButton title="Awaited" filterKey="awaited" />
-          <FilterButton title="Pending" filterKey="pending" />
-          <FilterButton title="Payment Due" filterKey="payment_pending" />
-          <FilterButton title="Rejected" filterKey="rejected" />
-        </ScrollView>
-      </View>
+      {events.length > 0 && (
+        <View className="px-6 py-4">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <FilterButton title="All" filterKey="all" />
+            {availableStatuses.map(status => (
+              <FilterButton 
+                key={status} 
+                title={getStatusDisplayTitle(status as string)} 
+                filterKey={status as string} 
+              />
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Events List */}
       <ScrollView
@@ -155,12 +176,21 @@ const UserEventsScreen: React.FC = () => {
                 onPress={() => router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } })}
                 className="bg-white rounded-2xl p-4 mb-3 border border-[#A0B3D0]"
               >
-                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg">
-                  {event.eventName}
-                </Text>
-                <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] mt-1">
-                  {event.eventCategory} · {event.status}
-                </Text>
+                <View className="flex-row justify-between items-start">
+                  <View className="flex-1">
+                    <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg">
+                      {event.eventName}
+                    </Text>
+                    <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] mt-1">
+                      {event.eventCategory}
+                    </Text>
+                  </View>
+                  <View className={`px-3 py-1 rounded-full ${getStatusColor(event.status).split(' ')[0]}`}>
+                    <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className={`text-xs ${getStatusColor(event.status).split(' ')[1]}`}>
+                      {event.status === 'payment_pending' ? 'Payment Due' : event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                    </Text>
+                  </View>
+                </View>
               </TouchableOpacity>
             ))}
           </View>

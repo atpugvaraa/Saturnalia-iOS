@@ -215,7 +215,7 @@ const MyEventDetailsScreen: React.FC = () => {
       >
         {/* Status Card */}
         <RegistrationStatusCard
-          status={registration.status || 'pending'}
+          status={registration.paymentStatus === 'pending' ? 'payment_pending' : (registration.status || 'pending')}
           eventCategory={registration.eventCategory || eventData?.category || ''}
           eventType={(eventData?.eventType === 'team' ? 'team' : 'individual')}
           registeredAt={registration.registeredAt || new Date().toISOString()}
@@ -242,18 +242,38 @@ const MyEventDetailsScreen: React.FC = () => {
           />
         )}
 
-        {/* Payment Button */}
-        {registration.status === "payment_pending" && (eventData?.eventType === "individual" || isLeader) && (
+        {/* Payment Button - shown when paymentStatus is pending */}
+        {registration.paymentStatus === 'pending' && (eventData?.eventType === 'individual' || isLeader) && (
           <View className="mb-6">
+            <View className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-3">
+              <View className="flex-row items-center mb-2">
+                <Ionicons name="warning" size={18} color="#d97706" />
+                <Text
+                  style={{ fontFamily: 'Outfit_600SemiBold' }}
+                  className="text-amber-700 ml-2"
+                >
+                  Payment Pending
+                </Text>
+              </View>
+              <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-amber-600 text-sm">
+                {eventData?.eventType === 'team'
+                  ? 'Complete payment to confirm your team\'s registration. Payment covers the entire team.'
+                  : 'Complete payment to confirm your registration.'}
+              </Text>
+            </View>
             <Button
               title="Complete Payment"
-              onPress={() => router.push({ pathname: "/(app)/event-payment", params: { eventId } })}
-              variant="primary"
-              className="bg-[#FDCE04] flex-row items-center justify-center"
+              onPress={() => router.push({
+                pathname: '/events/Payment',
+                params: {
+                  eventId,
+                  ...(teamData?.teamId ? { teamId: teamData.teamId } : {}),
+                },
+              })}
+              variant="none"
+              className="bg-[#FEE59C] border-[#0C3572] border-2 flex-row items-center justify-center rounded-xl py-4"
+              textClassName="text-[#0C3572] font-semibold"
             />
-            <Text className="text-[#2175C0] text-xs text-center mt-2">
-              Complete your payment to confirm your registration
-            </Text>
           </View>
         )}
 

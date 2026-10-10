@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -46,6 +47,28 @@ func (a *API) AdminGetUser(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			apierr.Respond(c, apierr.NotFound("user_not_found", "no user with that email"))
+			return
+		}
+		apierr.Respond(c, apierr.Internal("could not load user"))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": user.ResolveHostStatus(a.Cfg.HostEmailDomain)})
+}
+
+// AdminGetUserByID resolves a user by their unique ID and returns the full profile.
+func (a *API) AdminGetUserByID(c *gin.Context) {
+	ctx := c.Request.Context()
+	id := c.Param("id")
+	if id == "" {
+		apierr.Respond(c, apierr.BadRequest("missing_id", "id is required"))
+		return
+	}
+
+	user, err := a.Store.GetUser(ctx, id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			apierr.Respond(c, apierr.NotFound("user_not_found", "no user with that ID"))
 			return
 		}
 		apierr.Respond(c, apierr.Internal("could not load user"))
@@ -170,12 +193,9 @@ func (a *API) AdminDeleteUser(c *gin.Context) {
 	}
 
 	if err := a.Clients.DeleteUserFromAuth(ctx, user.UserID); err != nil {
-		// Auth deletion failed, but we should continue or return error?
-		// We should return an error to prevent partial state if possible, or at least log it.
-		// Actually, if we return error, the user might not be deletable if auth doesn't exist.
-		// Let's just return internal error.
-		apierr.Respond(c, apierr.Internal("could not delete user from auth"))
-		return
+		// Log the error but proceed with deleting the user document.
+		// Often the user is already deleted from Auth, but we still need to delete them from Firestore.
+		log.Printf("Warning: failed to delete user %s from auth: %v", user.UserID, err)
 	}
 
 	if err := a.Store.DeleteUser(ctx, user.UserID); err != nil {

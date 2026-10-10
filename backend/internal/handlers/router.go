@@ -70,6 +70,9 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	admin.DELETE("/admin/events/:id", api.DeleteEvent)
 	admin.GET("/admin/events/:id/registrations", api.ListEventRegistrations)
 
+	admin.GET("/admin/payments", api.AdminListPayments)
+	admin.PATCH("/admin/payments/:id", api.AdminUpdatePaymentStatus)
+
 	admin.POST("/admin/faqs", api.CreateFaq)
 	admin.PATCH("/admin/faqs/:id", api.UpdateFaq)
 	admin.DELETE("/admin/faqs/:id", api.DeleteFaq)
@@ -83,10 +86,18 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	admin.PATCH("/admin/users/by-email/:email", api.AdminUpdateUser)
 	admin.DELETE("/admin/users/by-email/:email", api.AdminDeleteUser)
 	admin.GET("/admin/users/by-email/:email/registrations", api.AdminGetUserEvents)
+	admin.GET("/admin/users/:id", api.AdminGetUserByID)
 
 	// FCM: client registers its token; admins broadcast to audiences.
 	authed.POST("/me/fcm-token", api.UpdateFCMToken)
 	admin.POST("/admin/notifications", api.SendNotification)
+
+	// Payments: initiate creates a Easebuzz checkout link; callback receives
+	// the Easebuzz redirect/webhook; status lets the app poll outcome.
+	authed.POST("/payments/initiate", api.InitiatePayment)
+	v1.POST("/payments/callback", api.PaymentCallback) // open: Easebuzz hits this
+	v1.GET("/payments/dummy", api.DummyPayment)        // open: local test bypass
+	authed.GET("/payments/:merchantOrderId", api.GetPayment)
 
 	return r
 }

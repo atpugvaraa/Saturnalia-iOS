@@ -14,6 +14,7 @@ import {
   fetchTransactions,
   clearTransactionsCache,
   hasActiveFilters,
+  updatePaymentStatus,
 } from "@/api/admin";
 import TransactionCard from "@/components/admin/TransactionCard";
 import TransactionFiltersComponent from "@/components/admin/TransactionFilters";
@@ -136,6 +137,19 @@ const Transactions: React.FC = () => {
   const handleCloseModal = () => {
     setModalVisible(false);
     setSelectedTransaction(null);
+  };
+
+  const handleUpdateStatus = async (id: string, newStatus: string) => {
+    try {
+      setSearchLoading(true);
+      await updatePaymentStatus(id, newStatus);
+      showAlert("Success", `Payment marked as ${newStatus}`);
+      handleCloseModal();
+      handleRefresh();
+    } catch (err: any) {
+      showAlert("Error", err.message || "Failed to update status");
+      setSearchLoading(false);
+    }
   };
 
   const renderEmptyState = () => {
@@ -342,6 +356,7 @@ const Transactions: React.FC = () => {
         visible={modalVisible}
         transaction={selectedTransaction}
         onClose={handleCloseModal}
+        onUpdateStatus={handleUpdateStatus}
       />
     </View>
   );

@@ -472,19 +472,68 @@ export const fetchUsers = async (filters?: any, _loadMore?: boolean) => {
 };
 
 export const getUserById = async (userId: string) => {
-  const users = (await fetchUsers()).users;
-  const user = users.find((u) => u.userId === userId);
-  return user ? { success: true, user } : { success: false, error: 'User not found' };
+  try {
+    const { apiFetch } = await import('./client');
+    const res = await apiFetch(`/admin/users/${encodeURIComponent(userId)}`, {}, 'required');
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, user: data.user };
+    }
+    return { success: false, error: 'User not found' };
+  } catch (e: any) {
+    console.error('getUserById error:', e);
+    return { success: false, error: e.message || 'User not found' };
+  }
 };
 
 export const clearUsersCache = () => {};
 export const hasActiveFilters = (filters?: { searchTerm?: string }) =>
   !!filters?.searchTerm?.trim();
 
-export const fetchTransactions = async (_filters?: any, _loadMore?: boolean) => ({
-  transactions: [] as any[],
-  hasMore: false,
-});
+export const fetchTransactions = async (_filters?: any, _loadMore?: boolean) => {
+  const response = await apiFetch("/admin/payments", {}, "required");
+  if (!response.ok) {
+    throw new Error(await readError(response, "Failed to load transactions"));
+  }
+  const data = await response.json();
+  
+  // Transform backend models.Payment to frontend PaymentTransaction if necessary
+  // Assuming frontend PaymentTransaction has id, status, etc.
+  let items = data.items || [];
+  
+  // Simple frontend filtering (since backend doesn't support it yet)
+  if (_filters) {
+    if (_filters.statusFilter && _filters.statusFilter !== 'all') {
+      items = items.filter((p: any) => p.status === _filters.statusFilter);
+    }
+    if (_filters.searchTerm) {
+      const term = _filters.searchTerm.toLowerCase();
+      items = items.filter((p: any) => 
+        (p.merchantOrderId || '').toLowerCase().includes(term) ||
+        (p.userId || '').toLowerCase().includes(term) ||
+        (p.easebuzzTxnId || '').toLowerCase().includes(term)
+      );
+    }
+  }
+
+  return {
+    transactions: items,
+    hasMore: false,
+  };
+};
+
+export const updatePaymentStatus = async (merchantOrderId: string, status: string) => {
+  const response = await apiFetch(`/admin/payments/${merchantOrderId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status })
+  }, "required");
+  
+  if (!response.ok) {
+    throw new Error(await readError(response, "Failed to update payment status"));
+  }
+  return response.json();
+};
+
 export const clearTransactionsCache = () => {};
 
 export const getOrderByQR = async (_data: string) => ({ success: false, error: 'Store orders are not available yet' });

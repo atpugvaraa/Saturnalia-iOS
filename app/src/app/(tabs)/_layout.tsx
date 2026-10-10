@@ -12,6 +12,7 @@ import {
 export default function TabLayout() {
   return (
     <Tabs
+      backBehavior="initialRoute"
       screenOptions={{
         sceneStyle: { backgroundColor: '#DBE2ED' },
         headerShown: false,

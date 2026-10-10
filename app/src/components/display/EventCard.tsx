@@ -5,32 +5,31 @@ import { useRouter } from 'expo-router';
 
 import { MapPin } from 'lucide-react-native';
 import { FirebaseEvent } from '@/types/models';
+import { useAuth } from '@/hooks/useAuth';
 
 interface EventCardProps {
   event: FirebaseEvent;
-  onPress?: () => void; // Make optional since we'll handle navigation internally
-  // variant?: 'default' | 'compact' | 'featured';
+  onPress?: () => void;
   className?: string;
 }
 
 const EventCard: React.FC<EventCardProps> = ({
   event,
   onPress,
-  // variant = 'default',
   className = ''
 }) => {
   const router = useRouter();
+  const { userProfile } = useAuth();
+  const isAdmin = userProfile?.roles?.includes('admin');
 
   const handleEventPress = () => {
     if (onPress) {
-      // Use custom onPress if provided (for backward compatibility)
       onPress();
     } else {
       router.push({ pathname: "/events/EventDetails", params: { eventData: JSON.stringify(event) } });
     }
   };
 
-  // Helper functions to format FirebaseEvent data
   const getFormattedDate = () => {
     const eventDate = new Date(event.dateTime || event.startDateTime);
     return {
@@ -52,57 +51,59 @@ const EventCard: React.FC<EventCardProps> = ({
     return event.coverImage ? { uri: event.coverImage } : require("@/assets/event.jpg");
   };
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'Technical': return 'primary';
-      case 'Cultural': return 'info';
-      case 'Sports': return 'success';
-      case 'Workshop': return 'warning';
-      default: return 'secondary';
-    }
-  };
-
   const { day, month } = getFormattedDate();
   const formattedTime = getFormattedTime();
   const eventImage = getEventImage();
 
   return (
     <TouchableOpacity
-      className='flex flex-col bg-[#2D2D2D] overflow-hidden rounded-2xl shadow-md max-w-[270px] mr-4'
+      className={`flex flex-col bg-white overflow-hidden rounded-[24px] mr-4 w-[280px] ${className}`}
+      style={{ boxShadow: '0px 8px 17px rgba(12, 53, 114, 0.12)' }}
       onPress={handleEventPress}
       activeOpacity={0.9}
     >
-      <View className='overflow-hidden'>
-        <Image source={eventImage} className="w-full h-44" resizeMode="cover" />
-      </View>
-      <View className="flex flex-col absolute top-4 right-4 bg-[#FFFFFFD9] p-1 py-1 px-3 rounded-lg items-center">
-        <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-lg text-[#E84054]">
-          {day}
-        </Text>
-        <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#E84054] mt-[-3px] text-sm">
-          {month}
-        </Text>
-      </View>
-      <View className="flex flex-col justify-between w-full px-3 py-3">
-        {/* Event Name and Time - Keep in same row with proper truncation */}
-        <View className='flex-row items-center w-full justify-between mb-1'>
-          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-2xl text-white flex-1 mr-2" numberOfLines={1} ellipsizeMode="tail">
-            {event.title}
+      <View className='overflow-hidden m-2 rounded-[18px]'>
+        <Image source={eventImage} className="w-full h-40" resizeMode="cover" />
+        
+        {/* Date Badge */}
+        <View className="absolute top-3 right-3 bg-white/95 px-3 py-1.5 rounded-xl items-center backdrop-blur-md" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' }}>
+          <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-lg text-[#0C3572] leading-5">
+            {day}
           </Text>
-         
+          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#EEB170] text-xs">
+            {month}
+          </Text>
         </View>
 
-        {/* Venue and Button */}
+        {/* Admin Public/Private Tag */}
+        {isAdmin && (
+          <View className={`absolute top-3 left-3 px-3 py-1.5 rounded-xl items-center backdrop-blur-md ${event.isPublic ? 'bg-green-500/90' : 'bg-red-500/90'}`}>
+            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-white text-xs">
+              {event.isPublic ? 'Public' : 'Private'}
+            </Text>
+          </View>
+        )}
+      </View>
+      
+      <View className="flex flex-col justify-between w-full px-4 pt-2 pb-5">
+        <View className='flex-row items-center w-full justify-between mb-2'>
+          <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-xl text-[#0C3572] flex-1 mr-2" numberOfLines={1}>
+            {event.title}
+          </Text>
+        </View>
+
         <View className='flex-row items-center w-full justify-between'>
-          <View className='flex flex-row items-center justify-center gap-[3px] flex-1 mr-2'>
-            <MapPin size={16} fill="white" />
-            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#BCBCBC] mt-[-1px] text-md flex-1" numberOfLines={1} ellipsizeMode="tail">
+          <View className='flex flex-row items-center flex-1 mr-2 px-2 py-1.5 rounded-lg'>
+            <MapPin size={14} color="#0C3572" />
+            <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572] ml-1.5 text-xs flex-1" numberOfLines={1}>
               {event.venueName || 'TBA'}
             </Text>
           </View>
-           <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className='text-[#BCBCBC] text-md flex-shrink-0'>
-            {formattedTime}
-          </Text>
+          <View className='px-2 py-1.5 rounded-lg ml-2'>
+            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className='text-[#0C3572] text-xs'>
+              {formattedTime}
+            </Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>

@@ -68,16 +68,29 @@ const ProfileScreen = () => {
     setTimeout(() => setDebugTapCount(0), 2000);
   };
 
-  const handleSignOutPress = async () => {
-    try {
-      const { handleSignOut } = await import('@/api/auth');
-      await handleSignOut();
-      useUserStore.getState().logout();
-      router.replace('/(auth)');
-    } catch (error) {
-      console.error('Logout error:', error);
-      showAlert('Error', 'Failed to log out properly');
-    }
+  const handleSignOutPress = () => {
+    showAlert(
+      "Log Out",
+      "Are you sure you want to log out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Log Out", 
+          onPress: async () => {
+            try {
+              const { handleSignOut } = await import('@/api/auth');
+              await handleSignOut();
+              useUserStore.getState().logout();
+              router.replace('/(auth)');
+            } catch (error) {
+              console.error('Logout error:', error);
+              showAlert('Error', 'Failed to log out properly');
+            }
+          },
+          style: "destructive"
+        }
+      ]
+    );
   };
   const handleCheckForUpdates = async () => {
     setCheckingUpdate(true);

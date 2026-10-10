@@ -109,3 +109,55 @@ func (s *Store) collectRegistrations(ctx context.Context, q firestore.Query) ([]
 	}
 	return out, nil
 }
+
+// ListRegistrationsByTeam returns all registrations that belong to a specific team.
+func (s *Store) ListRegistrationsByTeam(ctx context.Context, teamID string) ([]*models.Registration, error) {
+	q := s.FS.Collection(ColRegistrations).Where("teamId", "==", teamID)
+	return s.collectRegistrations(ctx, q)
+}
+
+// UpdateRegistrationPaymentStatus sets paymentStatus and optionally paidAt
+// on a registration document. registrationID is the "{eventId}_{userId}" key.
+func (s *Store) UpdateRegistrationPaymentStatus(ctx context.Context, registrationID, paymentStatus, paidAt string) error {
+	fields := map[string]any{
+		"paymentStatus": paymentStatus,
+	}
+	if paidAt != "" {
+		fields["paidAt"] = paidAt
+	}
+	_, err := s.FS.Collection(ColRegistrations).Doc(registrationID).Set(ctx, fields, firestore.MergeAll)
+	return wrap(err)
+}
+
+// UpdateRegistrationsByTeam updates paymentStatus for all registrations in a
+// team (used when a team payment is confirmed via webhook).
+func (s *Store) UpdateRegistrationsByTeam(ctx context.Context, eventID, teamID, paymentStatus, paidAt string) error {
+	iter := s.FS.Collection(ColRegistrations).
+		Where("eventId", "==", eventID).
+		Where("teamId", "==", teamID).
+		Documents(ctx)
+	defer iter.Stop()
+
+	batch := s.FS.Batch()
+	count := 0
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return wrap(err)
+		}
+		fields := map[string]any{"paymentStatus": paymentStatus}
+		if paidAt != "" {
+			fields["paidAt"] = paidAt
+		}
+		batch.Set(doc.Ref, fields, firestore.MergeAll)
+		count++
+	}
+	if count == 0 {
+		return nil
+	}
+	_, err := batch.Commit(ctx)
+	return wrap(err)
+}

@@ -1,22 +1,26 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "Saturnalia",
+    "slug": "saturnalia",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/icons/adaptive-icon.png",
     "scheme": "app",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.gauransh.saturnaliaapp2026"
+      "icon": {
+        "dark": "./assets/icons/ios-dark.png",
+        "light": "./assets/icons/ios-light.png",
+        "tinted": "./assets/icons/ios-tinted.png"
+      },
+      "bundleIdentifier": "com.gauransh.saturnaliaapp2026",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/logo.png",
+        "monochromeImage": "./assets/logo.png"
       },
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": true,
@@ -33,9 +37,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#000000",
+          "image": "./assets/icons/splash-icon-dark.png"
         }
       ],
       "@react-native-firebase/app",

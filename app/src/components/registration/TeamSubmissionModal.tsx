@@ -1,7 +1,7 @@
 // src/components/registration/TeamSubmissionModal.tsx
 
 import React, { useState } from 'react';
-import { Modal,TextInput,Alert,Platform, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { Modal,TextInput,Alert,Platform, View, Text, TouchableOpacity, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FirebaseEvent, TeamRegistrationData } from '@/types/models';
 import { showAlert } from '..';
@@ -118,31 +118,36 @@ const TeamSubmissionModal: React.FC<TeamSubmissionModalProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View className="flex-1 justify-end bg-black/50">
-        <View className="bg-white rounded-t-3xl p-6 max-h-[80%]">
-          <View className="flex-row justify-between items-center mb-4">
-            <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-2xl">
-              Complete Team Submission
-            </Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={28} color="#0C3572" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
-            <Text className="text-[#2175C0] mb-4 text-base">
+      <KeyboardAvoidingView
+        behavior="padding"
+        keyboardVerticalOffset={0}
+      >
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="bg-white rounded-t-3xl p-6 max-h-[80%]">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-2xl">
+                Complete Team Submission
+              </Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close" size={28} color="#0C3572" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} className="mb-4">
+              <Text className="text-[#2175C0] mb-4 text-base">
                 Please fill out the following details for your team to complete the submission.
-            </Text>
-            <CustomFieldsForm
-              fields={event.customFields || []}
-              isLoading={isLoading}
-              submitButtonText="Submit Team for Review"
-              onSubmit={handleFinalSubmit}
-            >
-                {renderReferralSection()}
-            </CustomFieldsForm>
-          </ScrollView>
+              </Text>
+              <CustomFieldsForm
+                fields={event.customFields || []}
+                isLoading={isLoading}
+                submitButtonText="Submit Team for Review"
+                onSubmit={handleFinalSubmit}
+              >
+                  {renderReferralSection()}
+              </CustomFieldsForm>
+            </ScrollView>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

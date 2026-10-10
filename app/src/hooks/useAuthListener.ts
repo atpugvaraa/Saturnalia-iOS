@@ -4,6 +4,8 @@ import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
 import { useUserStore } from "@/state/userStore";
 import { initializeGoogleSignIn, syncBackendSession } from "@/api/auth";
 
+let isSyncing = false;
+
 export const useAuthListener = () => {
   const { setAuthUser, setUserData, setAuthReady, setLoadingInitialData, clearUserState } = useUserStore();
 
@@ -27,10 +29,15 @@ export const useAuthListener = () => {
           // Check if we already have the user data in our local Zustand cache
           const existingUserData = useUserStore.getState().userData;
           
-          if (!existingUserData) {
+          if (!existingUserData && !isSyncing) {
+            isSyncing = true;
             // Only hit the backend to sync session if we don't have the profile cached
-            const session = await syncBackendSession(user);
-            setUserData(session.user);
+            try {
+              const session = await syncBackendSession(user);
+              setUserData(session.user);
+            } finally {
+              isSyncing = false;
+            }
           }
         } catch (error) {
           console.error("Failed to restore backend session:", error);

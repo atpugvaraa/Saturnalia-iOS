@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getMyEvents } from '@/api/events';
 import { useUserStore } from '@/state/userStore';
 
@@ -6,36 +6,16 @@ export const useMyEvents = () => {
   const isAuthReady = useUserStore((s) => s.isAuthReady);
   const authUser = useUserStore((s) => s.authUser);
 
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchEvents = useCallback(async () => {
-    if (!isAuthReady || !authUser) {
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    try {
-      const events = await getMyEvents();
-      setData(events);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load events');
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthReady, authUser]);
-
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+  const query = useQuery({
+    queryKey: ['events', 'mine', authUser?.uid],
+    queryFn: () => getMyEvents(),
+    enabled: isAuthReady && !!authUser,
+  });
 
   return {
-    data,
-    loading,
-    error,
-    refresh: fetchEvents,
+    data: query.data || [],
+    loading: query.isLoading,
+    error: query.error ? query.error.message : null,
+    refresh: query.refetch,
   };
 };

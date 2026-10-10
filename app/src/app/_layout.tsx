@@ -72,50 +72,9 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, error]);
 
-  // Hardware back: pop stack screens, then go to Home tab, then confirm exit.
-  // Do not use canGoBack() first — after login the tabs screen often has auth
-  // in history, and back would leave the app on the login screen.
-  useEffect(() => {
-    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      const segs = segments as string[];
-      const root = segs[0];
-      const tab = segs[1];
-      const onTabs = !root || root === '(tabs)';
-      const onAuth = root === '(auth)';
-      const onHomeTab = onTabs && (!tab || tab === 'index');
-      const onStack = !!root && root !== '(tabs)' && root !== '(auth)' && root !== 'index';
 
-      if (onStack) {
-        if (router.canGoBack()) {
-          router.back();
-          return true;
-        }
-        router.replace('/(tabs)');
-        return true;
-      }
 
-      if (onTabs && !onHomeTab) {
-        router.replace('/(tabs)');
-        return true;
-      }
 
-      if (onHomeTab || onAuth) {
-        const now = Date.now();
-        if (now - lastExitPress.current < 2000) {
-          BackHandler.exitApp();
-          return true;
-        }
-        lastExitPress.current = now;
-        if (Platform.OS === 'android') {
-          ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
-        }
-        return true;
-      }
-
-      return true;
-    });
-    return () => handler.remove();
-  }, [router, segments]);
 
   if (!fontsLoaded && !error) {
     return <SplashScreen />;

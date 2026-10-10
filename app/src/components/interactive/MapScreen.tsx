@@ -428,7 +428,7 @@ export default function MapScreen() {
         });
         
         const coords = data.routes[0].geometry.coordinates;
-        setFullRouteCoordinates(coords.reverse());
+        setFullRouteCoordinates(coords);
         setCurrentRouteIndex(0); // Reset index for new route
         
         const bounds = coords.reduce((acc: any, coord: any) => {

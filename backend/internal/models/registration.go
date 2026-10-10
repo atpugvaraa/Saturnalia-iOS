@@ -10,6 +10,10 @@ const (
 	RegStatusConfirmed = "confirmed"
 	RegStatusPending   = "pending"
 
+	// Payment statuses on a registration document.
+	RegPaymentPending = "pending"
+	RegPaymentSuccess = "success"
+
 	CheckinPending = "pending"
 	CheckinDone    = "checked-in"
 )
@@ -58,6 +62,10 @@ func NewRegistration(userID, eventID, teamID, inviteCode string, fee int, respon
 	if responses == nil {
 		responses = []Response{}
 	}
+	paymentStatus := ""
+	if fee > 0 {
+		paymentStatus = RegPaymentPending
+	}
 	return &Registration{
 		UserID:         userID,
 		EventID:        eventID,
@@ -65,6 +73,7 @@ func NewRegistration(userID, eventID, teamID, inviteCode string, fee int, respon
 		TeamInviteCode: inviteCode,
 		Status:         RegStatusConfirmed,
 		CheckingStatus: CheckinPending,
+		PaymentStatus:  paymentStatus,
 		Responses:      responses,
 		RegisteredAt:   isotime.Now(),
 		PaymentDetails: map[string]any{"amount": fee},

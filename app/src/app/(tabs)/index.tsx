@@ -1,6 +1,6 @@
 // src/screens/App/Home/HomeScreen.tsx
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Text, ScrollView, View, Image,Linking, TouchableOpacity, TextInput, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { Text, ScrollView, View, Image,Linking, TouchableOpacity, TextInput, FlatList, ActivityIndicator, RefreshControl, BackHandler, ToastAndroid } from 'react-native';
 import { Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUserStore } from '@/state/userStore';
@@ -17,13 +17,32 @@ import StoryUploadButton from '@/components/story/StoryUploadButton';
 import { Corousal } from '@/types/models';
 import Header from '@/components/layout/Header';
 import { HomeScreenSkeleton } from '@/components/skeletons/HomeScreenSkeleton';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { API_BASE_URL } from '@/config/api';
 
 
 export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x: boolean) => void }) {
   const router = useRouter();
+  const lastExitPress = useRef(0);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        const now = Date.now();
+        if (now - lastExitPress.current < 2000) {
+          BackHandler.exitApp();
+        } else {
+          lastExitPress.current = now;
+          ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+        }
+        return true;
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => backHandler.remove();
+    }, [])
+  );
   const [showStoryViewer, setShowStoryViewer] = useState(false);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(0);
   const [showChatBot, setShowChatBot] = useState(false);
@@ -366,7 +385,7 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
               keyExtractor={(item) => item.eventId}
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 24 }}
+              contentContainerStyle={{ paddingRight: 24, paddingBottom: 20 }}
             />
           </View>
           <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-2xl my-2">Event Map</Text>
