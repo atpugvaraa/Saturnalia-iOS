@@ -14,7 +14,11 @@ const (
 	PaymentStatusFailure = "failure"
 
 	// PaymentType values
-	PaymentTypeEvent = "event"
+	PaymentTypeEvent                       = "event"
+	PaymentTypeAccommodation               = "accommodation"
+	PaymentTypeAccommodationAndFood        = "accommodation_and_food"
+	PaymentTypeEventAndAccommodation       = "event_and_accommodation" 
+	PaymentTypeEventAndAccommodationAndFood = "event_and_accommodation_and_food"
 
 	// EventPaymentType (per-individual or per-team)
 	EventPaymentTypeIndividual = "individual"
@@ -33,7 +37,14 @@ type EventRegistrationIntention struct {
 // ProcessedIntentions holds what the payment covers.
 type ProcessedIntentions struct {
 	EventRegistration *EventRegistrationIntention `json:"eventRegistration" firestore:"eventRegistration"`
-	Accommodation     interface{}                 `json:"accommodation"     firestore:"accommodation"`
+	Accommodation     map[string]any              `json:"accommodation"     firestore:"accommodation"`
+	Food              map[string]any              `json:"food"              firestore:"food"`
+}
+
+type CouponDetails struct {
+	Code          string  `json:"code"          firestore:"code"`
+	DiscountType  string  `json:"discountType"  firestore:"discountType"`
+	DiscountValue float64 `json:"discountValue" firestore:"discountValue"`
 }
 
 // Payment is a document in the "payments" Firestore collection.
@@ -47,11 +58,15 @@ type Payment struct {
 	EventID         string `json:"eventId"         firestore:"eventId"`
 	TeamID          string `json:"teamId"          firestore:"teamId"`
 
-	PaymentType string `json:"paymentType" firestore:"paymentType"` // "event"
+	PaymentType string `json:"paymentType" firestore:"paymentType"`
 
 	OriginalAmount  int `json:"originalAmount"  firestore:"originalAmount"`
+	DiscountAmount  int `json:"discountAmount"  firestore:"discountAmount"`
 	TransactionFees int `json:"transactionFees" firestore:"transactionFees"`
 	FinalAmount     int `json:"finalAmount"     firestore:"finalAmount"`
+
+	CouponCode    string         `json:"couponCode,omitempty"    firestore:"couponCode"`
+	CouponDetails *CouponDetails `json:"couponDetails,omitempty" firestore:"couponDetails"`
 
 	ProcessedIntentions ProcessedIntentions `json:"processedIntentions" firestore:"processedIntentions"`
 
@@ -74,26 +89,25 @@ func NewPaymentID(rand string) string {
 // NewPayment constructs a Payment ready to be stored.
 func NewPayment(
 	merchantOrderID, userID, eventID, teamID string,
-	originalAmount int,
-	intention EventRegistrationIntention,
+	paymentType string,
+	originalAmount, discountAmount int,
+	couponCode string, couponDetails *CouponDetails,
+	intentions ProcessedIntentions,
 ) *Payment {
-	// Easebuzz charges ~1.5% + GST. We store what actually gets charged.
-	// The finalAmount and transactionFees will be updated from the webhook;
-	// until then, set finalAmount == originalAmount and fees == 0.
 	return &Payment{
-		MerchantOrderID: merchantOrderID,
-		UserID:          userID,
-		EventID:         eventID,
-		TeamID:          teamID,
-		PaymentType:     PaymentTypeEvent,
-		OriginalAmount:  originalAmount,
-		TransactionFees: 0,
-		FinalAmount:     originalAmount,
-		ProcessedIntentions: ProcessedIntentions{
-			EventRegistration: &intention,
-			Accommodation:     nil,
-		},
-		Status:    PaymentStatusPending,
-		CreatedAt: isotime.Now(),
+		MerchantOrderID:     merchantOrderID,
+		UserID:              userID,
+		EventID:             eventID,
+		TeamID:              teamID,
+		PaymentType:         paymentType,
+		OriginalAmount:      originalAmount,
+		DiscountAmount:      discountAmount,
+		TransactionFees:     0,
+		FinalAmount:         originalAmount - discountAmount,
+		CouponCode:          couponCode,
+		CouponDetails:       couponDetails,
+		ProcessedIntentions: intentions,
+		Status:              PaymentStatusPending,
+		CreatedAt:           isotime.Now(),
 	}
 }

@@ -63,9 +63,18 @@ func verifyEasebuzzHash(received, salt, status, txnid, amount, productinfo, firs
 // ─────────────────────────────────────────────────────────────────────────────
 
 type initiatePaymentBody struct {
-	EventID string `json:"eventId"`
-	TeamID  string `json:"teamId"` // empty for individual events
+	EventID       string          `json:"eventId"` // empty for pure accommodation
+	TeamID        string          `json:"teamId"`  // empty for individual events
+	PaymentType   string          `json:"paymentType"`
+	CouponCode    string          `json:"couponCode"`
+	Accommodation map[string]bool `json:"accommodation"` // e.g. "day1": true
+	Food          map[string]bool `json:"food"`
 }
+
+const (
+	AccommodationPricePerDay = 300 // example cost
+	FoodPricePerDay          = 200 // example cost
+)
 
 // InitiatePayment creates a Payment document in Firestore and returns the
 // Easebuzz checkout URL that the mobile app should open in a WebView.
@@ -77,114 +86,176 @@ func (a *API) InitiatePayment(c *gin.Context) {
 	if !bind(c, &body) {
 		return
 	}
-	if body.EventID == "" {
-		apierr.Respond(c, apierr.BadRequest("missing_event_id", "eventId is required"))
-		return
-	}
-
-	event, ok := a.loadVisibleEvent(c, body.EventID)
-	if !ok {
-		return
-	}
-
-	if !event.PaymentRequired {
-		apierr.Respond(c, apierr.BadRequest("no_payment_required", "this event does not require payment"))
-		return
-	}
-
-	// For team events the caller must be the team leader.
+	var event *models.Event
 	var teamID, teamName string
 	eventPaymentType := models.EventPaymentTypeIndividual
 
-	if event.EventType == models.EventTypeTeam {
-		eventPaymentType = models.EventPaymentTypeTeam
-		if body.TeamID == "" {
-			apierr.Respond(c, apierr.BadRequest("missing_team_id", "teamId is required for team events"))
+	if body.EventID != "" {
+		var ok bool
+		event, ok = a.loadVisibleEvent(c, body.EventID)
+		if !ok {
 			return
 		}
-		team, err := a.Store.GetTeam(ctx, body.TeamID)
-		if err != nil {
-			apierr.Respond(c, apierr.NotFound("team_not_found", "team not found"))
+
+		if !event.PaymentRequired {
+			apierr.Respond(c, apierr.BadRequest("no_payment_required", "this event does not require payment"))
 			return
 		}
-		if !team.IsLeader(user.UserID) {
-			apierr.Respond(c, apierr.Forbidden("leader_only", "only the team leader can initiate payment"))
-			return
-		}
-		teamID = team.TeamID
-		teamName = team.TeamName
-	}
 
-	// Verify that a registration exists and is in payment_pending state
-	regID := models.RegistrationID(event.EventID, user.UserID)
-	reg, err := a.Store.GetRegistration(ctx, regID)
-	if err != nil {
-		apierr.Respond(c, apierr.NotFound("not_registered", "you are not registered for this event"))
-		return
-	}
-	if reg.PaymentStatus == models.PaymentStatusSuccess {
-		apierr.Respond(c, apierr.Conflict("already_paid", "payment has already been completed"))
-		return
-	}
-
-	// Compute the fee.
-	fee := event.FeeFor(user.IsHostCollegeStudent)
-
-	if event.EventType == models.EventTypeTeam && event.PaymentType == "per_individual" {
-		// Calculate accumulated fee for all current team members
-		teamRegs, err := a.Store.ListRegistrationsByTeam(ctx, teamID)
-		if err == nil && len(teamRegs) > 0 {
-			totalFee := 0
-			for _, tr := range teamRegs {
-				if amt, ok := tr.PaymentDetails["amount"].(float64); ok {
-					totalFee += int(amt)
-				} else if amt, ok := tr.PaymentDetails["amount"].(int); ok {
-					totalFee += amt
-				} else if amt, ok := tr.PaymentDetails["amount"].(int64); ok {
-					totalFee += int(amt)
-				}
+		if event.EventType == models.EventTypeTeam {
+			eventPaymentType = models.EventPaymentTypeTeam
+			if body.TeamID == "" {
+				apierr.Respond(c, apierr.BadRequest("missing_team_id", "teamId is required for team events"))
+				return
 			}
-			fee = totalFee
+			team, err := a.Store.GetTeam(ctx, body.TeamID)
+			if err != nil {
+				apierr.Respond(c, apierr.NotFound("team_not_found", "team not found"))
+				return
+			}
+			if !team.IsLeader(user.UserID) {
+				apierr.Respond(c, apierr.Forbidden("leader_only", "only the team leader can initiate payment"))
+				return
+			}
+			teamID = team.TeamID
+			teamName = team.TeamName
+		}
+
+		// Verify that a registration exists and is in payment_pending state
+		regID := models.RegistrationID(event.EventID, user.UserID)
+		reg, err := a.Store.GetRegistration(ctx, regID)
+		if err != nil {
+			apierr.Respond(c, apierr.NotFound("not_registered", "you are not registered for this event"))
+			return
+		}
+		if reg.PaymentStatus == models.PaymentStatusSuccess {
+			apierr.Respond(c, apierr.Conflict("already_paid", "payment has already been completed"))
+			return
+		}
+	}
+
+	// Compute the base fee for the event (if any).
+	fee := 0
+	if event != nil && event.PaymentRequired {
+		fee = event.FeeFor(user.IsHostCollegeStudent)
+		if event.EventType == models.EventTypeTeam && event.PaymentType == "per_individual" {
+			// Calculate accumulated fee for all current team members
+			teamRegs, err := a.Store.ListRegistrationsByTeam(ctx, teamID)
+			if err == nil && len(teamRegs) > 0 {
+				totalFee := 0
+				for _, tr := range teamRegs {
+					if amt, ok := tr.PaymentDetails["amount"].(float64); ok {
+						totalFee += int(amt)
+					} else if amt, ok := tr.PaymentDetails["amount"].(int); ok {
+						totalFee += amt
+					} else if amt, ok := tr.PaymentDetails["amount"].(int64); ok {
+						totalFee += int(amt)
+					}
+				}
+				fee = totalFee
+			}
+		}
+	}
+
+	// Add accommodation fees
+	accommodationMap := make(map[string]any)
+	for day, selected := range body.Accommodation {
+		if selected {
+			fee += AccommodationPricePerDay
+		}
+		accommodationMap[day] = selected
+	}
+
+	// Add food fees
+	foodMap := make(map[string]any)
+	for day, selected := range body.Food {
+		if selected {
+			fee += FoodPricePerDay
+		}
+		foodMap[day] = selected
+	}
+
+	if fee <= 0 {
+		apierr.Respond(c, apierr.BadRequest("no_fee", "total fee is zero"))
+		return
+	}
+
+	originalAmount := fee
+	discountAmount := 0
+	var couponDetails *models.CouponDetails
+
+	if body.CouponCode != "" {
+		coupon, err := a.Store.GetCoupon(ctx, body.CouponCode)
+		if err == nil && coupon.IsActive {
+			// Calculate discount
+			discount := 0.0
+			if coupon.DiscountType == "flat" {
+				discount = coupon.DiscountValue
+			} else if coupon.DiscountType == "percentage" {
+				discount = float64(originalAmount) * (coupon.DiscountValue / 100.0)
+			}
+			discountAmount = int(discount)
+			if discountAmount > originalAmount {
+				discountAmount = originalAmount
+			}
+			fee = originalAmount - discountAmount
+
+			couponDetails = &models.CouponDetails{
+				Code:          coupon.Code,
+				DiscountType:  coupon.DiscountType,
+				DiscountValue: coupon.DiscountValue,
+			}
 		}
 	}
 
 	if fee <= 0 {
-		apierr.Respond(c, apierr.BadRequest("no_fee", "fee is zero for this event"))
-		return
-	}
-
-	// Check if there's already a pending payment — reuse it if so.
-	existing, _ := a.Store.GetPaymentsByEventAndUser(ctx, event.EventID, user.UserID)
-	for _, p := range existing {
-		if p.Status == models.PaymentStatusPending {
-			link, linkErr := a.getEasebuzzLink(ctx, p.MerchantOrderID, fee, event, user)
-			if linkErr == nil {
-				c.JSON(http.StatusOK, gin.H{"paymentUrl": link, "merchantOrderId": p.MerchantOrderID})
-				return
-			}
-			// If re-fetching the link fails, just create a new one below.
-			break
-		}
+		fee = 1 // Easebuzz might require minimum 1 INR, or we bypass.
+		// If fee becomes 0 due to 100% coupon, we might want to just mark it success directly.
+		// For now, let's keep it as is.
 	}
 
 	// Generate a new merchantOrderId and create the payment document.
 	merchantOrderID := models.NewPaymentID(random.Code(3))
 
-	intention := models.EventRegistrationIntention{
-		EventID:   event.EventID,
-		EventType: eventPaymentType,
-		TeamID:    teamID,
-		TeamName:  teamName,
-		Amount:    fee,
+	var evtIntention *models.EventRegistrationIntention
+	if event != nil {
+		evtIntention = &models.EventRegistrationIntention{
+			EventID:   event.EventID,
+			EventType: eventPaymentType,
+			TeamID:    teamID,
+			TeamName:  teamName,
+			Amount:    event.FeeFor(user.IsHostCollegeStudent),
+		}
 	}
 
-	payment := models.NewPayment(merchantOrderID, user.UserID, event.EventID, teamID, fee, intention)
+	intentions := models.ProcessedIntentions{
+		EventRegistration: evtIntention,
+		Accommodation:     accommodationMap,
+		Food:              foodMap,
+	}
+
+	paymentType := body.PaymentType
+	if paymentType == "" {
+		paymentType = models.PaymentTypeEvent
+	}
+
+	payment := models.NewPayment(
+		merchantOrderID, user.UserID, body.EventID, teamID,
+		paymentType, originalAmount, discountAmount,
+		body.CouponCode, couponDetails, intentions,
+	)
+	
 	if err := a.Store.CreatePayment(ctx, payment); err != nil {
 		apierr.Respond(c, apierr.Internal("could not create payment record"))
 		return
 	}
 
-	link, err := a.getEasebuzzLink(ctx, merchantOrderID, fee, event, user)
+	productInfo := "Payment"
+	if event != nil {
+		productInfo = event.Title
+	}
+
+	link, err := a.getEasebuzzLink(ctx, merchantOrderID, fee, productInfo, user)
 	if err != nil {
 		apierr.Respond(c, apierr.Internal("could not initiate payment with gateway"))
 		return
@@ -198,7 +269,7 @@ func (a *API) getEasebuzzLink(
 	_ context.Context,
 	merchantOrderID string,
 	amount int,
-	event *models.Event,
+	productInfo string,
 	user *models.User,
 ) (string, error) {
 	if a.Cfg.EasebuzzKey == "" || a.Cfg.EasebuzzSalt == "" {
@@ -211,7 +282,7 @@ func (a *API) getEasebuzzLink(
 	}
 
 	amountStr := fmt.Sprintf("%.2f", float64(amount))
-	productinfo := event.Title
+	productinfo := productInfo
 	firstname := user.DisplayName
 	if firstname == "" {
 		firstname = "Participant"
@@ -383,20 +454,70 @@ func (a *API) PaymentCallback(c *gin.Context) {
 // confirmRegistrationPayment marks the registration(s) as paid.
 func (a *API) confirmRegistrationPayment(ctx context.Context, payment *models.Payment, paidAt string) {
 	intention := payment.ProcessedIntentions.EventRegistration
-	if intention == nil {
-		return
+	if intention != nil {
+		if intention.EventType == models.EventPaymentTypeTeam && payment.TeamID != "" {
+			// Update all team members' registrations.
+			if err := a.Store.UpdateRegistrationsByTeam(ctx, payment.EventID, payment.TeamID, models.PaymentStatusSuccess, paidAt); err != nil {
+				log.Printf("[payment] could not update team registrations for %s: %v", payment.TeamID, err)
+			}
+		} else {
+			// Individual registration.
+			regID := models.RegistrationID(payment.EventID, payment.UserID)
+			if err := a.Store.UpdateRegistrationPaymentStatus(ctx, regID, models.PaymentStatusSuccess, paidAt); err != nil {
+				log.Printf("[payment] could not update registration %s: %v", regID, err)
+			}
+		}
 	}
 
-	if intention.EventType == models.EventPaymentTypeTeam && payment.TeamID != "" {
-		// Update all team members' registrations.
-		if err := a.Store.UpdateRegistrationsByTeam(ctx, payment.EventID, payment.TeamID, models.PaymentStatusSuccess, paidAt); err != nil {
-			log.Printf("[payment] could not update team registrations for %s: %v", payment.TeamID, err)
+	// 2. Handle Accommodation and Food updates for the user.
+	if len(payment.ProcessedIntentions.Accommodation) > 0 || len(payment.ProcessedIntentions.Food) > 0 {
+		user, err := a.Store.GetUser(ctx, payment.UserID)
+		if err == nil {
+			// Merge accommodation
+			if user.Accommodation == nil {
+				user.Accommodation = make(map[string]bool)
+			}
+			for day, val := range payment.ProcessedIntentions.Accommodation {
+				if b, ok := val.(bool); ok && b {
+					user.Accommodation[day] = true
+					user.AccommodationNeeded = true
+				}
+			}
+
+			// Merge food
+			if user.Food == nil {
+				user.Food = make(map[string]bool)
+			}
+			for day, val := range payment.ProcessedIntentions.Food {
+				if b, ok := val.(bool); ok && b {
+					user.Food[day] = true
+				}
+			}
+
+			// Add transaction ID
+			if user.AccommodationTransactionIds == nil {
+				user.AccommodationTransactionIds = []string{}
+			}
+			user.AccommodationTransactionIds = append(user.AccommodationTransactionIds, payment.MerchantOrderID)
+
+			if err := a.Store.UpdateUserAccommodation(ctx, user.UserID, user.AccommodationNeeded, user.Accommodation, user.Food, user.AccommodationTransactionIds); err != nil {
+				log.Printf("[payment] could not update user accommodation %s: %v", user.UserID, err)
+			}
 		}
-	} else {
-		// Individual registration.
-		regID := models.RegistrationID(payment.EventID, payment.UserID)
-		if err := a.Store.UpdateRegistrationPaymentStatus(ctx, regID, models.PaymentStatusSuccess, paidAt); err != nil {
-			log.Printf("[payment] could not update registration %s: %v", regID, err)
+	}
+
+	// 3. Record coupon usage if present.
+	if payment.CouponCode != "" {
+		usage := &models.CouponUsage{
+			Amount:         payment.OriginalAmount,
+			CouponCode:     payment.CouponCode,
+			DiscountAmount: payment.DiscountAmount,
+			EventID:        payment.EventID,
+			UsedAt:         paidAt,
+			UserID:         payment.UserID,
+		}
+		if err := a.Store.CreateCouponUsage(ctx, usage); err != nil {
+			log.Printf("[payment] could not create coupon usage: %v", err)
 		}
 	}
 

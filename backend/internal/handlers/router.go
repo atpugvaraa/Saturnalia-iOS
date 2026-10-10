@@ -92,6 +92,9 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	authed.POST("/me/fcm-token", api.UpdateFCMToken)
 	admin.POST("/admin/notifications", api.SendNotification)
 
+	// Coupons
+	authed.POST("/coupons/validate", api.ValidateCoupon)
+
 	// Payments: initiate creates a Easebuzz checkout link; callback receives
 	// the Easebuzz redirect/webhook; status lets the app poll outcome.
 	authed.POST("/payments/initiate", api.InitiatePayment)

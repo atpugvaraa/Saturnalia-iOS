@@ -331,14 +331,14 @@ const ProfileScreen = () => {
               iconColor="#0C3572"
             />
 
-            {/* {!isHostCollegeStudent && (
+            {!isHostCollegeStudent && (
               <MenuItem
                 icon="home"
-                title="Accommodation"
+                title="Accommodation & Food"
                 onPress={() => router.push("/profile/Accommodation")}
                 iconColor="#0C3572"
               />
-            )} */}
+            )}
 
             <MenuItem
               icon="calendar"

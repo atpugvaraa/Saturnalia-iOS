@@ -21,8 +21,11 @@ export interface Payment {
       teamName: string;
       amount: number;
     } | null;
-    accommodation: null;
+    accommodation: any | null;
+    food: any | null;
   };
+  couponCode?: string;
+  discountAmount?: number;
 }
 
 export interface InitiatePaymentResponse {
@@ -34,12 +37,22 @@ export interface InitiatePaymentResponse {
  * Initiate a payment for an event. Returns the Easebuzz checkout URL
  * that should be opened in a WebView.
  */
-export async function initiateEventPayment(
-  eventId: string,
-  teamId?: string
-): Promise<InitiatePaymentResponse> {
-  const body: Record<string, string> = { eventId };
-  if (teamId) body.teamId = teamId;
+export interface PaymentOptions {
+  eventId: string;
+  teamId?: string;
+  paymentType?: string;
+  couponCode?: string;
+  accommodation?: Record<string, boolean>;
+  food?: Record<string, boolean>;
+}
+
+export async function initiateEventPayment(options: PaymentOptions): Promise<InitiatePaymentResponse> {
+  const body: Record<string, any> = { eventId: options.eventId };
+  if (options.teamId) body.teamId = options.teamId;
+  if (options.paymentType) body.paymentType = options.paymentType;
+  if (options.couponCode) body.couponCode = options.couponCode;
+  if (options.accommodation) body.accommodation = options.accommodation;
+  if (options.food) body.food = options.food;
 
   const response = await apiFetch(
     "/payments/initiate",
@@ -48,6 +61,33 @@ export async function initiateEventPayment(
   );
   if (!response.ok) {
     throw new Error(await readError(response, "Failed to initiate payment"));
+  }
+  return response.json();
+}
+
+export interface CouponResponse {
+  code: string;
+  description: string;
+  discountType: "percentage" | "flat";
+  discountValue: number;
+  minCartValue: number;
+}
+
+/**
+ * Validates a coupon code.
+ */
+export async function validateCoupon(
+  couponCode: string,
+  eventId: string
+): Promise<CouponResponse> {
+  const body = { couponCode, eventId };
+  const response = await apiFetch(
+    "/coupons/validate",
+    { method: "POST", body: JSON.stringify(body) },
+    "required"
+  );
+  if (!response.ok) {
+    throw new Error(await readError(response, "Invalid coupon"));
   }
   return response.json();
 }

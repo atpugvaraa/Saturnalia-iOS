@@ -9,9 +9,10 @@ import {
   Linking,
 } from "react-native";
 import { showAlert } from "@/components";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useUserStore } from "@/state/userStore";
+import { useCallback } from "react";
 import { FirebaseEvent } from "@/types/models";
 import Button from "@/components/ui/Button";
 import Header from "@/components/layout/Header";
@@ -33,10 +34,16 @@ const MyEventDetailsScreen: React.FC = () => {
   const { userData: userProfile } = useUserStore();
   const userId = userProfile?.userId || "";
 
-  const { data: detailData, loading } = useEventDetail(eventId);
+  const { data: detailData, loading, refresh } = useEventDetail(eventId);
   const eventData = detailData?.event || null;
   const registration = detailData?.myRegistration || null;
   const teamData = detailData?.myTeam || null;
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   const [submittingTeam, setSubmittingTeam] = useState(false);
   const [isSubmissionModalVisible, setIsSubmissionModalVisible] =

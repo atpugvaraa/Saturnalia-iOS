@@ -114,3 +114,16 @@ func (s *Store) DeleteUser(ctx context.Context, uid string) error {
 	}
 	return nil
 }
+
+// UpdateUserAccommodation saves the updated accommodation choices for a user.
+func (s *Store) UpdateUserAccommodation(ctx context.Context, userID string, needed bool, acc map[string]bool, food map[string]bool, txIDs []string) error {
+	updates := []firestore.Update{
+		{Path: "accommodationNeeded", Value: needed},
+		{Path: "accommodation", Value: acc},
+		{Path: "food", Value: food},
+		{Path: "accommodationTransactionIds", Value: txIDs},
+		{Path: "updatedAt", Value: isotime.Now()},
+	}
+	_, err := s.FS.Collection(ColUsers).Doc(userID).Update(ctx, updates)
+	return wrap(err)
+}

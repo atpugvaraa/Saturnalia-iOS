@@ -30,13 +30,16 @@ type User struct {
 	FullyRegistered     bool     `json:"fullyRegistered"     firestore:"fullyRegistered"`
 	IsVerified          bool     `json:"isVerified"          firestore:"isVerified"`
 	IsAmbassador        bool     `json:"isAmbassador"        firestore:"isAmbassador"`
-	AccommodationNeeded bool     `json:"accommodationNeeded" firestore:"accommodationNeeded"`
-	ReferralCode        string   `json:"referralCode"        firestore:"referralCode"`
-	ReferredBy          string   `json:"referredBy"          firestore:"referredBy"`
-	Coins               int      `json:"coins"               firestore:"coins"`
-	CreatedAt           string   `json:"createdAt"           firestore:"createdAt"`
-	UpdatedAt           string   `json:"updatedAt"           firestore:"updatedAt"`
-	FCMToken            string   `json:"fcmToken"            firestore:"fcmToken"`
+	AccommodationNeeded         bool            `json:"accommodationNeeded"         firestore:"accommodationNeeded"`
+	Accommodation               map[string]bool `json:"accommodation"               firestore:"accommodation"`
+	Food                        map[string]bool `json:"food"                        firestore:"food"`
+	AccommodationTransactionIds []string        `json:"accommodationTransactionIds" firestore:"accommodationTransactionIds"`
+	ReferralCode                string          `json:"referralCode"                firestore:"referralCode"`
+	ReferredBy                  string          `json:"referredBy"                  firestore:"referredBy"`
+	Coins                       int             `json:"coins"                       firestore:"coins"`
+	CreatedAt                   string          `json:"createdAt"                   firestore:"createdAt"`
+	UpdatedAt                   string          `json:"updatedAt"                   firestore:"updatedAt"`
+	FCMToken                    string          `json:"fcmToken"                    firestore:"fcmToken"`
 
 	// IsHostCollegeStudent is derived from the verified email domain on every
 	// load, never stored. A stored copy could disagree with the token that is
