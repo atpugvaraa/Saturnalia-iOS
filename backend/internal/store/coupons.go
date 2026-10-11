@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"fmt"
 
 	"backend/internal/models"
 )
@@ -43,15 +42,4 @@ func (s *Store) GetUserCouponUsageCount(ctx context.Context, code, userID string
 		return 0, wrap(err)
 	}
 	return len(docs), nil
-}
-
-// CreateCouponUsage records the usage of a coupon.
-func (s *Store) CreateCouponUsage(ctx context.Context, usage *models.CouponUsage) error {
-	ref := s.FS.Collection(ColCouponUsage).NewDoc()
-	usage.ID = ref.ID
-	_, err := ref.Create(ctx, usage)
-	if err != nil {
-		return fmt.Errorf("could not record coupon usage: %w", err)
-	}
-	return nil
 }

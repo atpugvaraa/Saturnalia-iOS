@@ -26,16 +26,18 @@ func TeamRef(eventID, inviteCode string) string {
 // stale the moment an admin renames the event.
 type Team struct {
 	// TeamID is the document ID, which is TeamRef(EventID, InviteCode).
-	TeamID       string     `json:"teamId" firestore:"-"`
-	EventID      string     `json:"eventId"              firestore:"eventId"`
-	TeamName     string     `json:"teamName"             firestore:"teamName"`
-	LeaderUserID string     `json:"leaderUserId"         firestore:"leaderUserId"`
-	InviteCode   string     `json:"inviteCode,omitempty" firestore:"inviteCode"`
-	Status       string     `json:"status"               firestore:"status"`
-	MemberIDs    []string   `json:"memberIds"            firestore:"memberIds"`
-	Responses    []Response `json:"responses"            firestore:"responses"`
-	CreatedAt    string     `json:"createdAt"            firestore:"createdAt"`
-	UpdatedAt    string     `json:"updatedAt"            firestore:"updatedAt"`
+	TeamID       string   `json:"teamId" firestore:"-"`
+	EventID      string   `json:"eventId"              firestore:"eventId"`
+	TeamName     string   `json:"teamName"             firestore:"teamName"`
+	LeaderUserID string   `json:"leaderUserId"         firestore:"leaderUserId"`
+	InviteCode   string   `json:"inviteCode,omitempty" firestore:"inviteCode"`
+	Status       string   `json:"status"               firestore:"status"`
+	MemberIDs    []string `json:"memberIds"            firestore:"memberIds"`
+	// Paid is set when the leader's payment settles; a paid team takes no new members.
+	Paid      bool       `json:"paid"                 firestore:"paid"`
+	Responses []Response `json:"responses"            firestore:"responses"`
+	CreatedAt string     `json:"createdAt"            firestore:"createdAt"`
+	UpdatedAt string     `json:"updatedAt"            firestore:"updatedAt"`
 
 	// Computed per response, never stored. Members is hydrated from the users
 	// collection when a caller is entitled to see who else is on the team.

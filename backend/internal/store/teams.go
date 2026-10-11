@@ -15,6 +15,7 @@ import (
 // onto HTTP status codes.
 var (
 	ErrTeamFull          = errors.New("team is full")
+	ErrTeamLocked        = errors.New("team payment in progress or complete")
 	ErrAlreadyMember     = errors.New("already a member")
 	ErrNotMember         = errors.New("not a member")
 	ErrNotLeader         = errors.New("not the team leader")
@@ -93,6 +94,15 @@ func (s *Store) JoinTeam(ctx context.Context, teamID, userID, regID string, reg 
 		}
 		if maxSize > 0 && len(team.MemberIDs) >= maxSize {
 			return ErrTeamFull
+		}
+		// The leader's payment covers the roster as it stood at checkout, so the
+		// roster is frozen while a checkout is open and for good once paid.
+		locked, err := hasLiveCheckout(tx, s.FS.Collection(ColCheckouts).Doc(teamID))
+		if err != nil {
+			return err
+		}
+		if team.Paid || locked {
+			return ErrTeamLocked
 		}
 
 		members := append(append([]string{}, team.MemberIDs...), userID)

@@ -3,11 +3,16 @@ package handlers
 import (
 	"context"
 	"crypto/sha512"
+	"crypto/subtle"
+	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,7 +20,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"backend/internal/apierr"
-	"backend/internal/isotime"
 	"backend/internal/middleware"
 	"backend/internal/models"
 	"backend/internal/random"
@@ -38,24 +42,22 @@ func (a *API) easebuzzInitiateURL() string {
 	return a.easebuzzBaseURL() + "/payment/initiateLink"
 }
 
-// generateHash builds the SHA-512 hash Easebuzz expects.
-// Forward hash: key|txnid|amount|productinfo|firstname|email|udf1-10|||||||||salt
+// easebuzzHash builds the SHA-512 request hash Easebuzz expects:
+// key|txnid|amount|productinfo|firstname|email|udf1|...|udf10|salt
+// All ten udf fields are empty here, which leaves eleven pipes between the
+// email and the salt.
 func easebuzzHash(key, txnid, amount, productinfo, firstname, email, salt string) string {
-	// UDF fields 1-10 are all empty for us
-	udfs := strings.Repeat("|", 10) // 10 pipes = udf1 through udf10 all empty
-	plain := key + "|" + txnid + "|" + amount + "|" + productinfo + "|" + firstname + "|" + email + udfs + salt
-	h := sha512.Sum512([]byte(plain))
-	return fmt.Sprintf("%x", h)
+	plain := key + "|" + txnid + "|" + amount + "|" + productinfo + "|" + firstname + "|" + email + strings.Repeat("|", 11) + salt
+	return fmt.Sprintf("%x", sha512.Sum512([]byte(plain)))
 }
 
-// verifyWebhookHash checks the reverse hash Easebuzz sends on webhook/redirect.
-// Reverse hash: salt|status||udf10-1|email|firstname|productinfo|amount|txnid|key
+// verifyEasebuzzHash checks the reverse hash Easebuzz sends on the callback:
+// salt|status|udf10|...|udf1|email|firstname|productinfo|amount|txnid|key
+// With empty udfs that is eleven pipes between the status and the email.
 func verifyEasebuzzHash(received, salt, status, txnid, amount, productinfo, firstname, email, key string) bool {
-	udfs := strings.Repeat("|", 10)
-	plain := salt + "|" + status + udfs + email + "|" + firstname + "|" + productinfo + "|" + amount + "|" + txnid + "|" + key
-	h := sha512.Sum512([]byte(plain))
-	computed := fmt.Sprintf("%x", h)
-	return computed == strings.ToLower(received)
+	plain := salt + "|" + status + strings.Repeat("|", 11) + email + "|" + firstname + "|" + productinfo + "|" + amount + "|" + txnid + "|" + key
+	computed := fmt.Sprintf("%x", sha512.Sum512([]byte(plain)))
+	return subtle.ConstantTimeCompare([]byte(computed), []byte(strings.ToLower(received))) == 1
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -71,13 +73,44 @@ type initiatePaymentBody struct {
 	Food          map[string]bool `json:"food"`
 }
 
+// Per-day prices in rupees. The app shows the same numbers (ACCOMMODATION_PRICE
+// and FOOD_PRICE in Payment.tsx), so change both together.
 const (
-	AccommodationPricePerDay = 300 // example cost
-	FoodPricePerDay          = 200 // example cost
+	AccommodationPricePerDay = 300
+	FoodPricePerDay          = 200
 )
 
+// stayDays are the day keys accommodation and food can be bought for; they match
+// the keys the app and the hostel check-in screen use.
+var stayDays = map[string]bool{"day0": true, "day1": true, "day2": true, "day3": true, "day4": true}
+
+var paymentTypes = map[string]bool{
+	models.PaymentTypeEvent:                        true,
+	models.PaymentTypeAccommodation:                true,
+	models.PaymentTypeAccommodationAndFood:         true,
+	models.PaymentTypeEventAndAccommodation:        true,
+	models.PaymentTypeEventAndAccommodationAndFood: true,
+}
+
+// stayCharge validates the requested days and returns the days actually being
+// bought. Days the user already holds are dropped rather than charged again.
+func stayCharge(requested map[string]bool, owned map[string]bool, unitPrice int) (days map[string]any, fee int, bad string) {
+	days = map[string]any{}
+	for day, selected := range requested {
+		if !stayDays[day] {
+			return nil, 0, day
+		}
+		if selected && !owned[day] {
+			days[day] = true
+			fee += unitPrice
+		}
+	}
+	return days, fee, ""
+}
+
 // InitiatePayment creates a Payment document in Firestore and returns the
-// Easebuzz checkout URL that the mobile app should open in a WebView.
+// Easebuzz checkout URL that the mobile app should open in a WebView. Calling
+// it again with the same cart returns the same payment (see Store.BeginCheckout).
 func (a *API) InitiatePayment(c *gin.Context) {
 	ctx := c.Request.Context()
 	user := middleware.CurrentUser(c)
@@ -86,9 +119,23 @@ func (a *API) InitiatePayment(c *gin.Context) {
 	if !bind(c, &body) {
 		return
 	}
+
+	paymentType := body.PaymentType
+	if paymentType == "" {
+		paymentType = models.PaymentTypeEvent
+		if body.EventID == "" {
+			paymentType = models.PaymentTypeAccommodation
+		}
+	}
+	if !paymentTypes[paymentType] {
+		apierr.Respond(c, apierr.BadRequest("invalid_payment_type", "unknown paymentType"))
+		return
+	}
+
 	var event *models.Event
-	var teamID, teamName string
+	var team *models.Team
 	eventPaymentType := models.EventPaymentTypeIndividual
+	covered := []string{}
 
 	if body.EventID != "" {
 		var ok bool
@@ -108,8 +155,9 @@ func (a *API) InitiatePayment(c *gin.Context) {
 				apierr.Respond(c, apierr.BadRequest("missing_team_id", "teamId is required for team events"))
 				return
 			}
-			team, err := a.Store.GetTeam(ctx, body.TeamID)
-			if err != nil {
+			var err error
+			team, err = a.Store.GetTeam(ctx, body.TeamID)
+			if err != nil || team.EventID != event.EventID {
 				apierr.Respond(c, apierr.NotFound("team_not_found", "team not found"))
 				return
 			}
@@ -117,11 +165,16 @@ func (a *API) InitiatePayment(c *gin.Context) {
 				apierr.Respond(c, apierr.Forbidden("leader_only", "only the team leader can initiate payment"))
 				return
 			}
-			teamID = team.TeamID
-			teamName = team.TeamName
+			if team.Paid {
+				apierr.Respond(c, apierr.Conflict("already_paid", "payment has already been completed"))
+				return
+			}
+			covered = slices.Clone(team.MemberIDs)
+		} else {
+			covered = []string{user.UserID}
 		}
 
-		// Verify that a registration exists and is in payment_pending state
+		// The payer must be registered, and not already paid.
 		regID := models.RegistrationID(event.EventID, user.UserID)
 		reg, err := a.Store.GetRegistration(ctx, regID)
 		if err != nil {
@@ -134,119 +187,138 @@ func (a *API) InitiatePayment(c *gin.Context) {
 		}
 	}
 
-	// Compute the base fee for the event (if any).
-	fee := 0
-	if event != nil && event.PaymentRequired {
-		fee = event.FeeFor(user.IsHostCollegeStudent)
-		if event.EventType == models.EventTypeTeam && event.PaymentType == "per_individual" {
-			// Calculate accumulated fee for all current team members
-			teamRegs, err := a.Store.ListRegistrationsByTeam(ctx, teamID)
-			if err == nil && len(teamRegs) > 0 {
-				totalFee := 0
-				for _, tr := range teamRegs {
-					if amt, ok := tr.PaymentDetails["amount"].(float64); ok {
-						totalFee += int(amt)
-					} else if amt, ok := tr.PaymentDetails["amount"].(int); ok {
-						totalFee += amt
-					} else if amt, ok := tr.PaymentDetails["amount"].(int64); ok {
-						totalFee += int(amt)
-					}
-				}
-				fee = totalFee
+	// Event fee. A per-individual team event is priced per member, each by their
+	// own host status; the roster is frozen for the checkout (JoinTeam is locked).
+	eventFee := 0
+	if event != nil {
+		eventFee = event.FeeFor(user.IsHostCollegeStudent)
+		if team != nil && event.PaymentType == "per_individual" {
+			members, err := a.Store.GetUsers(ctx, team.MemberIDs)
+			if err != nil {
+				apierr.Respond(c, apierr.Internal("could not price the team"))
+				return
+			}
+			if len(members) != len(team.MemberIDs) {
+				apierr.Respond(c, apierr.Internal("a team member's profile is missing; contact the organisers"))
+				return
+			}
+			eventFee = 0
+			for _, m := range members {
+				m.ResolveHostStatus(a.Cfg.HostEmailDomain)
+				eventFee += event.FeeFor(m.IsHostCollegeStudent)
 			}
 		}
 	}
 
-	// Add accommodation fees
-	accommodationMap := make(map[string]any)
-	for day, selected := range body.Accommodation {
-		if selected {
-			fee += AccommodationPricePerDay
-		}
-		accommodationMap[day] = selected
+	accommodationMap, accFee, bad := stayCharge(body.Accommodation, user.Accommodation, AccommodationPricePerDay)
+	if bad != "" {
+		apierr.Respond(c, apierr.BadRequest("invalid_day", "unknown accommodation day: "+bad))
+		return
+	}
+	foodMap, foodFee, bad := stayCharge(body.Food, user.Food, FoodPricePerDay)
+	if bad != "" {
+		apierr.Respond(c, apierr.BadRequest("invalid_day", "unknown food day: "+bad))
+		return
 	}
 
-	// Add food fees
-	foodMap := make(map[string]any)
-	for day, selected := range body.Food {
-		if selected {
-			fee += FoodPricePerDay
-		}
-		foodMap[day] = selected
-	}
+	a.initiate(c, user, event, team, eventPaymentType, paymentType, body.CouponCode,
+		covered, eventFee, accommodationMap, accFee, foodMap, foodFee)
+}
 
-	if fee <= 0 {
+// initiate prices the cart, applies the coupon and opens the checkout.
+func (a *API) initiate(
+	c *gin.Context,
+	user *models.User,
+	event *models.Event,
+	team *models.Team,
+	eventPaymentType, paymentType, couponCode string,
+	covered []string,
+	eventFee int,
+	accommodationMap map[string]any, accFee int,
+	foodMap map[string]any, foodFee int,
+) {
+	ctx := c.Request.Context()
+
+	originalAmount := eventFee + accFee + foodFee
+	if originalAmount <= 0 {
 		apierr.Respond(c, apierr.BadRequest("no_fee", "total fee is zero"))
 		return
 	}
 
-	originalAmount := fee
 	discountAmount := 0
 	var couponDetails *models.CouponDetails
-
-	if body.CouponCode != "" {
-		coupon, err := a.Store.GetCoupon(ctx, body.CouponCode)
-		if err == nil && coupon.IsActive {
-			// Calculate discount
-			discount := 0.0
-			if coupon.DiscountType == "flat" {
-				discount = coupon.DiscountValue
-			} else if coupon.DiscountType == "percentage" {
-				discount = float64(originalAmount) * (coupon.DiscountValue / 100.0)
-			}
-			discountAmount = int(discount)
-			if discountAmount > originalAmount {
-				discountAmount = originalAmount
-			}
-			fee = originalAmount - discountAmount
-
-			couponDetails = &models.CouponDetails{
-				Code:          coupon.Code,
-				DiscountType:  coupon.DiscountType,
-				DiscountValue: coupon.DiscountValue,
-			}
+	if couponCode != "" {
+		coupon, err := a.Store.GetCoupon(ctx, couponCode)
+		if err != nil {
+			apierr.Respond(c, apierr.BadRequest("invalid_coupon", "Coupon not found"))
+			return
 		}
+		if apiErr := a.checkCoupon(ctx, coupon, user, originalAmount); apiErr != nil {
+			apierr.Respond(c, apiErr)
+			return
+		}
+		discount := 0.0
+		switch coupon.DiscountType {
+		case "flat":
+			discount = coupon.DiscountValue
+		case "percentage":
+			discount = float64(originalAmount) * (coupon.DiscountValue / 100.0)
+		}
+		discountAmount = min(int(discount), originalAmount)
+		couponDetails = &models.CouponDetails{
+			Code:          coupon.Code,
+			DiscountType:  coupon.DiscountType,
+			DiscountValue: coupon.DiscountValue,
+		}
+		couponCode = coupon.Code
 	}
-
-	if fee <= 0 {
-		fee = 1 // Easebuzz might require minimum 1 INR, or we bypass.
-		// If fee becomes 0 due to 100% coupon, we might want to just mark it success directly.
-		// For now, let's keep it as is.
-	}
-
-	// Generate a new merchantOrderId and create the payment document.
-	merchantOrderID := models.NewPaymentID(random.Code(3))
 
 	var evtIntention *models.EventRegistrationIntention
+	eventID, teamID, checkoutID := "", "", user.UserID+"_stay"
 	if event != nil {
+		eventID = event.EventID
+		checkoutID = user.UserID + "_" + eventID
 		evtIntention = &models.EventRegistrationIntention{
-			EventID:   event.EventID,
-			EventType: eventPaymentType,
-			TeamID:    teamID,
-			TeamName:  teamName,
-			Amount:    event.FeeFor(user.IsHostCollegeStudent),
+			EventID:        event.EventID,
+			EventType:      eventPaymentType,
+			Amount:         eventFee,
+			CoveredUserIDs: covered,
 		}
-	}
-
-	intentions := models.ProcessedIntentions{
-		EventRegistration: evtIntention,
-		Accommodation:     accommodationMap,
-		Food:              foodMap,
-	}
-
-	paymentType := body.PaymentType
-	if paymentType == "" {
-		paymentType = models.PaymentTypeEvent
+		if team != nil {
+			teamID = team.TeamID
+			checkoutID = team.TeamID
+			evtIntention.TeamID = team.TeamID
+			evtIntention.TeamName = team.TeamName
+		}
 	}
 
 	payment := models.NewPayment(
-		merchantOrderID, user.UserID, body.EventID, teamID,
+		models.NewPaymentID(random.Code(8)), user.UserID, eventID, teamID,
 		paymentType, originalAmount, discountAmount,
-		body.CouponCode, couponDetails, intentions,
+		couponCode, couponDetails,
+		models.ProcessedIntentions{
+			EventRegistration: evtIntention,
+			Accommodation:     accommodationMap,
+			Food:              foodMap,
+		},
 	)
-	
-	if err := a.Store.CreatePayment(ctx, payment); err != nil {
+
+	payment, checkout, err := a.Store.BeginCheckout(ctx, checkoutID, payment)
+	switch {
+	case errors.Is(err, store.ErrCheckoutBusy):
+		apierr.Respond(c, apierr.Conflict("checkout_in_progress", "a payment for this cart is already being created; retry in a moment"))
+		return
+	case errors.Is(err, store.ErrRosterChanged):
+		apierr.Respond(c, apierr.Conflict("team_changed", "the team's members changed while you were paying; review the team and try again"))
+		return
+	case errors.Is(err, store.ErrTeamLocked):
+		apierr.Respond(c, apierr.Conflict("already_paid", "payment has already been completed"))
+		return
+	case err != nil:
 		apierr.Respond(c, apierr.Internal("could not create payment record"))
+		return
+	case checkout.PaymentURL != "": // a retried initiate: same cart, same link
+		c.JSON(http.StatusOK, gin.H{"paymentUrl": checkout.PaymentURL, "merchantOrderId": payment.MerchantOrderID})
 		return
 	}
 
@@ -255,13 +327,20 @@ func (a *API) InitiatePayment(c *gin.Context) {
 		productInfo = event.Title
 	}
 
-	link, err := a.getEasebuzzLink(ctx, merchantOrderID, fee, productInfo, user)
+	link, err := a.getEasebuzzLink(ctx, payment.MerchantOrderID, payment.FinalAmount, productInfo, user)
 	if err != nil {
+		log.Printf("[payment] gateway initiation failed for %s: %v", payment.MerchantOrderID, err)
+		if err := a.Store.MarkPaymentFailed(ctx, payment.MerchantOrderID, "", ""); err != nil {
+			log.Printf("[payment] could not release checkout %s: %v", checkoutID, err)
+		}
 		apierr.Respond(c, apierr.Internal("could not initiate payment with gateway"))
 		return
 	}
+	if err := a.Store.SetCheckoutURL(ctx, checkoutID, payment.MerchantOrderID, link); err != nil {
+		log.Printf("[payment] could not store checkout link for %s: %v", payment.MerchantOrderID, err)
+	}
 
-	c.JSON(http.StatusOK, gin.H{"paymentUrl": link, "merchantOrderId": merchantOrderID})
+	c.JSON(http.StatusOK, gin.H{"paymentUrl": link, "merchantOrderId": payment.MerchantOrderID})
 }
 
 // getEasebuzzLink calls the Easebuzz initiate API and returns the checkout URL.
@@ -272,12 +351,10 @@ func (a *API) getEasebuzzLink(
 	productInfo string,
 	user *models.User,
 ) (string, error) {
+	if a.Cfg.PaymentsDummy {
+		return fmt.Sprintf("%s/api/v1/payments/dummy?txnid=%s", a.Cfg.AppBaseURL, url.QueryEscape(merchantOrderID)), nil
+	}
 	if a.Cfg.EasebuzzKey == "" || a.Cfg.EasebuzzSalt == "" {
-		if a.Cfg.EasebuzzEnv == "test" {
-			// Dummy mode: return our own mock endpoint that instantly confirms the payment
-			dummyURL := fmt.Sprintf("%s/api/v1/payments/dummy?txnid=%s", a.Cfg.AppBaseURL, merchantOrderID)
-			return dummyURL, nil
-		}
 		return "", fmt.Errorf("easebuzz credentials not configured")
 	}
 
@@ -330,34 +407,15 @@ func (a *API) getEasebuzzLink(
 	return checkoutURL, nil
 }
 
-// DummyPayment is a mock endpoint that simulates a successful payment redirect
-// when testing without real Easebuzz credentials.
+// DummyPayment is a mock checkout that settles a payment without a gateway. The
+// route only exists when PAYMENTS_DUMMY is on.
 func (a *API) DummyPayment(c *gin.Context) {
-	ctx := c.Request.Context()
 	txnid := c.Query("txnid")
 	if txnid == "" {
 		apierr.Respond(c, apierr.BadRequest("missing_txnid", "txnid is required"))
 		return
 	}
-
-	payment, err := a.Store.GetPayment(ctx, txnid)
-	if err != nil {
-		apierr.Respond(c, apierr.NotFound("payment_not_found", "payment not found"))
-		return
-	}
-
-	now := isotime.Now()
-	updates := map[string]any{
-		"status":      models.PaymentStatusSuccess,
-		"completedAt": now,
-	}
-
-	if err := a.Store.UpdatePaymentFull(ctx, txnid, updates); err != nil {
-		log.Printf("[dummy_payment] could not update payment %s: %v", txnid, err)
-	}
-
-	a.confirmRegistrationPayment(ctx, payment, now)
-	a.redirectToApp(c, txnid, models.PaymentStatusSuccess)
+	a.finishPayment(c, txnid, true, store.SettleInfo{TxnID: "dummy"})
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -366,162 +424,117 @@ func (a *API) DummyPayment(c *gin.Context) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // PaymentCallback handles both the browser redirect (surl/furl) and the
-// server-to-server webhook from Easebuzz. Both carry the same form fields.
+// server-to-server webhook from Easebuzz. Both carry the same form fields, and
+// both can arrive for the same payment, in any order, more than once: the
+// outcome is applied by Store.SettlePayment / MarkPaymentFailed, which are
+// idempotent.
 func (a *API) PaymentCallback(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	// Easebuzz posts a form; read all values.
 	if err := c.Request.ParseForm(); err != nil {
 		c.Status(http.StatusBadRequest)
 		return
 	}
+	f := c.Request.FormValue
 
-	txnid := c.Request.FormValue("txnid") // this is our merchantOrderId
-	status := c.Request.FormValue("status")
-	amount := c.Request.FormValue("amount")
-	productinfo := c.Request.FormValue("productinfo")
-	firstname := c.Request.FormValue("firstname")
-	email := c.Request.FormValue("email")
-	easeTxnID := c.Request.FormValue("easepayid")
-	hash := c.Request.FormValue("hash")
-
+	txnid, status, amount := f("txnid"), f("status"), f("amount") // txnid is our merchantOrderId
 	if txnid == "" || status == "" {
 		c.Status(http.StatusBadRequest)
 		return
 	}
 
-	// Verify hash if salt is configured.
-	if a.Cfg.EasebuzzSalt != "" && hash != "" {
-		if !verifyEasebuzzHash(hash, a.Cfg.EasebuzzSalt, status, txnid, amount, productinfo, firstname, email, a.Cfg.EasebuzzKey) {
-			log.Printf("[payment] hash mismatch for txnid=%s", txnid)
-			c.Status(http.StatusBadRequest)
-			return
-		}
+	// The hash is what proves this came from Easebuzz, so without a salt to
+	// check it against nothing can be trusted.
+	if a.Cfg.EasebuzzSalt == "" {
+		log.Printf("[payment] callback for %s rejected: EASEBUZZ_SALT not configured", txnid)
+		c.Status(http.StatusServiceUnavailable)
+		return
+	}
+	if !verifyEasebuzzHash(f("hash"), a.Cfg.EasebuzzSalt, status, txnid, amount, f("productinfo"), f("firstname"), f("email"), a.Cfg.EasebuzzKey) {
+		log.Printf("[payment] hash mismatch or missing for txnid=%s", txnid)
+		c.Status(http.StatusBadRequest)
+		return
 	}
 
-	payment, err := a.Store.GetPayment(ctx, txnid)
-	if err != nil {
-		log.Printf("[payment] payment not found txnid=%s: %v", txnid, err)
-		// Still return 200 to Easebuzz so it doesn't retry
+	payment, err := a.Store.GetPayment(c.Request.Context(), txnid)
+	if errors.Is(err, store.ErrNotFound) {
 		a.redirectToApp(c, txnid, "error")
 		return
-	}
-
-	// Idempotency: if already processed, just redirect.
-	if payment.Status == models.PaymentStatusSuccess {
-		a.redirectToApp(c, txnid, "success")
+	} else if err != nil {
+		log.Printf("[payment] could not load payment %s: %v", txnid, err)
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 
-	paymentStatus := models.PaymentStatusFailure
-	if status == "success" {
-		paymentStatus = models.PaymentStatusSuccess
+	// What the gateway says it collected must be what we asked for.
+	if !amountMatches(amount, payment.FinalAmount) {
+		log.Printf("[payment] amount mismatch for %s: gateway %q, expected %d", txnid, amount, payment.FinalAmount)
+		c.Status(http.StatusBadRequest)
+		return
 	}
 
-	now := isotime.Now()
-
-	// Parse transaction fees if provided (Easebuzz may send them).
-	txnFees := 0
-	if f := c.Request.FormValue("net_amount_debit"); f != "" {
-		if v, err := strconv.ParseFloat(f, 64); err == nil {
-			orig := float64(payment.OriginalAmount)
-			txnFees = int(v*100) - int(orig*100)
-			if txnFees < 0 {
-				txnFees = 0
-			}
+	switch strings.ToLower(status) {
+	case "success":
+		fees := 0
+		if net, err := strconv.ParseFloat(f("net_amount_debit"), 64); err == nil {
+			fees = max(int(math.Round(net-float64(payment.FinalAmount))), 0)
 		}
+		a.finishPayment(c, txnid, true, store.SettleInfo{
+			TxnID:          f("easepayid"),
+			NetAmountDebit: f("net_amount_debit"),
+			Fees:           fees,
+		})
+	case "pending":
+		a.redirectToApp(c, txnid, models.PaymentStatusPending)
+	case "failure", "failed", "usercancelled", "dropped", "bounced":
+		a.finishPayment(c, txnid, false, store.SettleInfo{TxnID: f("easepayid")})
+	default:
+		// An in-flight status we don't know (e.g. "initiated") must not fail
+		// the payment: a failure unlocks the team and frees the checkout.
+		log.Printf("[payment] %s: unrecognised gateway status %q, leaving pending", txnid, status)
+		a.redirectToApp(c, txnid, models.PaymentStatusPending)
 	}
-
-	updates := map[string]any{
-		"status":          paymentStatus,
-		"easebuzzTxnId":   easeTxnID,
-		"completedAt":     now,
-		"transactionFees": txnFees,
-		"finalAmount":     payment.OriginalAmount + txnFees,
-	}
-	if err := a.Store.UpdatePaymentFull(ctx, txnid, updates); err != nil {
-		log.Printf("[payment] could not update payment %s: %v", txnid, err)
-	}
-
-	// Update registration(s) payment status.
-	if paymentStatus == models.PaymentStatusSuccess {
-		a.confirmRegistrationPayment(ctx, payment, now)
-	}
-
-	a.redirectToApp(c, txnid, paymentStatus)
 }
 
-// confirmRegistrationPayment marks the registration(s) as paid.
-func (a *API) confirmRegistrationPayment(ctx context.Context, payment *models.Payment, paidAt string) {
-	intention := payment.ProcessedIntentions.EventRegistration
-	if intention != nil {
-		if intention.EventType == models.EventPaymentTypeTeam && payment.TeamID != "" {
-			// Update all team members' registrations.
-			if err := a.Store.UpdateRegistrationsByTeam(ctx, payment.EventID, payment.TeamID, models.PaymentStatusSuccess, paidAt); err != nil {
-				log.Printf("[payment] could not update team registrations for %s: %v", payment.TeamID, err)
-			}
-		} else {
-			// Individual registration.
-			regID := models.RegistrationID(payment.EventID, payment.UserID)
-			if err := a.Store.UpdateRegistrationPaymentStatus(ctx, regID, models.PaymentStatusSuccess, paidAt); err != nil {
-				log.Printf("[payment] could not update registration %s: %v", regID, err)
-			}
+// amountMatches compares the amount Easebuzz reports with the amount charged.
+func amountMatches(got string, want int) bool {
+	v, err := strconv.ParseFloat(got, 64)
+	return err == nil && math.Abs(v-float64(want)) <= 0.009
+}
+
+// finishPayment applies a verified outcome and answers the caller. A storage
+// failure returns 500 so the gateway retries the webhook; that is safe because
+// both outcomes are idempotent.
+func (a *API) finishPayment(c *gin.Context, id string, success bool, info store.SettleInfo) {
+	ctx := c.Request.Context()
+
+	if success {
+		already, err := a.Store.SettlePayment(ctx, id, info)
+		if errors.Is(err, store.ErrNotFound) {
+			apierr.Respond(c, apierr.NotFound("payment_not_found", "payment not found"))
+			return
 		}
+		if err != nil {
+			log.Printf("[payment] could not settle %s: %v", id, err)
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		if !already {
+			a.Cache.Invalidate()
+		}
+		a.redirectToApp(c, id, models.PaymentStatusSuccess)
+		return
 	}
 
-	// 2. Handle Accommodation and Food updates for the user.
-	if len(payment.ProcessedIntentions.Accommodation) > 0 || len(payment.ProcessedIntentions.Food) > 0 {
-		user, err := a.Store.GetUser(ctx, payment.UserID)
-		if err == nil {
-			// Merge accommodation
-			if user.Accommodation == nil {
-				user.Accommodation = make(map[string]bool)
-			}
-			for day, val := range payment.ProcessedIntentions.Accommodation {
-				if b, ok := val.(bool); ok && b {
-					user.Accommodation[day] = true
-					user.AccommodationNeeded = true
-				}
-			}
-
-			// Merge food
-			if user.Food == nil {
-				user.Food = make(map[string]bool)
-			}
-			for day, val := range payment.ProcessedIntentions.Food {
-				if b, ok := val.(bool); ok && b {
-					user.Food[day] = true
-				}
-			}
-
-			// Add transaction ID
-			if user.AccommodationTransactionIds == nil {
-				user.AccommodationTransactionIds = []string{}
-			}
-			user.AccommodationTransactionIds = append(user.AccommodationTransactionIds, payment.MerchantOrderID)
-
-			if err := a.Store.UpdateUserAccommodation(ctx, user.UserID, user.AccommodationNeeded, user.Accommodation, user.Food, user.AccommodationTransactionIds); err != nil {
-				log.Printf("[payment] could not update user accommodation %s: %v", user.UserID, err)
-			}
-		}
+	if err := a.Store.MarkPaymentFailed(ctx, id, info.TxnID, info.AdminID); err != nil {
+		log.Printf("[payment] could not mark %s failed: %v", id, err)
+		c.Status(http.StatusInternalServerError)
+		return
 	}
-
-	// 3. Record coupon usage if present.
-	if payment.CouponCode != "" {
-		usage := &models.CouponUsage{
-			Amount:         payment.OriginalAmount,
-			CouponCode:     payment.CouponCode,
-			DiscountAmount: payment.DiscountAmount,
-			EventID:        payment.EventID,
-			UsedAt:         paidAt,
-			UserID:         payment.UserID,
-		}
-		if err := a.Store.CreateCouponUsage(ctx, usage); err != nil {
-			log.Printf("[payment] could not create coupon usage: %v", err)
-		}
+	// MarkPaymentFailed leaves a paid payment alone, so report what is stored.
+	status := models.PaymentStatusFailure
+	if p, err := a.Store.GetPayment(ctx, id); err == nil && p.Status == models.PaymentStatusSuccess {
+		status = models.PaymentStatusSuccess
 	}
-
-	a.Cache.Invalidate()
+	a.redirectToApp(c, id, status)
 }
 
 // redirectToApp sends the user back to the app via a deep-link or a simple
@@ -534,13 +547,17 @@ func (a *API) redirectToApp(c *gin.Context, merchantOrderID, status string) {
 		return
 	}
 
-	// Deep-link redirect so the app's WebView can detect completion.
-	deepLink := fmt.Sprintf("%s?status=%s&merchantOrderId=%s",
-		a.Cfg.FrontendDeepLinkBase, status, merchantOrderID)
+	sep := "?"
+	if strings.Contains(a.Cfg.FrontendDeepLinkBase, "?") {
+		sep = "&"
+	}
+	deepLink := html.EscapeString(a.Cfg.FrontendDeepLinkBase + sep +
+		url.Values{"status": {status}, "merchantOrderId": {merchantOrderID}}.Encode())
+	title := html.EscapeString(status)
 
-	// Render a small HTML page that both redirects via deep-link and provides
-	// a fallback message.
-	html := fmt.Sprintf(`<!DOCTYPE html>
+	// Every interpolated value is escaped: merchantOrderID can come from a
+	// request, and this page is served on the API's own origin.
+	page := fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Payment %s</title>
 <meta http-equiv="refresh" content="0;url=%s">
@@ -548,11 +565,10 @@ func (a *API) redirectToApp(c *gin.Context, merchantOrderID, status string) {
 <body>
 <p>Payment %s. Redirecting back to the app…</p>
 <a href="%s">Tap here if not redirected</a>
-<script>window.location.href = %q;</script>
 </body>
-</html>`, status, deepLink, status, deepLink, deepLink)
+</html>`, title, deepLink, title, deepLink)
 
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(page))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

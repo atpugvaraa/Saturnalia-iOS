@@ -1,7 +1,11 @@
 package models
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"slices"
+	"sort"
+	"strings"
 	"time"
 
 	"backend/internal/isotime"
@@ -14,10 +18,10 @@ const (
 	PaymentStatusFailure = "failure"
 
 	// PaymentType values
-	PaymentTypeEvent                       = "event"
-	PaymentTypeAccommodation               = "accommodation"
-	PaymentTypeAccommodationAndFood        = "accommodation_and_food"
-	PaymentTypeEventAndAccommodation       = "event_and_accommodation" 
+	PaymentTypeEvent                        = "event"
+	PaymentTypeAccommodation                = "accommodation"
+	PaymentTypeAccommodationAndFood         = "accommodation_and_food"
+	PaymentTypeEventAndAccommodation        = "event_and_accommodation"
 	PaymentTypeEventAndAccommodationAndFood = "event_and_accommodation_and_food"
 
 	// EventPaymentType (per-individual or per-team)
@@ -31,7 +35,10 @@ type EventRegistrationIntention struct {
 	EventType string `json:"eventType" firestore:"eventType"` // "individual" | "team"
 	TeamID    string `json:"teamId"    firestore:"teamId"`
 	TeamName  string `json:"teamName"  firestore:"teamName"`
-	Amount    int    `json:"amount"    firestore:"amount"`
+	Amount    int    `json:"amount"    firestore:"amount"` // event portion of the charge, before discount
+	// CoveredUserIDs are the users whose registrations this payment settles:
+	// the team roster at checkout time, or just the payer.
+	CoveredUserIDs []string `json:"coveredUserIds" firestore:"coveredUserIds"`
 }
 
 // ProcessedIntentions holds what the payment covers.
@@ -75,12 +82,64 @@ type Payment struct {
 	CompletedAt string `json:"completedAt,omitempty" firestore:"completedAt"`
 
 	// Easebuzz-specific fields stored for audit / webhook verification.
-	EasebuzzTxnID string `json:"easebuzzTxnId,omitempty" firestore:"easebuzzTxnId"`
+	EasebuzzTxnID  string `json:"easebuzzTxnId,omitempty"  firestore:"easebuzzTxnId"`
+	NetAmountDebit string `json:"netAmountDebit,omitempty" firestore:"netAmountDebit"`
+
+	// CheckoutID names the checkouts document that guards this payment against
+	// double taps. Empty on payments created before checkouts existed.
+	CheckoutID string `json:"checkoutId,omitempty" firestore:"checkoutId"`
+
+	// Settlement flags for organisers: Duplicate means the registration was
+	// already paid when this payment settled (refund manually); OrphanedUserIDs
+	// are covered users whose registration was gone by then.
+	Duplicate       bool     `json:"duplicate,omitempty"       firestore:"duplicate"`
+	OrphanedUserIDs []string `json:"orphanedUserIds,omitempty" firestore:"orphanedUserIds"`
+	// UncoveredUserIDs are team members who joined after this payment's roster
+	// was fixed; the team is left unpaid so they can still be charged.
+	UncoveredUserIDs []string `json:"uncoveredUserIds,omitempty" firestore:"uncoveredUserIds"`
+
+	OverriddenBy string `json:"overriddenBy,omitempty" firestore:"overriddenBy"`
+	OverriddenAt string `json:"overriddenAt,omitempty" firestore:"overriddenAt"`
+}
+
+// Checkout is the double-tap guard: one live document per payer-and-purpose
+// (team ID, "{userId}_{eventId}" or "{userId}_stay"). A repeat initiate with the
+// same fingerprint gets the same payment back instead of a second charge.
+type Checkout struct {
+	PaymentID   string `firestore:"paymentId"`
+	PaymentURL  string `firestore:"paymentUrl"`
+	Fingerprint string `firestore:"fingerprint"`
+	CreatedAt   string `firestore:"createdAt"`
+	ExpiresAt   string `firestore:"expiresAt"`
+}
+
+// Fingerprint identifies what a checkout buys, so a changed cart is told apart
+// from a retried one.
+func (p *Payment) Fingerprint() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d|%d|%s|%s|%s", p.OriginalAmount, p.FinalAmount, p.CouponCode, p.EventID, p.PaymentType)
+	if e := p.ProcessedIntentions.EventRegistration; e != nil {
+		ids := slices.Clone(e.CoveredUserIDs)
+		sort.Strings(ids)
+		fmt.Fprintf(&b, "|%s", strings.Join(ids, ","))
+	}
+	for _, m := range []map[string]any{p.ProcessedIntentions.Accommodation, p.ProcessedIntentions.Food} {
+		keys := make([]string, 0, len(m))
+		for k, v := range m {
+			if on, _ := v.(bool); on {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		fmt.Fprintf(&b, "|%s", strings.Join(keys, ","))
+	}
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(b.String())))
 }
 
 // NewPaymentID generates the merchantOrderId / document ID:
 // "SAT25-{date}-{time}-{rand}"
-// rand should be a short alphanumeric string (e.g. "809").
+// rand should be a random hex string; 8 characters keep same-second collisions
+// negligible.
 func NewPaymentID(rand string) string {
 	now := time.Now().UTC()
 	return fmt.Sprintf("SAT25-%s-%s", now.Format("20060102-150405"), rand)
@@ -94,6 +153,9 @@ func NewPayment(
 	couponCode string, couponDetails *CouponDetails,
 	intentions ProcessedIntentions,
 ) *Payment {
+	// The gateway rejects a zero amount, so a fully discounted cart is still
+	// charged the minimum of 1. FinalAmount is what is actually charged.
+	final := max(originalAmount-discountAmount, 1)
 	return &Payment{
 		MerchantOrderID:     merchantOrderID,
 		UserID:              userID,
@@ -103,7 +165,7 @@ func NewPayment(
 		OriginalAmount:      originalAmount,
 		DiscountAmount:      discountAmount,
 		TransactionFees:     0,
-		FinalAmount:         originalAmount - discountAmount,
+		FinalAmount:         final,
 		CouponCode:          couponCode,
 		CouponDetails:       couponDetails,
 		ProcessedIntentions: intentions,

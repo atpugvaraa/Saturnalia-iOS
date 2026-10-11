@@ -77,8 +77,6 @@ type Event struct {
 	RegistrationOpen bool `json:"registrationOpen"       firestore:"-"`
 	EffectiveFee     *int `json:"effectiveFee,omitempty" firestore:"-"`
 
-	// Payments are not wired up yet: the fee is computed and displayed but
-	// nothing collects it. See config.PaymentsEnforced.
 	PaymentRequired bool   `json:"paymentRequired" firestore:"paymentRequired"`
 	PaymentStarted  bool   `json:"paymentStarted"  firestore:"paymentStarted"`
 	PaymentType     string `json:"paymentType"     firestore:"paymentType"`

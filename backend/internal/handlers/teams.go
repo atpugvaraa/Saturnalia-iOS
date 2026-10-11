@@ -139,6 +139,8 @@ func (a *API) JoinTeam(c *gin.Context) {
 		switch {
 		case errors.Is(err, store.ErrTeamFull):
 			apierr.Respond(c, apierr.Conflict("team_full", "this team is already at its maximum size"))
+		case errors.Is(err, store.ErrTeamLocked):
+			apierr.Respond(c, apierr.Conflict("team_payment_locked", "this team's payment is in progress or complete, so it is closed to new members"))
 		case errors.Is(err, store.ErrAlreadyMember):
 			apierr.Respond(c, apierr.Conflict("already_member", "you are already in this team"))
 		case errors.Is(err, store.ErrExists):

@@ -25,11 +25,9 @@ type Config struct {
 	RedisURL       string
 	RedisNamespace string
 
-	// PaymentsEnforced gates the whole payment story. While false, an event
-	// with a non-zero fee still registers normally (the computed amount is
-	// recorded on the registration, but nothing collects it). Flipping this to
-	// true makes those registrations return 402 instead.
-	PaymentsEnforced bool
+	// PaymentsDummy turns on the mock checkout at /payments/dummy, which marks
+	// any payment paid without touching the gateway. Local development only.
+	PaymentsDummy bool
 
 	// Easebuzz payment gateway credentials.
 	// EasebuzzKey is the merchant key (public-facing, sent in the payment form).
@@ -85,12 +83,16 @@ func Load() (*Config, error) {
 	}
 	c.EventCacheTTL = ttl
 
-	if v := os.Getenv("PAYMENTS_ENFORCED"); v != "" {
+	if v := os.Getenv("PAYMENTS_DUMMY"); v != "" {
 		b, err := strconv.ParseBool(v)
 		if err != nil {
-			return nil, fmt.Errorf("PAYMENTS_ENFORCED: %w", err)
+			return nil, fmt.Errorf("PAYMENTS_DUMMY: %w", err)
 		}
-		c.PaymentsEnforced = b
+		c.PaymentsDummy = b
+	}
+
+	if c.PaymentsDummy && c.EasebuzzEnv == "prod" {
+		return nil, fmt.Errorf("PAYMENTS_DUMMY must not be enabled with EASEBUZZ_ENV=prod")
 	}
 
 	if len(c.QRSecret) == 0 {
