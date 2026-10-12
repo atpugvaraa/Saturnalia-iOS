@@ -21,6 +21,8 @@ interface InputProps {
   onRightIconPress?: () => void;
   className?: string;
   editable?: boolean;
+  style?: any;
+  containerStyle?: any;
 }
 
 const Input: React.FC<InputProps> = ({
@@ -41,6 +43,8 @@ const Input: React.FC<InputProps> = ({
   onRightIconPress,
   className = "",
   editable = true,
+  style,
+  containerStyle,
 }) => {
   const { isDark } = useThemeStore();
   const [isFocused, setIsFocused] = useState(false);
@@ -63,7 +67,7 @@ const Input: React.FC<InputProps> = ({
   const placeholderColor = isDark ? "#9CA3AF" : "#6B7280";
 
   return (
-    <View className={`mb-4 ${className}`}>
+    <View style={[style, containerStyle]} className={`mb-4 ${className}`}>
       {label && (
         <Text
           style={{

@@ -210,7 +210,12 @@ func (a *API) InitiatePayment(c *gin.Context) {
 		}
 	}
 
-	accommodationMap, accFee, bad := stayCharge(body.Accommodation, user.Accommodation, AccommodationPricePerDay)
+	accPrice := AccommodationPricePerDay
+	if accDoc, err := a.Store.GetAppAccommodation(c.Request.Context()); err == nil && accDoc != nil && accDoc.Amount > 0 {
+		accPrice = accDoc.Amount
+	}
+
+	accommodationMap, accFee, bad := stayCharge(body.Accommodation, user.Accommodation, accPrice)
 	if bad != "" {
 		apierr.Respond(c, apierr.BadRequest("invalid_day", "unknown accommodation day: "+bad))
 		return

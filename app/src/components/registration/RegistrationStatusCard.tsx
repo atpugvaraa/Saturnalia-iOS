@@ -1,12 +1,16 @@
 import React from 'react';
-import { View, Text ,Platform} from 'react-native';
-import { CheckCircle, AlertCircle } from 'lucide-react-native';
-import DashedHr from '../ui/DashedLine';
+import { View, Text } from 'react-native';
+import { CheckCircle2, Clock, CreditCard, XCircle, Users, User, Calendar, Tag } from 'lucide-react-native';
+import { useThemeStore } from '@/state/themeStore';
+
 interface RegistrationStatusCardProps {
   status: 'confirmed' | 'awaited' | 'payment_pending' | 'rejected' | 'pending';
-  eventCategory: string;
+  eventCategory?: string;
   eventType: 'team' | 'individual';
   registeredAt: string;
+  minTeamSize?: number | null;
+  maxTeamSize?: number | null;
+  currentTeamSize?: number | null;
 }
 
 const RegistrationStatusCard: React.FC<RegistrationStatusCardProps> = ({
@@ -14,76 +18,293 @@ const RegistrationStatusCard: React.FC<RegistrationStatusCardProps> = ({
   eventCategory,
   eventType,
   registeredAt,
+  minTeamSize,
+  maxTeamSize,
+  currentTeamSize,
 }) => {
-  const getStatusIcon = () => {
+  const { isDark } = useThemeStore();
+
+  const cardBg = isDark ? '#1C1C22' : '#FFFFFF';
+  const cardBorder = isDark ? '#2B2B34' : '#E2E8F0';
+  const textPrimary = isDark ? '#FFFFFF' : '#0F172A';
+  const textSecondary = isDark ? '#94A3B8' : '#64748B';
+  const dividerColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+
+  const getStatusConfig = () => {
     switch (status) {
       case 'confirmed':
-        return <CheckCircle size={20} color="#10B981" />;
-      case 'awaited':
-        return <AlertCircle size={20} color="#F59E0B" />;
+        return {
+          icon: <CheckCircle2 size={14} color="#10B981" />,
+          title: 'Confirmed',
+          textColor: '#10B981',
+          bgColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.1)',
+          borderColor: 'rgba(16, 185, 129, 0.25)',
+        };
       case 'payment_pending':
-        return <AlertCircle size={20} color="#F97316" />;
+        return {
+          icon: <CreditCard size={14} color="#FFBA00" />,
+          title: 'Payment Pending',
+          textColor: '#FFBA00',
+          bgColor: isDark ? 'rgba(255, 186, 0, 0.12)' : 'rgba(255, 186, 0, 0.12)',
+          borderColor: 'rgba(255, 186, 0, 0.3)',
+        };
+      case 'awaited':
+        return {
+          icon: <Clock size={14} color="#A855F7" />,
+          title: 'Under Review',
+          textColor: '#A855F7',
+          bgColor: isDark ? 'rgba(168, 85, 247, 0.12)' : 'rgba(168, 85, 247, 0.1)',
+          borderColor: 'rgba(168, 85, 247, 0.25)',
+        };
       case 'rejected':
-        return <AlertCircle size={20} color="#EF4444" />;
+        return {
+          icon: <XCircle size={14} color="#EF4444" />,
+          title: 'Rejected',
+          textColor: '#EF4444',
+          bgColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.1)',
+          borderColor: 'rgba(239, 68, 68, 0.25)',
+        };
       default:
-        return <AlertCircle size={20} color="#6B7280" />;
+        return {
+          icon: <Clock size={14} color="#F59E0B" />,
+          title: 'Pending',
+          textColor: '#F59E0B',
+          bgColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.1)',
+          borderColor: 'rgba(245, 158, 11, 0.25)',
+        };
     }
   };
 
-  const getStatusText = () => {
-    switch (status) {
-      case 'confirmed':
-        return 'Registration Confirmed';
-      case 'awaited':
-        return 'Awaiting Approval';
-      case 'payment_pending':
-        return 'Payment Pending';
-      case 'rejected':
-        return 'Registration Rejected';
-      default:
-        return 'Registration Pending';
+  const statusConfig = getStatusConfig();
+
+  // Team constraints description
+  const getTeamSizeDescription = () => {
+    if (eventType === 'individual') {
+      return '1 participant (Solo entry)';
     }
+
+    const min = minTeamSize ?? null;
+    const max = maxTeamSize ?? null;
+
+    if (min && max) {
+      if (min === max) {
+        return `Exactly ${min} members required`;
+      }
+      return `${min} to ${max} members allowed`;
+    }
+    if (min) {
+      return `Min. ${min} members required`;
+    }
+    if (max) {
+      return `Up to ${max} members allowed`;
+    }
+    return 'Team event (Flexible size)';
   };
 
-  const getStatusColor = () => {
-    switch (status) {
-      case 'confirmed':
-        return 'text-green-400';
-      case 'awaited':
-        return 'text-[#FEE59C]';
-      case 'payment_pending':
-        return 'text-orange-400';
-      case 'rejected':
-        return 'text-red-400';
-      default:
-        return 'text-gray-400';
-    }
-  };
+  let formattedDate = '';
+  try {
+    formattedDate = new Date(registeredAt).toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    formattedDate = registeredAt;
+  }
 
   return (
-    <View className="mb-6 bg-[#2D1E2F66] rounded-xl p-5">
-      <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg mb-2">
-        Registration Status
-      </Text>
+    <View
+      style={{
+        backgroundColor: cardBg,
+        borderColor: cardBorder,
+        borderWidth: 1,
+        borderRadius: 18,
+        padding: 16,
+        marginBottom: 16,
+        width: '100%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.25 : 0.04,
+        shadowRadius: 6,
+        elevation: 2,
+      }}
+    >
+      {/* Header Row: Title & Status Pill */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: 'Poppins_600SemiBold',
+            fontSize: 15,
+            color: textPrimary,
+            flexShrink: 1,
+          }}
+        >
+          Registration Status
+        </Text>
 
-      <View className="flex-row items-center mb-1">
-        {getStatusIcon()}
-        <Text style={{ fontFamily: 'Outfit_500Medium' }} className={`text-lg ml-2 ${getStatusColor()}`}>
-          {getStatusText()}
-        </Text>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: statusConfig.bgColor,
+            borderColor: statusConfig.borderColor,
+            borderWidth: 1,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 16,
+            flexShrink: 0,
+          }}
+        >
+          {statusConfig.icon}
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 12,
+              color: statusConfig.textColor,
+              marginLeft: 5,
+            }}
+          >
+            {statusConfig.title}
+          </Text>
+        </View>
       </View>
-       {Platform.OS === "ios" ? <DashedHr className={'mt-5 -mb-2'} color="#ffffff" height={1} dash={[1,1]}  /> : null}
-      <View className="border-t border-dashed flex justify-between flex-row border-white pt-4 mt-3">
-        <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] border-[#0C3572] border-2 px-4 py-2 rounded-2xl text-sm">
-          {eventCategory}
-        </Text>
-        <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-white border-[#0C3572] border-2 px-4 py-2 rounded-2xl text-sm">
-          {eventType === 'team' ? 'Team Event' : 'Individual'}
-        </Text>
+
+      {/* Divider */}
+      <View style={{ height: 1, backgroundColor: dividerColor, marginBottom: 12 }} />
+
+      {/* Constraints & Format Row */}
+      <View style={{ marginBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          {eventType === 'team' ? (
+            <Users size={13} color="#41B8F0" style={{ marginRight: 6 }} />
+          ) : (
+            <User size={13} color="#41B8F0" style={{ marginRight: 6 }} />
+          )}
+          <Text
+            style={{
+              fontFamily: 'Poppins_500Medium',
+              fontSize: 11,
+              color: textSecondary,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}
+          >
+            {eventType === 'team' ? 'Team Constraints' : 'Event Format'}
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 13,
+              color: textPrimary,
+              flexShrink: 1,
+            }}
+          >
+            {eventType === 'team' ? 'Team Event' : 'Individual Entry'}
+          </Text>
+          <Text
+            style={{
+              fontFamily: 'Poppins_400Regular',
+              fontSize: 13,
+              color: textSecondary,
+            }}
+          >
+            •
+          </Text>
+          <Text
+            style={{
+              fontFamily: 'Poppins_500Medium',
+              fontSize: 13,
+              color: '#41B8F0',
+              flexShrink: 1,
+            }}
+          >
+            {getTeamSizeDescription()}
+          </Text>
+        </View>
+
+        {/* Current Team Members Count Badge (if team event) */}
+        {eventType === 'team' && currentTeamSize != null && (
+          <View
+            style={{
+              marginTop: 6,
+              alignSelf: 'flex-start',
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+              borderColor: cardBorder,
+              borderWidth: 1,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 8,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: 'Poppins_500Medium',
+                fontSize: 11,
+                color: textSecondary,
+              }}
+            >
+              Current team: <Text style={{ color: textPrimary, fontFamily: 'Poppins_600SemiBold' }}>{currentTeamSize}</Text>{' '}
+              {maxTeamSize ? `of ${maxTeamSize} max` : minTeamSize ? `(min. ${minTeamSize})` : 'members'}
+            </Text>
+          </View>
+        )}
       </View>
-      <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-gray-100 text-center text-sm mt-2">
-        Registered on {new Date(registeredAt).toLocaleDateString()}
-      </Text>
+
+      {/* Bottom Info: Category & Registered Date */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+          borderTopWidth: 1,
+          borderTopColor: dividerColor,
+          paddingTop: 10,
+          marginTop: 4,
+        }}
+      >
+        {eventCategory ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
+            <Tag size={12} color={textSecondary} style={{ marginRight: 5 }} />
+            <Text
+              style={{
+                fontFamily: 'Poppins_500Medium',
+                fontSize: 12,
+                color: textSecondary,
+              }}
+              numberOfLines={1}
+            >
+              Category: <Text style={{ color: textPrimary, textTransform: 'capitalize' }}>{eventCategory}</Text>
+            </Text>
+          </View>
+        ) : <View />}
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 0 }}>
+          <Calendar size={12} color={textSecondary} style={{ marginRight: 5 }} />
+          <Text
+            style={{
+              fontFamily: 'Poppins_400Regular',
+              fontSize: 12,
+              color: textSecondary,
+            }}
+          >
+            {formattedDate}
+          </Text>
+        </View>
+      </View>
     </View>
   );
 };

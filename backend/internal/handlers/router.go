@@ -60,6 +60,13 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	open.GET("/stories/:id", api.GetStory)
 	open.POST("/chatbot/ask", api.Chat)
 
+	// App status, links, maintenance, versions
+	open.GET("/app/status", api.GetAppConfig)
+	open.GET("/app/links", api.GetAppLinks)
+	open.GET("/app/maintenance", api.GetAppMaintenance)
+	open.GET("/app/versions", api.GetAppVersions)
+	open.GET("/app/accommodation", api.GetAppAccommodation)
+
 	registered.POST("/events/:id/register", api.Register)
 	authed.DELETE("/events/:id/register", api.Unregister)
 	authed.GET("/registrations/:id", api.GetRegistration)
@@ -72,6 +79,7 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	authed.POST("/teams/:teamRef/leave", api.LeaveTeam)
 	authed.POST("/teams/:teamRef/transfer-leader", api.TransferLeader)
 	authed.DELETE("/teams/:teamRef/members/:userId", api.RemoveMember)
+	authed.POST("/teams/:teamRef/confirm", api.ConfirmTeam)
 
 	admin.POST("/admin/events", api.CreateEvent)
 	admin.PATCH("/admin/events/:id", api.UpdateEvent)
@@ -120,6 +128,17 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	admin.DELETE("/admin/users/by-email/:email", api.AdminDeleteUser)
 	admin.GET("/admin/users/by-email/:email/registrations", api.AdminGetUserEvents)
 	admin.GET("/admin/users/:id", api.AdminGetUserByID)
+
+	// App configuration: links, maintenance, versions
+	admin.GET("/admin/app", api.AdminGetAppConfig)
+	admin.PATCH("/admin/app/links", api.AdminUpdateAppLinks)
+	admin.PUT("/admin/app/links", api.AdminUpdateAppLinks)
+	admin.PATCH("/admin/app/maintenance", api.AdminUpdateAppMaintenance)
+	admin.PUT("/admin/app/maintenance", api.AdminUpdateAppMaintenance)
+	admin.PATCH("/admin/app/versions", api.AdminUpdateAppVersions)
+	admin.PUT("/admin/app/versions", api.AdminUpdateAppVersions)
+	admin.PATCH("/admin/app/accommodation", api.AdminUpdateAppAccommodation)
+	admin.PUT("/admin/app/accommodation", api.AdminUpdateAppAccommodation)
 
 	// FCM: client registers its token; admins broadcast to audiences.
 	authed.POST("/me/fcm-token", api.UpdateFCMToken)

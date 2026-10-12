@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"backend/internal/cache"
-	"backend/internal/config"
 	"backend/internal/models"
 	"backend/internal/storage"
-	"backend/internal/store"
 
 	firebase "firebase.google.com/go/v4"
 	"google.golang.org/api/option"
@@ -128,19 +126,6 @@ func main() {
 			log.Fatalf("Failed to save story %s in firestore: %v", s.Name, err)
 		}
 		log.Printf("Successfully saved %s to Firestore with %d ImageKit URLs!", s.Name, len(imgURLs))
-	}
-
-	cfg, err := config.Load()
-	if err == nil {
-		provider, err := cache.NewRedis(ctx, cfg.RedisURL, cfg.RedisNamespace)
-		if err == nil {
-			if err := provider.Delete(ctx, store.KeyStories); err != nil {
-				log.Printf("Failed to delete redis key %s: %v", store.KeyStories, err)
-			} else {
-				log.Println("Invalidated stories cache in Redis successfully!")
-			}
-			provider.Close()
-		}
 	}
 
 	log.Println("All stories uploaded to ImageKit and seeded in Firestore successfully!")

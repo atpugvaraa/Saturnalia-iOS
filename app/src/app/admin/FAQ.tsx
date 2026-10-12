@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar } from "react-native";
 import { ArrowLeft, Plus, Edit, Trash2, HelpCircle } from "lucide-react-native";
 import { FAQ } from "@/types/models";
 import { getFAQs, createFAQ, updateFAQ, deleteFAQ } from "@/api/admin";
 import Input from "@/components/ui/Input";
 import { showAlert } from "@/components";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
-
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function FAQManagement() {
   const navigation = useAdminNavigation();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+
   const [data, setData] = useState<FAQ[]>([]);
   const [createData, setCreateData] = useState<Partial<FAQ>>({
     order: 0,
@@ -20,12 +24,21 @@ export default function FAQManagement() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
 
   const loadData = async () => {
-    const res = await getFAQs();
-    console.log("FAQs:", res);
-    setData(res);
-    setLoading(false);
+    try {
+      const res = await getFAQs();
+      setData(res);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -35,7 +48,7 @@ export default function FAQManagement() {
   const handleDeleteFAQ = async (item: FAQ) => {
     showAlert(
       "Delete FAQ",
-      `Are you sure you want to delete this FAQ?`,
+      "Are you sure you want to delete this FAQ?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -107,271 +120,445 @@ export default function FAQManagement() {
     }
   };
 
- 
   return (
-    <View className="flex-1 bg-transparent">
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
       {/* Header */}
-      <View className="bg-[#EEB170] pt-6 rounded-b-2xl pb-6 px-6 flex-row items-center justify-between">
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
         <TouchableOpacity
           onPress={() => navigation.navigate("Dashboard")}
-          className="mr-4"
           activeOpacity={0.7}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
         >
-          <ArrowLeft size={28} color="#121212" />
+          <ArrowLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <View className="flex-1">
-          <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#121212] text-2xl ">FAQ Management</Text>
-          <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#121212] text-sm opacity-80">
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
+          >
+            FAQ Management
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
+          >
             Create and manage frequently asked questions
           </Text>
         </View>
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
-        {/* Seed Data Button */} 
-       
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Create FAQ Section */}
-        <View className="p-6">
-          <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-6 border border-[#A0B3D0]">
-            <Text className="text-[#EEB170] text-xl font-bold mb-4">
-              Create New FAQ
-            </Text>
-
-
-            <Input
-              label="Question"
-              value={createData.question || ""}
-              onChangeText={(value: string) => {
-                setCreateData({
-                  ...createData,
-                  question: value,
-                });
-              }}
-              placeholder="e.g., How do I register for events?"
-              className="mb-4"
-            />
-
-            <Input
-              label="Answer"
-              value={createData.answer || ""}
-              onChangeText={(value: string) => {
-                setCreateData({
-                  ...createData,
-                  answer: value,
-                });
-              }}
-              placeholder="Provide a detailed answer..."
-              multiline
-              numberOfLines={4}
-              className="mb-4"
-            />
-
-            <Input
-              label="Display Order"
-              value={createData.order?.toString() || "0"}
-              onChangeText={(value: string) => {
-                setCreateData({
-                  ...createData,
-                  order: parseInt(value) || 0,
-                });
-              }}
-              placeholder="0"
-              keyboardType="numeric"
-              className="mb-4"
-            />
-
-
-            <TouchableOpacity
-              className={`${
-                creating ? "bg-[#EEB170]/50" : "bg-[#EEB170]"
-              } py-4 rounded-xl flex-row items-center justify-center`}
-              disabled={creating}
-              onPress={handleCreateFAQ}
-              activeOpacity={0.7}
-            >
-              {creating ? (
-                <>
-                  <ActivityIndicator color="#121212" />
-                  <Text className="text-[#121212] font-bold text-base ml-2">
-                    Creating...
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Plus size={20} color="#121212" />
-                  <Text className="text-[#121212] font-bold text-base ml-2">
-                    Create FAQ
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Existing FAQs */}
-          <Text className="text-[#EEB170] text-xl font-bold mb-4">
-            Active FAQs ({data.length})
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 24,
+            borderWidth: 1,
+            borderColor: cardBorder,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: "Poppins_600SemiBold",
+              color: textPrimary,
+              fontSize: 18,
+              marginBottom: 16,
+            }}
+          >
+            Create New FAQ
           </Text>
 
-          {loading ? (
-            <View className="items-center justify-center py-12">
-              <ActivityIndicator size="large" color="#EEB170" />
-              <Text className="text-[#2175C0] mt-4">Loading FAQs...</Text>
-            </View>
-          ) : data.length === 0 ? (
-            <View className="bg-[#FFFFFF66] rounded-2xl p-8 items-center border border-[#A0B3D0]">
-              <HelpCircle size={48} color="#555" />
-              <Text className="text-[#2175C0] text-center mt-4">
-                No FAQs yet. Create your first FAQ above!
-              </Text>
-            </View>
-          ) : (
-            data.map((item, index) => (
-              <View
-                key={index}
-                className="bg-[#FFFFFF66] rounded-2xl p-5 mb-4 border border-[#A0B3D0]"
-              >
-                {editingId === item.id ? (
-                  // Edit Mode
-                  <View>
-                    <Text className="text-[#EEB170] text-lg font-bold mb-4">
-                      Editing FAQ
-                    </Text>
+          <Input
+            label="Question"
+            value={createData.question || ""}
+            onChangeText={(value: string) => {
+              setCreateData({
+                ...createData,
+                question: value,
+              });
+            }}
+            placeholder="e.g., How do I register for events?"
+            style={{ marginBottom: 14 }}
+          />
 
-                    <Input
-                      label="Question"
-                      value={editData.question || item.question}
-                      onChangeText={(value: string) => {
-                        setEditData({
-                          ...editData,
-                          question: value,
-                        });
-                      }}
-                      className="mb-3"
-                    />
+          <Input
+            label="Answer"
+            value={createData.answer || ""}
+            onChangeText={(value: string) => {
+              setCreateData({
+                ...createData,
+                answer: value,
+              });
+            }}
+            placeholder="Provide a detailed answer..."
+            multiline
+            numberOfLines={4}
+            style={{ marginBottom: 14 }}
+          />
 
-                    <Input
-                      label="Answer"
-                      value={editData.answer || item.answer}
-                      onChangeText={(value: string) => {
-                        setEditData({
-                          ...editData,
-                          answer: value,
-                        });
-                      }}
-                      multiline
-                      numberOfLines={4}
-                      className="mb-3"
-                    />
+          <Input
+            label="Display Order"
+            value={createData.order?.toString() || "0"}
+            onChangeText={(value: string) => {
+              setCreateData({
+                ...createData,
+                order: parseInt(value) || 0,
+              });
+            }}
+            placeholder="0"
+            keyboardType="numeric"
+            style={{ marginBottom: 16 }}
+          />
 
-                    <Input
-                      label="Display Order"
-                      value={editData.order?.toString() || item.order.toString()}
-                      onChangeText={(value: string) => {
-                        setEditData({
-                          ...editData,
-                          order: parseInt(value) || item.order,
-                        });
-                      }}
-                      keyboardType="numeric"
-                      className="mb-3"
-                    />
-
-
-                    <View className="flex-row gap-3">
-                      <TouchableOpacity
-                        className="flex-1 bg-[#EEB170] py-3 rounded-xl items-center"
-                        onPress={handleUpdateFAQ}
-                        activeOpacity={0.7}
-                      >
-                        <Text className="text-[#121212] font-bold">Save</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        className="flex-1 bg-[#FFFFFF66] py-3 rounded-xl items-center"
-                        onPress={() => {
-                          setEditingId(null);
-                          setEditData({});
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Text className="text-[#0C3572] font-bold">Cancel</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  // View Mode
-                  <View>
-                    <View className="flex-row items-start mb-3">
-                      <HelpCircle size={24} color="#EEB170" className="mt-1" />
-                      <View className="flex-1 ml-2">
-                        <Text className="text-[#0C3572] text-lg font-bold">
-                          {item.question}
-                        </Text>
-                        <Text className="text-[#2175C0] text-sm mt-1">
-                          Order: {item.order}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View className="bg-[#FFFFFF66] rounded-lg p-3 mb-3">
-                      <Text className="text-[#2175C0] text-sm">
-                        {item.answer}
-                      </Text>
-                    </View>
-
-                    <View className="bg-[#FFFFFF66] rounded-lg p-2 mb-3">
-                      <Text className="text-gray-500 text-xs">
-                        ID: {item.id}
-                      </Text>
-                    </View>
-
-                    <View className="flex-row gap-3">
-                      <TouchableOpacity
-                        className="flex-1 bg-[#EEB170] py-3 rounded-xl flex-row items-center justify-center"
-                        onPress={() => {
-                          setEditingId(item.id);
-                          setEditData({
-                            question: item.question,
-                            answer: item.answer,
-                            order: item.order,
-                          });
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Edit size={18} color="#121212" />
-                        <Text className="text-[#121212] font-semibold ml-2">
-                          Edit
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        className="flex-1 bg-[#E84054] py-3 rounded-xl flex-row items-center justify-center"
-                        onPress={() => handleDeleteFAQ(item)}
-                        disabled={deletingId === item.id}
-                        activeOpacity={0.7}
-                      >
-                        {deletingId === item.id ? (
-                          <>
-                            <ActivityIndicator color="#fff" size="small" />
-                            <Text className="text-[#0C3572] font-semibold ml-2">
-                              Deleting...
-                            </Text>
-                          </>
-                        ) : (
-                          <>
-                            <Trash2 size={18} color="#fff" />
-                            <Text className="text-[#0C3572] font-semibold ml-2">
-                              Delete
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-              </View>
-            ))
-          )}
+          <TouchableOpacity
+            style={{
+              backgroundColor: "#41B8F0",
+              opacity: creating ? 0.7 : 1,
+              paddingVertical: 14,
+              borderRadius: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            disabled={creating}
+            onPress={handleCreateFAQ}
+            activeOpacity={0.8}
+          >
+            {creating ? (
+              <>
+                <ActivityIndicator color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: "#FFFFFF",
+                    fontSize: 15,
+                    marginLeft: 8,
+                  }}
+                >
+                  Creating...
+                </Text>
+              </>
+            ) : (
+              <>
+                <Plus size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: "#FFFFFF",
+                    fontSize: 15,
+                    marginLeft: 8,
+                  }}
+                >
+                  Create FAQ
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
+
+        {/* Existing FAQs */}
+        <Text
+          style={{
+            fontFamily: "Poppins_600SemiBold",
+            color: textPrimary,
+            fontSize: 18,
+            marginBottom: 14,
+          }}
+        >
+          Active FAQs ({data.length})
+        </Text>
+
+        {loading ? (
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+            <ActivityIndicator size="large" color="#41B8F0" />
+            <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, marginTop: 12 }}>
+              Loading FAQs...
+            </Text>
+          </View>
+        ) : data.length === 0 ? (
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 20,
+              padding: 32,
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: cardBorder,
+            }}
+          >
+            <HelpCircle size={42} color={textSecondary} />
+            <Text
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: textSecondary,
+                textAlign: "center",
+                marginTop: 12,
+              }}
+            >
+              No FAQs yet. Create your first FAQ above!
+            </Text>
+          </View>
+        ) : (
+          data.map((item, index) => (
+            <View
+              key={item.id || index}
+              style={{
+                backgroundColor: cardBg,
+                borderRadius: 20,
+                padding: 18,
+                marginBottom: 14,
+                borderWidth: 1,
+                borderColor: cardBorder,
+              }}
+            >
+              {editingId === item.id ? (
+                // Edit Mode
+                <View>
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      color: textPrimary,
+                      fontSize: 16,
+                      marginBottom: 14,
+                    }}
+                  >
+                    Editing FAQ
+                  </Text>
+
+                  <Input
+                    label="Question"
+                    value={editData.question || item.question}
+                    onChangeText={(value: string) => {
+                      setEditData({
+                        ...editData,
+                        question: value,
+                      });
+                    }}
+                    style={{ marginBottom: 12 }}
+                  />
+
+                  <Input
+                    label="Answer"
+                    value={editData.answer || item.answer}
+                    onChangeText={(value: string) => {
+                      setEditData({
+                        ...editData,
+                        answer: value,
+                      });
+                    }}
+                    multiline
+                    numberOfLines={4}
+                    style={{ marginBottom: 12 }}
+                  />
+
+                  <Input
+                    label="Display Order"
+                    value={editData.order?.toString() || item.order.toString()}
+                    onChangeText={(value: string) => {
+                      setEditData({
+                        ...editData,
+                        order: parseInt(value) || item.order,
+                      });
+                    }}
+                    keyboardType="numeric"
+                    style={{ marginBottom: 14 }}
+                  />
+
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: "#41B8F0",
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        alignItems: "center",
+                      }}
+                      onPress={handleUpdateFAQ}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF" }}>
+                        Save
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        alignItems: "center",
+                      }}
+                      onPress={() => {
+                        setEditingId(null);
+                        setEditData({});
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary }}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                // View Mode
+                <View>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 10 }}>
+                    <View
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        backgroundColor: "#41B8F020",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 10,
+                        marginTop: 2,
+                      }}
+                    >
+                      <HelpCircle size={18} color="#41B8F0" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontFamily: "Poppins_600SemiBold",
+                          color: textPrimary,
+                          fontSize: 15,
+                        }}
+                      >
+                        {item.question}
+                      </Text>
+                      <Text
+                        style={{
+                          fontFamily: "Poppins_400Regular",
+                          color: textSecondary,
+                          fontSize: 11,
+                          marginTop: 2,
+                        }}
+                      >
+                        Display Order: {item.order}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "rgba(255, 255, 255, 0.04)" : "rgba(0, 0, 0, 0.03)",
+                      borderRadius: 12,
+                      padding: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_400Regular",
+                        color: textSecondary,
+                        fontSize: 13,
+                        lineHeight: 18,
+                      }}
+                    >
+                      {item.answer}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE",
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      onPress={() => {
+                        setEditingId(item.id);
+                        setEditData({
+                          question: item.question,
+                          answer: item.answer,
+                          order: item.order,
+                        });
+                      }}
+                      activeOpacity={0.75}
+                    >
+                      <Edit size={16} color="#41B8F0" />
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", marginLeft: 6, fontSize: 13 }}>
+                        Edit
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: isDark ? "rgba(239, 68, 68, 0.15)" : "#FEE2E2",
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      onPress={() => handleDeleteFAQ(item)}
+                      disabled={deletingId === item.id}
+                      activeOpacity={0.75}
+                    >
+                      {deletingId === item.id ? (
+                        <>
+                          <ActivityIndicator color="#EF4444" size="small" />
+                          <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#EF4444", marginLeft: 6, fontSize: 13 }}>
+                            Deleting...
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 size={16} color="#EF4444" />
+                          <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#EF4444", marginLeft: 6, fontSize: 13 }}>
+                            Delete
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );

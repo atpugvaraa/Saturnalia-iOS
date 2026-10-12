@@ -6,8 +6,98 @@
  * - Everything else: mock data until the backend adds those routes
  */
 
-import { apiFetch, readError } from './client';
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import { apiFetch, getIdTokenIfSignedIn, readError } from './client';
 import { API_BASE_URL } from '@/config/api';
+import {
+  adminListBanners,
+  adminCreateBanner,
+  adminUpdateBanner,
+  adminDeleteBanner,
+  fetchBanners,
+  Banner,
+} from './banners';
+import {
+  adminListReels,
+  adminCreateReel,
+  adminUpdateReel,
+  adminDeleteReel,
+  fetchReels,
+} from './reels';
+import {
+  adminListStories,
+  adminCreateStory,
+  adminUpdateStory,
+  adminDeleteStory,
+  listStories,
+} from './stories';
+import { useContentCacheStore } from '@/state/contentCacheStore';
+
+export * from './banners';
+export * from './reels';
+export * from './stories';
+
+// ─── ImageKit Media Upload ───────────────────────────────────────────────────
+
+export async function adminUploadMedia(
+  fileUri: string,
+  options?: { folder?: string; fileName?: string; mimeType?: string }
+): Promise<{ url: string; ref: string; name: string }> {
+  const folder = options?.folder || 'general';
+
+  if (Platform.OS === 'web') {
+    const resp = await fetch(fileUri);
+    const blob = await resp.blob();
+    const formData = new FormData();
+    formData.append('file', blob, options?.fileName || 'upload');
+    formData.append('folder', folder);
+    const res = await apiFetch('/admin/media/upload', {
+      method: 'POST',
+      body: formData,
+    }, 'required');
+    if (!res.ok) throw new Error(await readError(res, 'Failed to upload media'));
+    return res.json();
+  }
+
+  // Native (Android/iOS): use native FileSystem streaming upload
+  const token = await getIdTokenIfSignedIn();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const result = await FileSystem.uploadAsync(
+    `${API_BASE_URL}/admin/media/upload`,
+    fileUri,
+    {
+      fieldName: 'file',
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      headers,
+      parameters: {
+        folder,
+      },
+    }
+  );
+
+  if (result.status < 200 || result.status >= 300) {
+    let errMsg = 'Failed to upload media';
+    try {
+      const parsed = JSON.parse(result.body);
+      if (typeof parsed?.error === 'string') {
+        errMsg = parsed.error;
+      } else if (typeof parsed?.error?.message === 'string') {
+        errMsg = parsed.error.message;
+      } else if (typeof parsed?.message === 'string') {
+        errMsg = parsed.message;
+      }
+    } catch {}
+    throw new Error(errMsg);
+  }
+
+  return JSON.parse(result.body);
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,9 +167,13 @@ export interface AccommodationStats {
 export interface UserAccommodation {
   userId: string;
   displayName: string;
+  email?: string;
+  phoneNumber?: string;
   collegeName?: string;
   accommodationNeeded: boolean;
-  checkInStatus?: Record<string, boolean>;
+  accommodationStatus?: Record<string, boolean>;
+  foodStatus?: Record<string, boolean>;
+  checkInStatus?: Record<string, any>;
 }
 
 // ─── Events (real backend) ─────────────────────────────────────────────────
@@ -248,27 +342,51 @@ export async function deleteFAQ(id: string): Promise<boolean> {
   return true;
 }
 
-// ─── Banners (mock) ───────────────────────────────────────────────────────────
+// ─── Banners (Real Backend) ───────────────────────────────────────────────────
 
 export async function listBanners(): Promise<AdminBanner[]> {
-  return [];
+  const items = await adminListBanners();
+  return items.map((b) => ({
+    id: b.id,
+    imageUrl: b.imageUrl,
+    linkUrl: b.link,
+    isActive: b.isActive,
+    order: b.order,
+  }));
 }
 
-export async function createBanner(_data: Partial<AdminBanner>): Promise<void> {
-  console.log('[mock] createBanner');
+export async function createBanner(data: Partial<AdminBanner>): Promise<void> {
+  await adminCreateBanner({
+    title: (data as any).title || 'Banner',
+    description: (data as any).description || '',
+    imageUrl: data.imageUrl,
+    link: data.linkUrl || (data as any).link || '',
+    isActive: data.isActive !== false,
+    order: data.order || 0,
+  });
+  useContentCacheStore.getState().invalidateBanners();
 }
 
-export async function updateBanner(_id: string, _data: Partial<AdminBanner>): Promise<void> {
-  console.log('[mock] updateBanner');
+export async function updateBanner(id: string, data: Partial<AdminBanner>): Promise<void> {
+  await adminUpdateBanner(id, {
+    title: (data as any).title,
+    description: (data as any).description,
+    imageUrl: data.imageUrl,
+    link: data.linkUrl ?? (data as any).link,
+    isActive: data.isActive,
+    order: data.order,
+  });
+  useContentCacheStore.getState().invalidateBanners();
 }
 
-export async function deleteBanner(_id: string): Promise<void> {
-  console.log('[mock] deleteBanner');
+export async function deleteBanner(id: string): Promise<void> {
+  await adminDeleteBanner(id);
+  useContentCacheStore.getState().invalidateBanners();
 }
 
 // ─── Polls (mock) ─────────────────────────────────────────────────────────────
 
-export interface Poll { id: string; question: string; options: string[]; isActive: boolean; }
+export interface Poll { id: string; question: string; options: string[]; isActive: boolean; votes?: Record<string, number>; voters?: string[]; }
 
 export async function listPolls(): Promise<Poll[]> {
   return [];
@@ -328,6 +446,10 @@ export interface UserEventRegistration {
   registeredAt: string;
   status?: string;
   teamId?: string;
+  teamName?: string;
+  teamInviteCode?: string;
+  eventType?: string;
+  responses?: any[];
   paymentStatus?: string;
   user: {
     email: string;
@@ -335,6 +457,7 @@ export interface UserEventRegistration {
     displayName?: string;
     phoneNumber?: string;
     collegeName?: string;
+    rollNumber?: string;
   };
 }
 
@@ -344,6 +467,10 @@ const mapReg = (r: any): UserEventRegistration => ({
   registeredAt: r.registeredAt,
   status: r.status,
   teamId: r.teamId,
+  teamName: r.teamName,
+  teamInviteCode: r.teamInviteCode,
+  eventType: r.eventType,
+  responses: r.responses,
   paymentStatus: r.paymentStatus,
   user: {
     email: r.user?.email ?? r.email ?? '',
@@ -351,6 +478,7 @@ const mapReg = (r: any): UserEventRegistration => ({
     displayName: r.user?.displayName ?? r.displayName,
     phoneNumber: r.user?.phoneNumber ?? '',
     collegeName: r.user?.collegeName ?? '',
+    rollNumber: r.user?.rollNumber ?? '',
   },
 });
 
@@ -412,7 +540,7 @@ export const updateTeamRegistrationStatus = async (
   _eventId: string,
   _teamId: string,
   _status: string,
-) => {
+): Promise<{ success: boolean; error?: string }> => {
   console.log('[mock] updateTeamRegistrationStatus');
   return { success: true };
 };
@@ -424,8 +552,21 @@ export const getFAQs = listFAQs;
 export const getVenues = listVenues;
 
 export const getRewards = async () => [] as any[];
-export const getStoreItems = async (_includeInactive?: boolean) => [] as any[];
-export type StoreItem = { id: string; name: string; price: number; isActive: boolean; category: string };
+export const getStoreItems = async (_includeInactive?: boolean): Promise<{ success: boolean; data: StoreItem[]; error?: string }> => ({
+  success: true,
+  data: [],
+});
+export type StoreItem = {
+  id: string;
+  name: string;
+  price: number;
+  isActive: boolean;
+  category: string;
+  images?: string[];
+  description?: string;
+  sizeOptions?: any[];
+  currentInventory?: number;
+};
 
 export const createUpdate = async (_data: any) => { console.log('[mock] createUpdate'); };
 export const getUpdates = (cb?: (items: any[]) => void) => {
@@ -441,18 +582,60 @@ export const getAllPolls = (cb?: (polls: any[]) => void) => {
 export const togglePollStatus = async (_id: string, _isActive: boolean) => {
   console.log('[mock] togglePollStatus');
 };
-export const voteOnPoll = async (_pollId: string, _optionId: string) => {
+export const voteOnPoll = async (_pollId: string, _optionId: string, _userId?: string): Promise<{ success: boolean; message?: string }> => {
   console.log('[mock] voteOnPoll');
+  return { success: true };
 };
 
-export const getCorousal = async () => [] as any[];
-export const createCorousal = async (_data: any) => { console.log('[mock] createCorousal'); };
-export const deleteCorousal = async (_id: string) => { console.log('[mock] deleteCorousal'); return true; };
+export const getCorousal = async () => {
+  const banners = await adminListBanners();
+  return banners.map((b) => ({
+    id: b.id,
+    imageUrl: b.imageUrl,
+    link: b.link,
+    corousalType: 1,
+    isPublic: b.isActive,
+    date: b.createdAt,
+    title: b.title,
+    description: b.description,
+    order: b.order,
+  }));
+};
 
-export const uploadStoryMedia = async (uri: string, _type?: string) => ({
-  success: true,
-  url: uri,
-});
+export const createCorousal = async (data: any) => {
+  const banner = await adminCreateBanner({
+    title: data.title || 'Promotional Banner',
+    description: data.description || '',
+    imageUrl: data.imageUrl,
+    link: data.link || '',
+    isActive: data.isPublic !== false,
+    order: data.order || 0,
+  });
+  useContentCacheStore.getState().invalidateBanners();
+  return banner;
+};
+
+export const deleteCorousal = async (id: string) => {
+  await adminDeleteBanner(id);
+  useContentCacheStore.getState().invalidateBanners();
+  return true;
+};
+
+export const uploadStoryMedia = async (
+  uri: string,
+  type?: string
+): Promise<{ success: boolean; url?: string; ref?: string; error?: string }> => {
+  try {
+    const res = await adminUploadMedia(uri, {
+      folder: type === 'video' ? 'reels' : 'stories',
+      mimeType: type === 'video' ? 'video/mp4' : 'image/jpeg',
+    });
+    return { success: true, url: res.url, ref: res.ref };
+  } catch (err: any) {
+    console.warn('uploadStoryMedia error:', err);
+    return { success: false, error: err?.message || 'Failed to upload media' };
+  }
+};
 
 export const fetchUsers = async (filters?: any, _loadMore?: boolean) => {
   const term = filters?.searchTerm?.trim() || '';
@@ -522,10 +705,10 @@ export const fetchTransactions = async (_filters?: any, _loadMore?: boolean) => 
   };
 };
 
-export const updatePaymentStatus = async (merchantOrderId: string, status: string) => {
+export const updatePaymentStatus = async (merchantOrderId: string, status: string, remarks?: string) => {
   const response = await apiFetch(`/admin/payments/${merchantOrderId}`, {
     method: "PATCH",
-    body: JSON.stringify({ status })
+    body: JSON.stringify({ status, remarks })
   }, "required");
   
   if (!response.ok) {
@@ -536,14 +719,21 @@ export const updatePaymentStatus = async (merchantOrderId: string, status: strin
 
 export const clearTransactionsCache = () => {};
 
-export const getOrderByQR = async (_data: string) => ({ success: false, error: 'Store orders are not available yet' });
+export const getOrderByQR = async (_data: string): Promise<{ success: boolean; order?: any; error?: string }> => ({
+  success: false,
+  error: 'Store orders are not available yet',
+});
 export const updateOrderStatus = async (_id: string, _status: string) => ({ success: false, error: 'Not available' });
 export const getAllOrders = async () => [] as any[];
 export type UserOrder = any;
 
-export const handleQRScan = async (_data: string, _role: string) => null;
-export const updateUserCheckingStatus = async (_userId: string, _field: string, _value: any) => {
+export const handleQRScan = async (_data: string, _role: string): Promise<any> => ({
+  success: true,
+  data: null,
+});
+export const updateUserCheckingStatus = async (_userId: string, _field: string, _value?: any): Promise<any> => {
   console.log('[mock] updateUserCheckingStatus');
+  return { success: true };
 };
 export type UserRegistrationData = any;
 export type UserGateData = any;

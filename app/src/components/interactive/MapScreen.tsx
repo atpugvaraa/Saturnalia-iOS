@@ -494,9 +494,18 @@ export default function MapScreen() {
   // Get events for selected venue
   const venueEvents = useMemo(() => {
     if (!selectedVenue) return [];
-    const filteredEvents = events.filter(
-      (event) => event.venueId === selectedVenue.venueId
-    );
+    const targetVenueId = selectedVenue.venueId || '';
+    const targetVenueName = (selectedVenue.venueName || '').trim().toLowerCase();
+
+    const filteredEvents = events.filter((event) => {
+      if (targetVenueId && event.venueId === targetVenueId) {
+        return true;
+      }
+      if (targetVenueName && event.venueName && event.venueName.trim().toLowerCase() === targetVenueName) {
+        return true;
+      }
+      return false;
+    });
 
     // Simple array with unique keys for each event
     return filteredEvents.map((event, index) => ({

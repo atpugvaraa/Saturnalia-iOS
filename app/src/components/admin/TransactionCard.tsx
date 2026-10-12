@@ -5,13 +5,13 @@ import {
   CreditCard,
   Calendar,
   User,
-  Tag,
   CheckCircle,
   XCircle,
   Clock,
   Sparkles,
 } from "lucide-react-native";
 import { PaymentTransaction } from "@/types/adminTypes";
+import { useThemeStore } from "@/state/themeStore";
 
 interface TransactionCardProps {
   transaction: PaymentTransaction;
@@ -20,32 +20,44 @@ interface TransactionCardProps {
 
 const TransactionCard: React.FC<TransactionCardProps> = React.memo(
   ({ transaction, onPress }) => {
+    const { isDark } = useThemeStore();
+
+    const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+    const cardBorder = isDark ? "#2A2A30" : "#E5E7EB";
+    const textPrimary = isDark ? "#FFFFFF" : "#111827";
+    const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+    const subCardBg = isDark ? "rgba(255, 255, 255, 0.04)" : "#F9FAFB";
+
     const getStatusBadge = (status: string) => {
       switch (status.toLowerCase()) {
         case "success":
           return {
-            bg: "bg-emerald-50 border-emerald-200",
-            text: "text-emerald-700",
-            icon: <CheckCircle size={14} color="#10B981" />,
+            bg: isDark ? "rgba(16, 185, 129, 0.15)" : "#ECFDF5",
+            border: isDark ? "rgba(16, 185, 129, 0.3)" : "#A7F3D0",
+            text: "#10B981",
+            icon: <CheckCircle size={13} color="#10B981" />,
           };
         case "failed":
         case "failure":
           return {
-            bg: "bg-rose-50 border-rose-200",
-            text: "text-rose-700",
-            icon: <XCircle size={14} color="#EF4444" />,
+            bg: isDark ? "rgba(239, 68, 68, 0.15)" : "#FEF2F2",
+            border: isDark ? "rgba(239, 68, 68, 0.3)" : "#FECACA",
+            text: "#EF4444",
+            icon: <XCircle size={13} color="#EF4444" />,
           };
         case "pending":
           return {
-            bg: "bg-amber-50 border-amber-200",
-            text: "text-amber-700",
-            icon: <Clock size={14} color="#F59E0B" />,
+            bg: isDark ? "rgba(245, 158, 11, 0.15)" : "#FFFBEB",
+            border: isDark ? "rgba(245, 158, 11, 0.3)" : "#FDE68A",
+            text: "#F59E0B",
+            icon: <Clock size={13} color="#F59E0B" />,
           };
         default:
           return {
-            bg: "bg-slate-100 border-slate-200",
-            text: "text-slate-600",
-            icon: <Clock size={14} color="#64748B" />,
+            bg: isDark ? "rgba(156, 163, 175, 0.15)" : "#F3F4F6",
+            border: isDark ? "rgba(156, 163, 175, 0.3)" : "#E5E7EB",
+            text: textSecondary,
+            icon: <Clock size={13} color={textSecondary} />,
           };
       }
     };
@@ -74,19 +86,40 @@ const TransactionCard: React.FC<TransactionCardProps> = React.memo(
     return (
       <TouchableOpacity
         onPress={() => onPress(transaction)}
-        className="bg-white rounded-2xl p-4 mx-4 mb-3 border border-[#A0B3D0]/60"
-        style={{ boxShadow: "0px 4px 12px 0px rgba(12, 53, 114, 0.08)" } as any}
-        activeOpacity={0.7}
+        style={{
+          backgroundColor: cardBg,
+          borderRadius: 20,
+          padding: 16,
+          marginHorizontal: 16,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: cardBorder,
+        }}
+        activeOpacity={0.75}
       >
         {/* Header Row */}
-        <View className="flex-row items-center justify-between mb-3">
-          <View className="flex-row items-center flex-1 mr-2">
-            <View className="w-8 h-8 rounded-full bg-[#EEB170]/20 items-center justify-center mr-2">
-              <CreditCard size={18} color="#EEB170" />
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 }}>
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: "#41B8F020",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 8,
+              }}
+            >
+              <CreditCard size={16} color="#41B8F0" />
             </View>
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-sm flex-1"
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: textPrimary,
+                fontSize: 13,
+                flex: 1,
+              }}
               numberOfLines={1}
             >
               {transaction.merchantOrderId}
@@ -95,12 +128,26 @@ const TransactionCard: React.FC<TransactionCardProps> = React.memo(
 
           {/* Status Badge */}
           <View
-            className={`flex-row items-center px-2.5 py-1 rounded-full border ${badge.bg}`}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 20,
+              backgroundColor: badge.bg,
+              borderWidth: 1,
+              borderColor: badge.border,
+            }}
           >
             {badge.icon}
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className={`ml-1 text-xs uppercase ${badge.text}`}
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: badge.text,
+                fontSize: 11,
+                textTransform: "uppercase",
+                marginLeft: 4,
+              }}
             >
               {transaction.status}
             </Text>
@@ -108,26 +155,49 @@ const TransactionCard: React.FC<TransactionCardProps> = React.memo(
         </View>
 
         {/* Amount Row */}
-        <View className="flex-row items-center justify-between mb-3 bg-[#F8FAFC] p-3 rounded-xl border border-slate-100">
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 12,
+            backgroundColor: subCardBg,
+            padding: 12,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: cardBorder,
+          }}
+        >
           <View>
             <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-2xl"
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: textPrimary,
+                fontSize: 20,
+              }}
             >
               {formatAmount(transaction.finalAmount)}
             </Text>
             {transaction.originalAmount !== transaction.finalAmount && (
-              <View className="flex-row items-center mt-0.5">
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
                 <Text
-                  style={{ fontFamily: "Outfit_400Regular" }}
-                  className="text-slate-400 text-xs line-through"
+                  style={{
+                    fontFamily: "Poppins_400Regular",
+                    color: textSecondary,
+                    fontSize: 11,
+                    textDecorationLine: "line-through",
+                  }}
                 >
                   {formatAmount(transaction.originalAmount)}
                 </Text>
                 {transaction.discountAmount > 0 && (
                   <Text
-                    style={{ fontFamily: "Outfit_600SemiBold" }}
-                    className="text-emerald-600 text-xs ml-2"
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      color: "#10B981",
+                      fontSize: 11,
+                      marginLeft: 6,
+                    }}
                   >
                     -{formatAmount(transaction.discountAmount)} off
                   </Text>
@@ -136,21 +206,36 @@ const TransactionCard: React.FC<TransactionCardProps> = React.memo(
             )}
           </View>
 
-          <View className="items-end">
-            <View className="bg-[#DBE2ED] px-2.5 py-1 rounded-lg">
+          <View style={{ alignItems: "flex-end" }}>
+            <View
+              style={{
+                backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE",
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 8,
+              }}
+            >
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#0C3572] text-xs uppercase"
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  color: "#41B8F0",
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                }}
               >
                 {transaction.paymentType.replace(/_/g, " ")}
               </Text>
             </View>
             {transaction.transactionFees > 0 && (
               <Text
-                style={{ fontFamily: "Outfit_400Regular" }}
-                className="text-slate-400 text-xs mt-1"
+                style={{
+                  fontFamily: "Poppins_400Regular",
+                  color: textSecondary,
+                  fontSize: 11,
+                  marginTop: 2,
+                }}
               >
-                +₹{transaction.transactionFees} gateway fee
+                +₹{transaction.transactionFees} fee
               </Text>
             )}
           </View>
@@ -158,24 +243,46 @@ const TransactionCard: React.FC<TransactionCardProps> = React.memo(
 
         {/* Event/Team Info */}
         {transaction.processedIntentions?.eventRegistration && (
-          <View className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 mb-2.5">
+          <View
+            style={{
+              backgroundColor: subCardBg,
+              borderWidth: 1,
+              borderColor: cardBorder,
+              borderRadius: 12,
+              padding: 10,
+              marginBottom: 10,
+            }}
+          >
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#2175C0] text-xs uppercase tracking-wider mb-1"
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: "#41B8F0",
+                fontSize: 10,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                marginBottom: 2,
+              }}
             >
               Event Registration
             </Text>
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-sm"
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: textPrimary,
+                fontSize: 13,
+              }}
               numberOfLines={1}
             >
               {transaction.eventId}
             </Text>
             {transaction.processedIntentions.eventRegistration.teamName && (
               <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#2175C0] text-xs mt-0.5"
+                style={{
+                  fontFamily: "Poppins_400Regular",
+                  color: textSecondary,
+                  fontSize: 11,
+                  marginTop: 2,
+                }}
                 numberOfLines={1}
               >
                 Team: {transaction.processedIntentions.eventRegistration.teamName}
@@ -186,35 +293,69 @@ const TransactionCard: React.FC<TransactionCardProps> = React.memo(
 
         {/* Coupon Info */}
         {transaction.couponCode && (
-          <View className="flex-row items-center bg-emerald-50 border border-emerald-200/70 rounded-lg px-2.5 py-1.5 mb-2.5">
-            <Sparkles size={14} color="#059669" />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: isDark ? "rgba(16, 185, 129, 0.1)" : "#ECFDF5",
+              borderWidth: 1,
+              borderColor: isDark ? "rgba(16, 185, 129, 0.2)" : "#A7F3D0",
+              borderRadius: 8,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              marginBottom: 10,
+            }}
+          >
+            <Sparkles size={13} color="#10B981" />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-emerald-700 text-xs ml-1.5"
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: "#10B981",
+                fontSize: 11,
+                marginLeft: 6,
+              }}
             >
-              Coupon Applied: {transaction.couponCode}
+              Coupon: {transaction.couponCode}
             </Text>
           </View>
         )}
 
         {/* Footer Row */}
-        <View className="flex-row items-center justify-between pt-2.5 border-t border-slate-100">
-          <View className="flex-row items-center flex-1 mr-2">
-            <User size={13} color="#2175C0" />
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingTop: 8,
+            borderTopWidth: 1,
+            borderTopColor: cardBorder,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 }}>
+            <User size={12} color="#41B8F0" />
             <Text
-              style={{ fontFamily: "Outfit_400Regular" }}
-              className="text-[#2175C0] text-xs ml-1 flex-1"
+              style={{
+                fontFamily: "Poppins_400Regular",
+                color: textSecondary,
+                fontSize: 11,
+                marginLeft: 4,
+                flex: 1,
+              }}
               numberOfLines={1}
             >
               {transaction.userId}
             </Text>
           </View>
 
-          <View className="flex-row items-center">
-            <Calendar size={13} color="#94A3B8" />
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Calendar size={12} color={textSecondary} />
             <Text
-              style={{ fontFamily: "Outfit_400Regular" }}
-              className="text-slate-400 text-xs ml-1"
+              style={{
+                fontFamily: "Poppins_400Regular",
+                color: textSecondary,
+                fontSize: 11,
+                marginLeft: 4,
+              }}
             >
               {formatDate(transaction.createdAt)}
             </Text>

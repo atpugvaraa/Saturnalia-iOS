@@ -1,19 +1,48 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { Clock, CreditCard, CheckCircle2, XCircle } from 'lucide-react-native';
+import { useThemeStore } from '@/state/themeStore';
 
 interface TeamStatusMessageProps {
   status: 'pending' | 'awaited' | 'payment_pending' | 'confirmed' | 'rejected';
 }
 
 const TeamStatusMessage: React.FC<TeamStatusMessageProps> = ({ status }) => {
+  const { isDark } = useThemeStore();
+
   if (status === 'awaited') {
     return (
-      <View className="mt-2 bg-blue-100 border border-blue-300 rounded-lg p-3">
-        <Text className="text-blue-800 text-sm mb-1 font-semibold">
-          Your team has been submitted and is awaiting admin approval.
-        </Text>
-        <Text className="text-blue-600 text-xs">
-          Team is locked - No changes can be made while under review.
+      <View
+        style={{
+          marginTop: 12,
+          backgroundColor: isDark ? 'rgba(168, 85, 247, 0.12)' : 'rgba(168, 85, 247, 0.08)',
+          borderColor: 'rgba(168, 85, 247, 0.3)',
+          borderWidth: 1,
+          borderRadius: 14,
+          padding: 12,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          <Clock size={16} color="#A855F7" style={{ marginRight: 6 }} />
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 13,
+              color: '#A855F7',
+            }}
+          >
+            Team Submitted for Review
+          </Text>
+        </View>
+        <Text
+          style={{
+            fontFamily: 'Poppins_400Regular',
+            fontSize: 12,
+            color: isDark ? '#D8B4FE' : '#6B21A8',
+            lineHeight: 18,
+          }}
+        >
+          Your team is currently under review by event coordinators. No changes can be made while under review.
         </Text>
       </View>
     );
@@ -21,12 +50,37 @@ const TeamStatusMessage: React.FC<TeamStatusMessageProps> = ({ status }) => {
 
   if (status === 'payment_pending') {
     return (
-      <View className="mt-2 bg-orange-100 border border-orange-300 rounded-lg p-3">
-        <Text className="text-orange-800 text-sm mb-1 font-semibold">
-          💳 Payment is required to complete your registration.
-        </Text>
-        <Text className="text-orange-600 text-xs">
-          Your team will be confirmed once payment is completed.
+      <View
+        style={{
+          marginTop: 12,
+          backgroundColor: isDark ? 'rgba(255, 186, 0, 0.12)' : 'rgba(255, 186, 0, 0.1)',
+          borderColor: 'rgba(255, 186, 0, 0.35)',
+          borderWidth: 1,
+          borderRadius: 14,
+          padding: 12,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          <CreditCard size={16} color="#FFBA00" style={{ marginRight: 6 }} />
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 13,
+              color: '#FFBA00',
+            }}
+          >
+            Payment Required
+          </Text>
+        </View>
+        <Text
+          style={{
+            fontFamily: 'Poppins_400Regular',
+            fontSize: 12,
+            color: isDark ? '#FDE68A' : '#92400E',
+            lineHeight: 18,
+          }}
+        >
+          The registration fee must be completed by the team leader to confirm your team's entry.
         </Text>
       </View>
     );
@@ -34,12 +88,37 @@ const TeamStatusMessage: React.FC<TeamStatusMessageProps> = ({ status }) => {
 
   if (status === 'confirmed') {
     return (
-      <View className="mt-2 bg-green-100 border border-green-300 rounded-lg p-3">
-        <Text className="text-green-800 text-sm mb-1 font-semibold">
-          ✓ Your team registration has been confirmed!
-        </Text>
-        <Text className="text-green-600 text-xs">
-          All set! See you at the event.
+      <View
+        style={{
+          marginTop: 12,
+          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+          borderColor: 'rgba(16, 185, 129, 0.3)',
+          borderWidth: 1,
+          borderRadius: 14,
+          padding: 12,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          <CheckCircle2 size={16} color="#10B981" style={{ marginRight: 6 }} />
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 13,
+              color: '#10B981',
+            }}
+          >
+            Team Registration Confirmed!
+          </Text>
+        </View>
+        <Text
+          style={{
+            fontFamily: 'Poppins_400Regular',
+            fontSize: 12,
+            color: isDark ? '#A7F3D0' : '#065F46',
+            lineHeight: 18,
+          }}
+        >
+          You're all set! Best of luck to your team at the event.
         </Text>
       </View>
     );
@@ -47,12 +126,37 @@ const TeamStatusMessage: React.FC<TeamStatusMessageProps> = ({ status }) => {
 
   if (status === 'rejected') {
     return (
-      <View className="mt-2 bg-red-100 border border-red-300 rounded-lg p-3">
-        <Text className="text-red-800 text-sm mb-1 font-semibold">
-          ✕ Your team registration has been rejected.
-        </Text>
-        <Text className="text-red-600 text-xs">
-          Please contact the event organizers for more information.
+      <View
+        style={{
+          marginTop: 12,
+          backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+          borderColor: 'rgba(239, 68, 68, 0.3)',
+          borderWidth: 1,
+          borderRadius: 14,
+          padding: 12,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          <XCircle size={16} color="#EF4444" style={{ marginRight: 6 }} />
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 13,
+              color: '#EF4444',
+            }}
+          >
+            Registration Not Approved
+          </Text>
+        </View>
+        <Text
+          style={{
+            fontFamily: 'Poppins_400Regular',
+            fontSize: 12,
+            color: isDark ? '#FECACA' : '#991B1B',
+            lineHeight: 18,
+          }}
+        >
+          Please get in touch with event coordinators for assistance or additional details.
         </Text>
       </View>
     );

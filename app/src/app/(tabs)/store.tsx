@@ -48,13 +48,6 @@ const DEFAULT_PRODUCTS: StoreProduct[] = [
     description: 'ID Card Curated in a way that you wear to feel the vibes of Saturnalia',
   },
   {
-    id: 'prod-idcard-2',
-    name: 'ID Card',
-    price: 150,
-    priceText: 'Rs. 150',
-    description: 'ID Card Curated in a way that you wear to feel the vibes of Saturnalia',
-  },
-  {
     id: 'prod-tee',
     name: 'Saturnalia Tee',
     price: 499,

@@ -1,95 +1,44 @@
 // src/utils/debugVersion.ts
-// Debug utility to test Firebase version and maintenance checks
+// Debug utility to test backend app status, version and maintenance checks
 import { Platform } from 'react-native';
+import { getAppConfig, getAppMaintenance, getAppVersions } from '@/api/appConfig';
 
 /**
- * Debug function to manually check Firebase maintenance document
+ * Debug function to manually check maintenance status
  */
-export async function debugMaintenanceCheck() {
+export async function debugMaintenanceCheck(): Promise<boolean> {
   try {
     console.log('========== DEBUG MAINTENANCE CHECK ==========');
-    /* Removed Firebase API call */
-    /* Removed Firebase API call */
-
-    console.log('Firebase app initialized:', !!app);
-    console.log('Firestore instance:', !!firestore);
-    console.log('Attempting to read path: app/maintenance');
-
-    /* Removed Firebase API call */
-    console.log('Document reference created:', !!docRef);
-    console.log('Document path:', docRef.path);
-
-    /* Removed Firebase API call */
-
-    console.log('Document exists:', maintenanceDoc.exists());
-    console.log('Document ID:', maintenanceDoc.id);
-
-    if (maintenanceDoc.exists()) {
-      const data = maintenanceDoc.data();
-      console.log('Raw document data:', JSON.stringify(data, null, 2));
-      console.log('Platform:', Platform.OS);
-      console.log(`Value for ${Platform.OS}:`, data?.[Platform.OS]);
-      console.log('Type:', typeof data?.[Platform.OS]);
-    } else {
-      console.log('❌ DOCUMENT DOES NOT EXIST!');
-      console.log('Expected path: app/maintenance');
-      console.log('Please verify:');
-      console.log('  1. Collection name is "app" (lowercase)');
-      console.log('  2. Document ID is "maintenance" (lowercase)');
-      console.log('  3. Firestore security rules allow read access');
-    }
-
+    console.log('Calling API: /api/v1/app/maintenance');
+    const data = await getAppMaintenance();
+    console.log('Maintenance data:', JSON.stringify(data, null, 2));
+    console.log('Platform:', Platform.OS);
+    const platformKey = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+    console.log(`Value for ${Platform.OS}:`, data[platformKey]);
     console.log('============================================');
-    return maintenanceDoc.exists();
+    return !data[platformKey];
   } catch (error: any) {
     console.error('❌ DEBUG maintenance check failed:', error);
-    console.error('Error name:', error?.name);
-    console.error('Error message:', error?.message);
-    console.error('This might be a permissions issue or network error');
     return false;
   }
 }
 
 /**
- * Debug function to manually check Firebase versions document
+ * Debug function to manually check versions document
  */
-export async function debugVersionCheck() {
+export async function debugVersionCheck(): Promise<boolean> {
   try {
     console.log('========== DEBUG VERSION CHECK ==========');
-    /* Removed Firebase API call */
-    /* Removed Firebase API call */
-    console.log('Attempting to read path: app/versions');
-
-    /* Removed Firebase API call */
-    console.log('Document reference created:', !!docRef);
-    console.log('Document path:', docRef.path);
-
-    /* Removed Firebase API call */
-
-    console.log('Document exists:', versionsDoc.exists());
-    console.log('Document ID:', versionsDoc.id);
-
-    if (versionsDoc.exists()) {
-      const data = versionsDoc.data();
-      console.log('Raw document data:', JSON.stringify(data, null, 2));
-      console.log('Platform:', Platform.OS);
-      console.log(`Version for ${Platform.OS}:`, data?.[Platform.OS]);
-      console.log('Type:', typeof data?.[Platform.OS]);
-    } else {
-      console.log('❌ DOCUMENT DOES NOT EXIST!');
-      console.log('Expected path: app/versions');
-      console.log('Please verify:');
-      console.log('  1. Collection name is "app" (lowercase)');
-      console.log('  2. Document ID is "versions" (lowercase)');
-      console.log('  3. Document contains platform keys (android/ios)');
-    }
-
+    console.log('Calling API: /api/v1/app/versions');
+    const data = await getAppVersions();
+    console.log('Version data:', JSON.stringify(data, null, 2));
+    console.log('Platform:', Platform.OS);
+    const platformKey = Platform.OS === 'ios' ? 'ios' : 'android';
+    console.log(`Required version for ${Platform.OS}:`, data[platformKey]);
     console.log('=========================================');
-    return versionsDoc.exists();
+    return true;
   } catch (error: any) {
     console.error('❌ DEBUG version check failed:', error);
-    console.error('Error name:', error?.name);
-    console.error('Error message:', error?.message);
     return false;
   }
 }
@@ -97,10 +46,17 @@ export async function debugVersionCheck() {
 /**
  * Run all debug checks
  */
-export async function runAllDebugChecks() {
+export async function runAllDebugChecks(): Promise<void> {
   console.log('\n\n========== STARTING ALL DEBUG CHECKS ==========\n');
   await debugMaintenanceCheck();
   console.log('\n');
   await debugVersionCheck();
+  console.log('\n');
+  try {
+    const fullConfig = await getAppConfig();
+    console.log('Combined Config:', JSON.stringify(fullConfig, null, 2));
+  } catch (e) {
+    console.error('Failed to get combined config:', e);
+  }
   console.log('\n========== DEBUG CHECKS COMPLETE ==========\n\n');
 }

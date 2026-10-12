@@ -97,6 +97,36 @@ const FALLBACK_HYPED_EVENTS: FirebaseEvent[] = [
     category: 'Cultural',
     registeredCount: 450,
   } as FirebaseEvent,
+  {
+    eventId: 'mock-hype-6',
+    title: 'Battle of the Bands',
+    category: 'Cultural',
+    registeredCount: 950,
+  } as FirebaseEvent,
+  {
+    eventId: 'mock-hype-7',
+    title: 'Code Relay',
+    category: 'Technical',
+    registeredCount: 780,
+  } as FirebaseEvent,
+  {
+    eventId: 'mock-hype-8',
+    title: 'Fashion Walk',
+    category: 'Cultural',
+    registeredCount: 620,
+  } as FirebaseEvent,
+  {
+    eventId: 'mock-hype-9',
+    title: 'Robo Soccer',
+    category: 'Robotics',
+    registeredCount: 510,
+  } as FirebaseEvent,
+  {
+    eventId: 'mock-hype-10',
+    title: 'Design Sprint',
+    category: 'Technical',
+    registeredCount: 420,
+  } as FirebaseEvent,
 ];
 
 function getOrdinalSuffix(day: number): string {
@@ -189,17 +219,17 @@ export default function EventsTabScreen() {
     return groups;
   }, [featuredEvents]);
 
-  // Top 5 Hyped Events sorted by registrations
+  // Top 10 Hyped Events sorted by registrations
   const hypedEvents = useMemo(() => {
-    if (events.length >= 5) {
+    if (events.length >= 10) {
       const sorted = [...events].sort((a, b) => (b.registeredCount || 0) - (a.registeredCount || 0));
-      return sorted.slice(0, 5);
+      return sorted.slice(0, 10);
     }
     if (events.length > 0) {
       const sorted = [...events].sort((a, b) => (b.registeredCount || 0) - (a.registeredCount || 0));
-      return [...sorted, ...FALLBACK_HYPED_EVENTS].slice(0, 5);
+      return [...sorted, ...FALLBACK_HYPED_EVENTS].slice(0, 10);
     }
-    return FALLBACK_HYPED_EVENTS;
+    return FALLBACK_HYPED_EVENTS.slice(0, 10);
   }, [events]);
 
   // Timeline groups for each date — ONLY includes dates with actual scheduled events
@@ -264,15 +294,17 @@ export default function EventsTabScreen() {
   };
 
   const getHypeCountText = (event: FirebaseEvent, index: number) => {
-    if (event.registeredCount && event.registeredCount > 0) {
-      if (event.registeredCount >= 1000) {
-        return `${(event.registeredCount / 1000).toFixed(1)}K+ Registered`;
-      }
-      return `${event.registeredCount}+ Registered`;
+    const count = event.registeredCount ?? 0;
+    if (count === 0) {
+      return '0 Registered';
     }
-    // Realistic fallback counts if database registeredCount is unset
-    const sampleHypes = ['1.2K+ Registered', '850+ Registered', '500+ Registered', '250+ Registered', '100+ Registered'];
-    return sampleHypes[index % sampleHypes.length];
+    if (count === 1) {
+      return '1 Registered';
+    }
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1)}K+ Registered`;
+    }
+    return `${count} Registered`;
   };
 
   return (

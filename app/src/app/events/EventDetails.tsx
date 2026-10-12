@@ -19,6 +19,7 @@ import { getRegistrationDeadline } from '@/utils/dateUtils';
 import RegistrationModal from '@/components/registration/RegistrationModal';
 import { useEventDetail } from '@/hooks/useEventDetail';
 import MetallicButton from '@/components/MetallicButton';
+import EventTicketCard from '@/components/registration/EventTicketCard';
 
 const EventDetailsScreen: React.FC = () => {
   const router = useRouter();
@@ -150,14 +151,20 @@ const EventDetailsScreen: React.FC = () => {
     return `${startDay} ${startMonth}`;
   };
 
+  const currentEvent = eventDetailData?.event || event;
+
   const getRegistrationCountText = () => {
-    if (event?.registeredCount && event.registeredCount > 0) {
-      if (event.registeredCount >= 1000) {
-        return `${(event.registeredCount / 1000).toFixed(1)}K+ Registered`;
-      }
-      return `${event.registeredCount}+ Registered`;
+    const count = currentEvent?.registeredCount ?? 0;
+    if (count === 0) {
+      return '0 Registered';
     }
-    return '1.2K+ Registered';
+    if (count === 1) {
+      return '1 Registered';
+    }
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1)}K+ Registered`;
+    }
+    return `${count} Registered`;
   };
 
   const getButtonTitle = () => {
@@ -182,12 +189,64 @@ const EventDetailsScreen: React.FC = () => {
   const buttonTitle = getButtonTitle();
 
   const categoryTag = event.category || 'Technical';
-  const subTag =
-    event.eventType === 'team'
-      ? 'Team'
-      : event.eventType === 'individual'
-      ? 'Individual'
-      : 'Hackathon';
+  const getTeamConstraintTag = () => {
+    if (event.eventType === 'individual') {
+      return 'Individual (1)';
+    }
+    if (event.eventType === 'team') {
+      const min = event.minTeamSize;
+      const max = event.maxTeamSize;
+      if (min != null && max != null) {
+        return min === max ? `Team of ${min}` : `Team: ${min}–${max} Members`;
+      }
+      if (min != null) {
+        return `Team: Min ${min}`;
+      }
+      if (max != null) {
+        return `Team: Up to ${max}`;
+      }
+      return 'Team Event';
+    }
+    return 'Hackathon';
+  };
+  const subTag = getTeamConstraintTag();
+
+  const getEventAccentColor = (): string => {
+    // In light theme, use darkened, high-contrast rich shades for legibility; in dark theme, use vibrant neons
+    const color21 = isDark ? '#C8E946' : '#4D7C0F';
+    const color22 = isDark ? '#E06A6A' : '#B91C1C';
+    const color23 = isDark ? '#38BDF8' : '#0284C7';
+
+    const raw = currentEvent?.dateTime || currentEvent?.startDateTime || event?.dateTime || event?.startDateTime;
+    if (raw) {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const day = d.getDate();
+        if (day === 21) return color21;
+        if (day === 22) return color22;
+        if (day === 23) return color23;
+      }
+      const str = String(raw).toLowerCase();
+      if (str.includes('21')) return color21;
+      if (str.includes('22')) return color22;
+      if (str.includes('23')) return color23;
+    }
+    if (dateRangeText.includes('21')) return color21;
+    if (dateRangeText.includes('22')) return color22;
+    if (dateRangeText.includes('23')) return color23;
+
+    return color23;
+  };
+
+  const accentColor = getEventAccentColor();
+
+  const hexToRgba = (hex: string, alpha: number) => {
+    const cleanHex = hex.replace('#', '');
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#131316' : '#E0E0E0' }}>
@@ -196,7 +255,7 @@ const EventDetailsScreen: React.FC = () => {
       {/* Registration Modal */}
       <RegistrationModal
         visible={showRegistrationModal}
-        event={event}
+        event={currentEvent || event}
         onClose={handleModalClose}
         onSuccess={handleRegistrationSuccess}
       />
@@ -347,6 +406,7 @@ const EventDetailsScreen: React.FC = () => {
               title={subTag}
               borderRadius={12}
               fontSize={13}
+              textStyle={{ color: accentColor }}
             />
           ) : null}
         </View>
@@ -365,7 +425,7 @@ const EventDetailsScreen: React.FC = () => {
           {event.title}
         </Text>
 
-        {/* Meta Info Row: Trophy / Venue / Date */}
+        {/* Meta Info Row: Trophy / Venue / Date / Team Constraint */}
         <View
           style={{
             flexDirection: 'row',
@@ -405,7 +465,25 @@ const EventDetailsScreen: React.FC = () => {
 
           {/* Date */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Ionicons name="calendar-outline" size={17} color={isDark ? '#D1D5DB' : '#555555'} />
+            <Ionicons name="calendar-outline" size={17} color={accentColor} />
+            <Text
+              style={{
+                fontFamily: 'Poppins_600SemiBold',
+                fontSize: 14,
+                color: accentColor,
+              }}
+            >
+              {dateRangeText}
+            </Text>
+          </View>
+
+          {/* Team / Participation Size */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons
+              name={event.eventType === 'team' ? 'people-outline' : 'person-outline'}
+              size={17}
+              color={isDark ? '#D1D5DB' : '#555555'}
+            />
             <Text
               style={{
                 fontFamily: 'Poppins_500Medium',
@@ -413,7 +491,17 @@ const EventDetailsScreen: React.FC = () => {
                 color: isDark ? '#FFFFFF' : '#000000',
               }}
             >
-              {dateRangeText}
+              {event.eventType === 'team'
+                ? event.minTeamSize != null && event.maxTeamSize != null
+                  ? event.minTeamSize === event.maxTeamSize
+                    ? `${event.minTeamSize} Members`
+                    : `${event.minTeamSize} - ${event.maxTeamSize} Members`
+                  : event.maxTeamSize != null
+                  ? `Up to ${event.maxTeamSize} Members`
+                  : event.minTeamSize != null
+                  ? `Min ${event.minTeamSize} Members`
+                  : 'Team Event'
+                : 'Solo Entry'}
             </Text>
           </View>
         </View>
@@ -421,17 +509,65 @@ const EventDetailsScreen: React.FC = () => {
         {/* Thin Divider */}
         <View style={{ height: 1, backgroundColor: isDark ? '#27272A' : '#D5D5D5', marginVertical: 4 }} />
 
-        {/* Registration Count */}
-        <View style={{ paddingVertical: 10 }}>
+        {/* Registration Count & Format Constraint */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingVertical: 10,
+            flexWrap: 'wrap',
+            gap: 8,
+          }}
+        >
           <Text
             style={{
               fontFamily: 'Poppins_600SemiBold',
               fontSize: 14,
-              color: '#38BDF8',
+              color: accentColor,
             }}
           >
             {registrationCount}
           </Text>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: hexToRgba(accentColor, isDark ? 0.12 : 0.08),
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: hexToRgba(accentColor, isDark ? 0.3 : 0.22),
+            }}
+          >
+            <Ionicons
+              name={event.eventType === 'team' ? 'people' : 'person'}
+              size={13}
+              color={accentColor}
+              style={{ marginRight: 5 }}
+            />
+            <Text
+              style={{
+                fontFamily: 'Poppins_500Medium',
+                fontSize: 12,
+                color: accentColor,
+              }}
+            >
+              {event.eventType === 'team'
+                ? event.minTeamSize != null && event.maxTeamSize != null
+                  ? event.minTeamSize === event.maxTeamSize
+                    ? `${event.minTeamSize} members / team`
+                    : `${event.minTeamSize} - ${event.maxTeamSize} members / team`
+                  : event.maxTeamSize != null
+                  ? `Up to ${event.maxTeamSize} members / team`
+                  : event.minTeamSize != null
+                  ? `Min. ${event.minTeamSize} members / team`
+                  : 'Team Event'
+                : 'Individual (1 person)'}
+            </Text>
+          </View>
         </View>
 
         {/* Thin Divider */}
@@ -451,6 +587,57 @@ const EventDetailsScreen: React.FC = () => {
             {event.shortDescription}
           </Text>
         ) : null}
+
+        {/* Confirmed Entry Pass / Ticket Preview for Registered User */}
+        {existingRegistration &&
+          existingRegistration.status !== 'rejected' &&
+          existingRegistration.paymentStatus !== 'pending' && (
+            <View style={{ marginBottom: 20 }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'Poppins_600SemiBold',
+                    fontSize: 15,
+                    color: isDark ? '#FFFFFF' : '#000000',
+                  }}
+                >
+                  Your Entry Pass
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: '/events/MyEventDetails',
+                      params: { eventId: event.eventId },
+                    })
+                  }
+                  style={{ flexDirection: 'row', alignItems: 'center' }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'Poppins_500Medium',
+                      fontSize: 12,
+                      color: accentColor,
+                      marginRight: 2,
+                    }}
+                  >
+                    Manage Registration
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={accentColor} />
+                </TouchableOpacity>
+              </View>
+              <EventTicketCard
+                registration={existingRegistration}
+                eventData={currentEvent || event}
+              />
+            </View>
+          )}
 
         {/* Navigation Tabs for detailed information */}
         <View
@@ -481,16 +668,16 @@ const EventDetailsScreen: React.FC = () => {
                   paddingVertical: 6,
                   paddingHorizontal: 14,
                   borderRadius: 12,
-                  backgroundColor: isTabActive ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                  backgroundColor: isTabActive ? hexToRgba(accentColor, 0.15) : 'transparent',
                   borderWidth: 1,
-                  borderColor: isTabActive ? '#38BDF8' : 'transparent',
+                  borderColor: isTabActive ? accentColor : 'transparent',
                 }}
               >
                 <Text
                   style={{
                     fontFamily: isTabActive ? 'Poppins_600SemiBold' : 'Poppins_500Medium',
                     fontSize: 13,
-                    color: isTabActive ? '#38BDF8' : '#9CA3AF',
+                    color: isTabActive ? accentColor : '#9CA3AF',
                   }}
                 >
                   {tabLabels[tab]}
@@ -601,25 +788,25 @@ const EventDetailsScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Team Size */}
-            {event.eventType === 'team' && (
-              <View style={{ gap: 4 }}>
-                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: isDark ? '#9CA3AF' : '#555555' }}>
-                  Team Size
-                </Text>
-                <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 15, color: isDark ? '#FFFFFF' : '#000000' }}>
-                  {event.minTeamSize != null && event.maxTeamSize != null
+            {/* Participation & Team Size Constraints */}
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: isDark ? '#9CA3AF' : '#555555' }}>
+                {event.eventType === 'team' ? 'Team Size Constraints' : 'Event Format'}
+              </Text>
+              <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 15, color: isDark ? '#FFFFFF' : '#000000' }}>
+                {event.eventType === 'team'
+                  ? event.minTeamSize != null && event.maxTeamSize != null
                     ? event.minTeamSize === event.maxTeamSize
-                    ? `${event.minTeamSize} members`
-                    : `${event.minTeamSize} - ${event.maxTeamSize} members`
+                      ? `Exactly ${event.minTeamSize} members required per team`
+                      : `${event.minTeamSize} to ${event.maxTeamSize} members per team`
                     : event.maxTeamSize != null
-                    ? `Up to ${event.maxTeamSize} members`
+                    ? `Up to ${event.maxTeamSize} members per team`
                     : event.minTeamSize != null
-                    ? `Minimum ${event.minTeamSize} members`
-                    : 'Team event'}
-                </Text>
-              </View>
-            )}
+                    ? `Minimum ${event.minTeamSize} members per team`
+                    : 'Team event (Flexible team size)'
+                  : 'Individual participation (1 participant)'}
+              </Text>
+            </View>
 
             {/* Coordinators */}
             {event.coordinators && event.coordinators.length > 0 && (

@@ -33,8 +33,9 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SplashScreen from '@/components/SplashScreen';
-
 import { useThemeStore } from '@/state/themeStore';
+import ConnectivityWrapper from '@/components/system/ConnectivityWrapper';
+import Constants from 'expo-constants';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -103,21 +104,23 @@ export default function RootLayout() {
       <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: asyncStoragePersister }}>
         <StoreProvider>
           <AlertProvider>
-            <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
-              <StatusBar
-                backgroundColor={colors.background}
-                barStyle={isDark ? "light-content" : "dark-content"}
-              />
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="admin" />
-                <Stack.Screen name="events" />
-                <Stack.Screen name="profile" />
-                <Stack.Screen name="map" />
-                <Stack.Screen name="store" />
-              </Stack>
-            </SafeAreaView>
+            <ConnectivityWrapper currentVersion={Constants.expoConfig?.version ?? '1.0.0'}>
+              <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
+                <StatusBar
+                  backgroundColor={colors.background}
+                  barStyle={isDark ? "light-content" : "dark-content"}
+                />
+                <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="admin" />
+                  <Stack.Screen name="events" />
+                  <Stack.Screen name="profile" />
+                  <Stack.Screen name="map" />
+                  <Stack.Screen name="store" />
+                </Stack>
+              </SafeAreaView>
+            </ConnectivityWrapper>
           </AlertProvider>
         </StoreProvider>
       </PersistQueryClientProvider>

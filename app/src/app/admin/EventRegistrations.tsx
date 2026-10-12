@@ -21,6 +21,7 @@ import { getRegistrationTransaction } from "@/api/admin";
 import { PaymentTransaction } from "@/types/adminTypes";
 import { showAlert } from "@/components";
 import { exportRegistrationsToCSV } from "@/utils/csvExport";
+import { useThemeStore } from "@/state/themeStore";
 import {
   RegistrationCard,
   TeamRegistrationCard,
@@ -52,6 +53,12 @@ export default function EventRegistrations({
   event,
   navigation,
 }: EventRegistrationsProps) {
+  const { isDark } = useThemeStore();
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+
   // All data from backend (no pagination)
   const [allRegistrations, setAllRegistrations] = useState<UserEventRegistration[]>([]);
   const [allTeamRegistrations, setAllTeamRegistrations] = useState<TeamSummary[]>([]);
@@ -358,17 +365,22 @@ export default function EventRegistrations({
   if (loading) {
     return (
       <View className="flex-1 bg-transparent items-center justify-center">
-        <ActivityIndicator size="large" color="#EEB170" />
-        <Text className="text-[#2175C0] mt-4">Loading registrations...</Text>
+        <ActivityIndicator size="large" color="#41B8F0" />
+        <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, marginTop: 12 }}>
+          Loading registrations...
+        </Text>
       </View>
     );
   }
 
 
   const renderEmptyState = () => (
-    <View className="bg-[#FFFFFF66] rounded-2xl p-8 items-center border border-[#A0B3D0] mx-6">
-      <Users size={48} color="#555" />
-      <Text className="text-[#2175C0] text-center mt-4">
+    <View
+      style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+      className="rounded-2xl p-8 items-center mx-6 shadow-sm"
+    >
+      <Users size={48} color={textSecondary} />
+      <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, textAlign: "center", marginTop: 12 }}>
         {searchQuery || selectedStatus !== "all" || selectedCollegeFilter !== "all"
           ? "No registrations match your filters"
           : "No registrations found for this event"}

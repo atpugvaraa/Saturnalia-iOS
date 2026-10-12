@@ -21,6 +21,7 @@ const (
 	ColBanners       = "banners"
 	ColReels         = "reels"
 	ColStories       = "stories"
+	ColApp           = "app"
 )
 
 var (

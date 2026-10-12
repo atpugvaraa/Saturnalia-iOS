@@ -1,5 +1,5 @@
 // src/screens/App/NotificationsScreen.tsx
-import React, { useCallback, useEffect, useState, } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
+  StatusBar,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import Header from "@/components/layout/Header";
 import { ArrowLeft, BellOff, CheckCircle } from "lucide-react-native";
 import { useUserStore } from "@/state/userStore";
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Poll, Update } from "@/types/models";
 import { getAllPolls, voteOnPoll } from "@/api/admin";
 import { getUpdates } from "@/api/admin";
@@ -20,25 +22,34 @@ import { getEvent } from "@/api/events";
 
 const NotificationsScreen = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
   const { userData: userProfile } = useUserStore();
+
   const [polls, setPolls] = useState<Poll[]>([]);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
   const [votingId, setVotingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("Polls");
+  const [activeTab, setActiveTab] = useState<"Polls" | "Updates">("Polls");
   const [isLoadingEvent, setIsLoadingEvent] = useState(false);
+
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
 
-      const unsubscribePolls = getAllPolls((polls: Poll[]) => {
-        setPolls(polls);
+      const unsubscribePolls = getAllPolls((fetchedPolls: Poll[]) => {
+        setPolls(fetchedPolls);
         setLoading(false);
       });
 
-      const unsubscribeUpdates = getUpdates((updates: Update[]) => {
-        setUpdates(updates);
+      const unsubscribeUpdates = getUpdates((fetchedUpdates: Update[]) => {
+        setUpdates(fetchedUpdates);
       });
 
       return () => {
@@ -57,17 +68,13 @@ const NotificationsScreen = () => {
 
       setIsLoadingEvent(true);
       try {
-        // Fetch the full event data
         const eventData = await getEvent(eventId);
-
         if (eventData) {
-          // Navigate with the full event object
-          router.push({ pathname: "/events/EventDetails", params: { id: eventData.eventId } });
+          router.push({ pathname: "/events/EventDetails", params: { eventData: JSON.stringify(eventData) } });
         } else {
           showAlert("Error", "Event not found. Please try again later.");
         }
       } catch (error) {
-        console.error("Error fetching event details:", error);
         showAlert("Error", "Failed to load event details");
       } finally {
         setIsLoadingEvent(false);
@@ -78,22 +85,33 @@ const NotificationsScreen = () => {
 
   const handleVote = async (pollId: string, option: string) => {
     if (!userProfile) {
-      showAlert("Error", "You must be logged in to vote.");
+      showAlert("Login Required", "You must be logged in to vote on polls.");
       return;
     }
+
     setVotingId(pollId);
     try {
-      await voteOnPoll(pollId, option);
-    } catch (error: any) {
-      if (error.message.includes("already voted")) {
-        showAlert(
-          "Already Voted",
-          "You have already cast your vote in this poll."
+      const response = await voteOnPoll(pollId, option, userProfile.userId);
+      if (response.success) {
+        setPolls((prevPolls) =>
+          prevPolls.map((poll) => {
+            if (poll.id === pollId) {
+              const newVotes = { ...poll.votes };
+              newVotes[option] = (newVotes[option] || 0) + 1;
+              return {
+                ...poll,
+                votes: newVotes,
+                voters: [...poll.voters, userProfile.userId],
+              };
+            }
+            return poll;
+          })
         );
       } else {
-        showAlert("Error", "Failed to cast vote. Please try again.");
+        showAlert("Error", response.message || "Failed to submit vote. You might have already voted.");
       }
-      console.error(error);
+    } catch (error) {
+      showAlert("Error", "An unexpected error occurred. Please try again.");
     } finally {
       setVotingId(null);
     }
@@ -102,30 +120,42 @@ const NotificationsScreen = () => {
   const renderUpdates = () => {
     if (loading) {
       return (
-        <View className="flex-1 items-center justify-center pt-20">
-          <ActivityIndicator size="large" color="#FFBA00" />
-          <Text className="text-[#2175C0] mt-4">Loading updates...</Text>
+        <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+          <ActivityIndicator size="large" color="#41B8F0" />
+          <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, marginTop: 12 }}>
+            Loading updates...
+          </Text>
         </View>
       );
     }
 
     if (updates.length === 0) {
       return (
-        <View className="flex-1 items-center justify-center pt-20">
-          <View className="bg-[#FFFFFF66] rounded-full p-8 mb-6">
-            <BellOff size={64} color="#666" strokeWidth={1.5} />
+        <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: cardBg,
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: cardBorder,
+            }}
+          >
+            <BellOff size={36} color={textSecondary} />
           </View>
           <Text
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-            className="text-[#0C3572] text-xl mb-3 text-center"
+            style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 18, marginBottom: 4, textAlign: "center" }}
           >
             No Updates Available
           </Text>
           <Text
-            style={{ fontFamily: "Outfit_400Regular" }}
-            className="text-[#2175C0] text-center text-base px-8 leading-6"
+            style={{ fontFamily: "Poppins_400Regular", color: textSecondary, textAlign: "center", fontSize: 13, paddingHorizontal: 30 }}
           >
-            There are no updates at the moment. Check back later!
+            There are no updates at the moment. Check back soon!
           </Text>
         </View>
       );
@@ -134,28 +164,51 @@ const NotificationsScreen = () => {
     return updates.map((update) => (
       <View
         key={update.id}
-        className="bg-white rounded-2xl p-5 mb-6 border border-[#A0B3D0]"
+        style={{
+          backgroundColor: cardBg,
+          borderRadius: 20,
+          padding: 18,
+          marginBottom: 14,
+          borderWidth: 1,
+          borderColor: cardBorder,
+        }}
       >
         <Text
-          style={{ fontFamily: "Outfit_600SemiBold" }}
-          className="text-[#FFBA00] text-xl mb-2"
+          style={{
+            fontFamily: "Poppins_600SemiBold",
+            color: textPrimary,
+            fontSize: 16,
+            marginBottom: 6,
+          }}
         >
           {update.title}
         </Text>
         <Text
-          style={{ fontFamily: "Outfit_400Regular" }}
-          className="text-[#2175C0] text-base leading-6 mb-2"
+          style={{
+            fontFamily: "Poppins_400Regular",
+            color: textSecondary,
+            fontSize: 13,
+            lineHeight: 19,
+            marginBottom: 10,
+          }}
         >
           {update.description}
         </Text>
-        {(update.linkType === 'external' && update.link) && (
+        {update.linkType === 'external' && update.link && (
           <TouchableOpacity
             onPress={() => Linking.openURL(update.link!)}
-            className="bg-[#FFBA00] py-3 rounded-lg mt-2 flex-row items-center justify-center"
+            style={{
+              backgroundColor: "#41B8F0",
+              paddingVertical: 10,
+              borderRadius: 12,
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 4,
+            }}
+            activeOpacity={0.8}
           >
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-black text-base"
+              style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 13 }}
             >
               Learn More
             </Text>
@@ -163,15 +216,21 @@ const NotificationsScreen = () => {
         )}
         {update.linkType === 'event' && update.eventId && (
           <TouchableOpacity
-            onPress={() => {
-              // @ts-ignore - navigation type issue
-              handleNavigateToEvent(update.eventId);
+            onPress={() => handleNavigateToEvent(update.eventId!)}
+            style={{
+              borderWidth: 1,
+              borderColor: "#41B8F0",
+              backgroundColor: isDark ? "rgba(65, 184, 240, 0.1)" : "#E0F2FE",
+              paddingVertical: 10,
+              borderRadius: 12,
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 4,
             }}
-            className="border-[#FFBA00] border-2 py-3 rounded-lg mt-2 flex-row items-center justify-center"
+            activeOpacity={0.8}
           >
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#FFBA00] text-base"
+              style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 13 }}
             >
               View Event
             </Text>
@@ -184,30 +243,42 @@ const NotificationsScreen = () => {
   const renderPolls = () => {
     if (loading) {
       return (
-        <View className="flex-1 items-center justify-center pt-20">
-          <ActivityIndicator size="large" color="#FFBA00" />
-          <Text className="text-[#2175C0] mt-4">Loading polls...</Text>
+        <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+          <ActivityIndicator size="large" color="#41B8F0" />
+          <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, marginTop: 12 }}>
+            Loading polls...
+          </Text>
         </View>
       );
     }
 
     if (polls.length === 0) {
       return (
-        <View className="flex-1 items-center justify-center pt-20">
-          <View className="bg-[#FFFFFF66] rounded-full p-8 mb-6">
-            <BellOff size={64} color="#666" strokeWidth={1.5} />
+        <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: cardBg,
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: cardBorder,
+            }}
+          >
+            <BellOff size={36} color={textSecondary} />
           </View>
           <Text
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-            className="text-[#0C3572] text-xl mb-3 text-center"
+            style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 18, marginBottom: 4, textAlign: "center" }}
           >
-            No Polls Available
+            No Active Polls
           </Text>
           <Text
-            style={{ fontFamily: "Outfit_400Regular" }}
-            className="text-[#2175C0] text-center text-base px-8 leading-6"
+            style={{ fontFamily: "Poppins_400Regular", color: textSecondary, textAlign: "center", fontSize: 13, paddingHorizontal: 30 }}
           >
-            There are no active polls at the moment. Check back later!
+            There are no active polls right now. Check back later!
           </Text>
         </View>
       );
@@ -224,72 +295,69 @@ const NotificationsScreen = () => {
       return (
         <View
           key={poll.id}
-          className="bg-[#3F3F3F] rounded-2xl p-5 mb-6 border border-[#A0B3D0]"
+          style={{
+            backgroundColor: cardBg,
+            borderRadius: 20,
+            padding: 18,
+            marginBottom: 14,
+            borderWidth: 1,
+            borderColor: cardBorder,
+          }}
         >
           <Text
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-            className="text-[#0C3572] text-xl mb-1"
+            style={{
+              fontFamily: "Poppins_600SemiBold",
+              color: textPrimary,
+              fontSize: 16,
+              marginBottom: 4,
+            }}
           >
             {poll.question}
           </Text>
+
           {userHasVoted && (
-            <View className="flex-row items-center justify-start mb-1">
-              <CheckCircle size={14} color="#4ade80" />
-              <Text className="text-green-400 text-xs ml-1">
-                You have voted
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+              <CheckCircle size={14} color="#10B981" />
+              <Text style={{ fontFamily: "Poppins_500Medium", color: "#10B981", fontSize: 12, marginLeft: 5 }}>
+                You voted on this poll
               </Text>
             </View>
           )}
-          <View className="mt-4">
+
+          <View style={{ marginTop: 8 }}>
             {poll.options.map((option: string, index: number) => {
               const voteCount = poll.votes[option] || 0;
               const percentage =
                 totalVotes > 0 ? (voteCount / totalVotes) * 100 : 0;
-              const maxVotes = Math.max(
-                0,
-                ...Object.values(poll.votes)
-              );
-              const isMostVoted = maxVotes > 0 && voteCount === maxVotes;
 
               if (userHasVoted) {
                 return (
-                  <View
-                    key={index}
-                    className="mb-3 flex-row items-center gap-12 justify-between"
-                  >
-                    <View className="flex-1  flex-row items-center gap-2">
-                      <View
-                        style={{ width: `${percentage}%`, minWidth: 100 }}
-                        className={`flex-row px-4 py-3 rounded-lg justify-between items-center mb-1 ${isMostVoted ? "bg-[#FFBA00]" : "bg-[#A4A4A4]"
-                          }`}
-                      >
-                        <Text
-                          ellipsizeMode="tail"
-                          numberOfLines={1}
-                          style={{ fontFamily: "Outfit_600SemiBold", fontSize: 12 }}
-                          className={
-                            !isMostVoted ? "text-[#3F3F3F]" : "text-black"
-                          }
-                        >
-                          {option}
-                        </Text>
-                      </View>
-                      <Text
-                        className={
-                          !isMostVoted ? "text-[#ffffff]" : "text-[#FFBA00]"
-                        }
-                      >
-                        {percentage.toFixed(1)}%
+                  <View key={index} style={{ marginBottom: 10 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                      <Text style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 13 }}>
+                        {option}
+                      </Text>
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 12 }}>
+                        {percentage.toFixed(0)}% ({voteCount})
                       </Text>
                     </View>
-                    <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className={
-                        !isMostVoted ? "text-[#ffffff]" : "text-[#FFBA00]"
-                      }
+                    <View
+                      style={{
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)",
+                        overflow: "hidden",
+                      }}
                     >
-                      {voteCount} votes
-                    </Text>
+                      <View
+                        style={{
+                          height: "100%",
+                          width: `${percentage}%`,
+                          backgroundColor: "#41B8F0",
+                          borderRadius: 4,
+                        }}
+                      />
+                    </View>
                   </View>
                 );
               }
@@ -299,15 +367,24 @@ const NotificationsScreen = () => {
                   key={index}
                   onPress={() => handleVote(poll.id, option)}
                   disabled={votingId === poll.id}
-                  className="border border-[#DADADA] rounded-lg px-4 py-3 pl-6 mb-3 flex-row justify-start items-center"
+                  style={{
+                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F3F4F6",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    marginBottom: 10,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                  activeOpacity={0.75}
                 >
                   {votingId === poll.id ? (
-                    <ActivityIndicator color="#FFBA00" />
+                    <ActivityIndicator color="#41B8F0" size="small" />
                   ) : (
-                    <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className="text-[#0C3572]"
-                    >
+                    <Text style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 14 }}>
                       {option}
                     </Text>
                   )}
@@ -315,19 +392,23 @@ const NotificationsScreen = () => {
               );
             })}
           </View>
-          <View className="mt-2 border-t border-[#A0B3D0] pt-2 flex-row justify-between">
-            <View>
-              <Text className="text-[#2175C0] text-sm mt-2">
-                Poll Created on
-              </Text>
-              <Text className="text-[#2175C0] text-sm">
-                {new Date(poll.createdAt.seconds).toLocaleDateString()}
-              </Text>
-            </View>
-            <View className="mt-2">
-              <Text className="text-[#2175C0] text-sm">Total Votes</Text>
-              <Text className="text-[#2175C0] text-sm">{totalVotes}</Text>
-            </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              borderTopWidth: 1,
+              borderTopColor: cardBorder,
+              paddingTop: 8,
+              marginTop: 4,
+            }}
+          >
+            <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}>
+              {new Date(poll.createdAt?.seconds ? poll.createdAt.seconds * 1000 : Date.now()).toLocaleDateString()}
+            </Text>
+            <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 11 }}>
+              {totalVotes} total votes
+            </Text>
           </View>
         </View>
       );
@@ -335,64 +416,110 @@ const NotificationsScreen = () => {
   };
 
   return (
-    <View className="flex-1 bg-transparent">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <Header />
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-        <View className="bg-transparent rounded-t-3xl px-6 pt-8">
-          <View className="mb-6 flex-row items-center justify-between">
-            <TouchableOpacity onPress={() => router.back()}>
-              <ArrowLeft color="#0C3572" size={24} />
-            </TouchableOpacity>
-            <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-3xl"
-            >
-              Notifications
-            </Text>
-            <View style={{ width: 24 }} />
-          </View>
-
-          <View className="flex-row mb-6">
-            <TouchableOpacity
-              onPress={() => setActiveTab("Polls")}
-              className={`flex-1 py-3 items-center justify-center border-b-2 ${activeTab === "Polls"
-                ? "border-[#FFBA00]"
-                : "border-transparent"
-                }`}
-            >
-              <Text
-                className={`text-lg ${activeTab === "Polls" ? "text-[#FFBA00]" : "text-[#2175C0]"
-                  }`}
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-              >
-                Polls
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setActiveTab("Updates")}
-              className={`flex-1 py-3 items-center justify-center border-b-2 ${activeTab === "Updates"
-                ? "border-[#FFBA00]"
-                : "border-transparent"
-                }`}
-            >
-              <Text
-                className={`text-lg ${activeTab === "Updates" ? "text-[#FFBA00]" : "text-[#2175C0]"
-                  }`}
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-              >
-                Updates
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {activeTab === "Polls" ? renderPolls() : renderUpdates()}
+      {/* Header */}
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={22} color={textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
+          >
+            Notifications
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
+          >
+            Latest polls and festival updates
+          </Text>
         </View>
+      </View>
+
+      {/* Tabs */}
+      <View
+        style={{
+          flexDirection: "row",
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          paddingBottom: 4,
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+        }}
+      >
+        {(["Polls", "Updates"] as const).map((tab) => {
+          const isActive = activeTab === tab;
+          return (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                alignItems: "center",
+                borderBottomWidth: 2,
+                borderBottomColor: isActive ? "#41B8F0" : "transparent",
+              }}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  fontSize: 15,
+                  color: isActive ? "#41B8F0" : textSecondary,
+                }}
+              >
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 60 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {activeTab === "Polls" ? renderPolls() : renderUpdates()}
       </ScrollView>
     </View>
   );
 };
 
 export default NotificationsScreen;
-
-

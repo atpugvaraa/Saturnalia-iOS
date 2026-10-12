@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
+  StatusBar,
 } from "react-native";
 import { ArrowLeft, CreditCard, CheckCircle2, Clock3, TrendingUp } from "lucide-react-native";
 import { PaymentTransaction, TransactionFilters } from "@/types/adminTypes";
@@ -22,9 +23,14 @@ import TransactionSearchBar from "@/components/admin/TransactionSearchBar";
 import TransactionDetailModal from "@/components/admin/TransactionDetailModal";
 import { showAlert } from "@/components";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const Transactions: React.FC = () => {
   const navigation = useAdminNavigation();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,6 +40,12 @@ const Transactions: React.FC = () => {
   const [selectedTransaction, setSelectedTransaction] =
     useState<PaymentTransaction | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
 
   const [filters, setFilters] = useState<TransactionFilters>({
     searchTerm: "",
@@ -108,43 +120,70 @@ const Transactions: React.FC = () => {
     }
   };
 
-  const handleFiltersChange = (newFilters: TransactionFilters) => {
-    setFilters(newFilters);
-  };
+  const handleFiltersChange = useCallback(
+    (newFilters: Partial<TransactionFilters>) => {
+      setFilters((prev) => ({ ...prev, ...newFilters }));
+    },
+    []
+  );
 
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
     setFilters({
       searchTerm: "",
       statusFilter: "all",
       paymentTypeFilter: "all",
       dateRange: "all",
     });
-  };
+  }, []);
 
-  const handleTransactionPress = (transaction: PaymentTransaction) => {
-    setSelectedTransaction(transaction);
-    setModalVisible(true);
-  };
+  const handleTransactionPress = useCallback(
+    (transaction: PaymentTransaction) => {
+      setSelectedTransaction(transaction);
+      setModalVisible(true);
+    },
+    []
+  );
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     setSelectedTransaction(null);
-  };
+  }, []);
 
-  const handleUpdateStatus = async (id: string, newStatus: string) => {
-    try {
-      setSearchLoading(true);
-      await updatePaymentStatus(id, newStatus);
-      showAlert("Success", `Payment marked as ${newStatus}`);
-      handleCloseModal();
-      handleRefresh();
-    } catch (err: any) {
-      showAlert("Error", err.message || "Failed to update status");
-      setSearchLoading(false);
-    }
-  };
+  const handleUpdateStatus = useCallback(
+    async (
+      transactionId: string,
+      status: "success" | "pending" | "failed",
+      remarks?: string
+    ) => {
+      try {
+        const updated = await updatePaymentStatus(
+          transactionId,
+          status,
+          remarks
+        );
+        if (updated) {
+          setTransactions((prev) =>
+            prev.map((t) =>
+              t.id === transactionId || t.merchantOrderId === transactionId
+                ? { ...t, status }
+                : t
+            )
+          );
+          if (selectedTransaction) {
+            setSelectedTransaction((prev) => (prev ? { ...prev, status } : null));
+          }
+          showAlert("Success", `Status updated to ${status}`);
+        } else {
+          showAlert("Error", "Failed to update transaction status");
+        }
+      } catch (err) {
+        console.error("Error updating status:", err);
+        showAlert("Error", "Failed to update transaction status");
+      }
+    },
+    [selectedTransaction]
+  );
 
-  // Compute stats overview
   const stats = useMemo(() => {
     let settledRevenue = 0;
     let successCount = 0;
@@ -172,21 +211,44 @@ const Transactions: React.FC = () => {
 
     return (
       <View
-        className="bg-white rounded-2xl p-8 items-center border border-[#A0B3D0] mx-4 my-8"
-        style={{ boxShadow: "0px 4px 12px rgba(12, 53, 114, 0.06)" } as any}
+        style={{
+          backgroundColor: cardBg,
+          borderRadius: 20,
+          padding: 28,
+          alignItems: "center",
+          borderWidth: 1,
+          borderColor: cardBorder,
+          marginHorizontal: 16,
+          marginVertical: 24,
+        }}
       >
-        <View className="w-16 h-16 rounded-full bg-[#EEB170]/20 items-center justify-center mb-3">
-          <CreditCard size={32} color="#EEB170" />
+        <View
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: "#41B8F020",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 12,
+          }}
+        >
+          <CreditCard size={28} color="#41B8F0" />
         </View>
         <Text
-          style={{ fontFamily: "Outfit_700Bold" }}
-          className="text-[#0C3572] text-lg text-center"
+          style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 16, textAlign: "center" }}
         >
           {hasFilters ? "No matching transactions" : "No transactions recorded"}
         </Text>
         <Text
-          style={{ fontFamily: "Outfit_400Regular" }}
-          className="text-[#2175C0] text-center mt-1 text-xs px-4"
+          style={{
+            fontFamily: "Poppins_400Regular",
+            color: textSecondary,
+            textAlign: "center",
+            marginTop: 4,
+            fontSize: 12,
+            paddingHorizontal: 16,
+          }}
         >
           {hasFilters
             ? "Try resetting your search query or status filters."
@@ -195,12 +257,17 @@ const Transactions: React.FC = () => {
         {hasFilters && (
           <TouchableOpacity
             onPress={handleClearFilters}
-            className="mt-4 bg-[#0C3572] px-4 py-2 rounded-xl"
-            activeOpacity={0.7}
+            style={{
+              marginTop: 14,
+              backgroundColor: "#41B8F0",
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              borderRadius: 12,
+            }}
+            activeOpacity={0.8}
           >
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-white text-xs"
+              style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 13 }}
             >
               Reset Filters
             </Text>
@@ -211,26 +278,55 @@ const Transactions: React.FC = () => {
   };
 
   return (
-    <View className="flex-1 bg-transparent">
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
       {/* Header */}
-      <View className="bg-[#EEB170] pt-6 rounded-b-3xl pb-6 px-6 flex-row items-center justify-between">
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
         <TouchableOpacity
           onPress={() => navigation.navigate("Dashboard")}
-          className="w-10 h-10 rounded-full bg-[#FFFFFF40] items-center justify-center mr-3"
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
           activeOpacity={0.7}
         >
-          <ArrowLeft size={24} color="#121212" />
+          <ArrowLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <View className="flex-1">
+        <View style={{ flex: 1 }}>
           <Text
-            style={{ fontFamily: "Outfit_700Bold" }}
-            className="text-[#121212] text-2xl font-bold"
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
           >
             Payment Management
           </Text>
           <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-[#121212] text-xs opacity-80 mt-0.5"
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
           >
             Track and verify transactions & settlements
           </Text>
@@ -239,39 +335,44 @@ const Transactions: React.FC = () => {
 
       {/* Scrollable Content */}
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            colors={["#EEB170"]}
-            tintColor="#EEB170"
+            colors={["#41B8F0"]}
+            tintColor="#41B8F0"
           />
         }
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
         keyboardShouldPersistTaps="handled"
       >
         {/* Quick Stats Strip */}
         {transactions.length > 0 && (
-          <View className="flex-row gap-2.5 px-4 pt-3 pb-1">
+          <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 }}>
             {/* Total Settled */}
             <View
-              className="flex-1 bg-white/90 border border-[#A0B3D0] rounded-2xl p-2.5 items-center"
-              style={{ boxShadow: "0px 2px 8px rgba(12, 53, 114, 0.05)" } as any}
+              style={{
+                flex: 1,
+                backgroundColor: cardBg,
+                borderWidth: 1,
+                borderColor: cardBorder,
+                borderRadius: 16,
+                padding: 10,
+                alignItems: "center",
+              }}
             >
-              <View className="flex-row items-center mb-0.5">
-                <TrendingUp size={12} color="#059669" />
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                <TrendingUp size={12} color="#10B981" />
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-slate-500 text-[10px] uppercase ml-1"
+                  style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 10, textTransform: "uppercase", marginLeft: 4 }}
                 >
                   Settled
                 </Text>
               </View>
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-[#0C3572] text-sm"
+                style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 14 }}
                 numberOfLines={1}
               >
                 ₹{stats.settledRevenue.toLocaleString("en-IN")}
@@ -280,21 +381,26 @@ const Transactions: React.FC = () => {
 
             {/* Success Count */}
             <View
-              className="flex-1 bg-white/90 border border-[#A0B3D0] rounded-2xl p-2.5 items-center"
-              style={{ boxShadow: "0px 2px 8px rgba(12, 53, 114, 0.05)" } as any}
+              style={{
+                flex: 1,
+                backgroundColor: cardBg,
+                borderWidth: 1,
+                borderColor: cardBorder,
+                borderRadius: 16,
+                padding: 10,
+                alignItems: "center",
+              }}
             >
-              <View className="flex-row items-center mb-0.5">
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
                 <CheckCircle2 size={12} color="#10B981" />
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-slate-500 text-[10px] uppercase ml-1"
+                  style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 10, textTransform: "uppercase", marginLeft: 4 }}
                 >
                   Success
                 </Text>
               </View>
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-emerald-700 text-sm"
+                style={{ fontFamily: "Poppins_600SemiBold", color: "#10B981", fontSize: 14 }}
               >
                 {stats.successCount}
               </Text>
@@ -302,21 +408,26 @@ const Transactions: React.FC = () => {
 
             {/* Pending Count */}
             <View
-              className="flex-1 bg-white/90 border border-[#A0B3D0] rounded-2xl p-2.5 items-center"
-              style={{ boxShadow: "0px 2px 8px rgba(12, 53, 114, 0.05)" } as any}
+              style={{
+                flex: 1,
+                backgroundColor: cardBg,
+                borderWidth: 1,
+                borderColor: cardBorder,
+                borderRadius: 16,
+                padding: 10,
+                alignItems: "center",
+              }}
             >
-              <View className="flex-row items-center mb-0.5">
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
                 <Clock3 size={12} color="#F59E0B" />
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-slate-500 text-[10px] uppercase ml-1"
+                  style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 10, textTransform: "uppercase", marginLeft: 4 }}
                 >
                   Pending
                 </Text>
               </View>
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-amber-700 text-sm"
+                style={{ fontFamily: "Poppins_600SemiBold", color: "#F59E0B", fontSize: 14 }}
               >
                 {stats.pendingCount}
               </Text>
@@ -342,11 +453,10 @@ const Transactions: React.FC = () => {
 
         {/* Search Loading Indicator */}
         {searchLoading && (
-          <View className="flex-row items-center justify-center py-4 mx-4">
-            <ActivityIndicator size="small" color="#EEB170" />
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14 }}>
+            <ActivityIndicator size="small" color="#41B8F0" />
             <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#0C3572] ml-2 text-xs"
+              style={{ fontFamily: "Poppins_500Medium", color: textSecondary, marginLeft: 8, fontSize: 12 }}
             >
               Filtering transactions...
             </Text>
@@ -355,10 +465,9 @@ const Transactions: React.FC = () => {
 
         {/* Results Header */}
         {!searchLoading && transactions.length > 0 && (
-          <View className="px-4 pt-2 pb-2">
+          <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 }}>
             <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-sm"
+              style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13 }}
             >
               {transactions.length} Transaction{transactions.length !== 1 ? "s" : ""}
             </Text>
@@ -378,27 +487,29 @@ const Transactions: React.FC = () => {
 
             {/* Load More Button */}
             {hasMore && (
-              <View className="px-4 py-3">
+              <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
                 <TouchableOpacity
                   onPress={handleLoadMore}
-                  className="bg-[#0C3572] py-3.5 rounded-2xl shadow-sm"
+                  style={{
+                    backgroundColor: "#41B8F0",
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                  }}
                   disabled={loadingMore}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
                   {loadingMore ? (
-                    <View className="flex-row items-center justify-center">
-                      <ActivityIndicator size="small" color="#EEB170" />
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-white ml-2 text-sm"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 8, fontSize: 13 }}
                       >
                         Loading more transactions...
                       </Text>
                     </View>
                   ) : (
                     <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className="text-white text-center text-sm"
+                      style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", textAlign: "center", fontSize: 14 }}
                     >
                       Load More Transactions
                     </Text>
@@ -409,11 +520,18 @@ const Transactions: React.FC = () => {
 
             {/* End of results message */}
             {!hasMore && transactions.length > 0 && (
-              <View className="px-4 py-3">
-                <View className="bg-white/60 border border-[#A0B3D0]/60 rounded-xl p-2.5">
+              <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                <View
+                  style={{
+                    backgroundColor: cardBg,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                    borderRadius: 12,
+                    padding: 10,
+                  }}
+                >
                   <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#2175C0] text-center text-xs"
+                    style={{ fontFamily: "Poppins_500Medium", color: textSecondary, textAlign: "center", fontSize: 12 }}
                   >
                     All {transactions.length} transactions loaded
                   </Text>
@@ -427,22 +545,35 @@ const Transactions: React.FC = () => {
 
         {/* Error State */}
         {error && (
-          <View className="mx-4 mb-4">
-            <View className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
+          <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
+            <View
+              style={{
+                backgroundColor: isDark ? "rgba(239, 68, 68, 0.15)" : "#FEE2E2",
+                borderWidth: 1,
+                borderColor: "#EF444450",
+                borderRadius: 16,
+                padding: 16,
+              }}
+            >
               <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-rose-700 text-center text-xs"
+                style={{ fontFamily: "Poppins_500Medium", color: "#EF4444", textAlign: "center", fontSize: 12 }}
               >
                 {error}
               </Text>
               <TouchableOpacity
                 onPress={() => loadTransactions(false)}
-                className="mt-3 bg-[#0C3572] py-2 px-4 rounded-xl self-center"
-                activeOpacity={0.7}
+                style={{
+                  marginTop: 10,
+                  backgroundColor: "#EF4444",
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  borderRadius: 10,
+                  alignSelf: "center",
+                }}
+                activeOpacity={0.8}
               >
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-white text-xs"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 12 }}
                 >
                   Retry Loading
                 </Text>
@@ -457,7 +588,7 @@ const Transactions: React.FC = () => {
         visible={modalVisible}
         transaction={selectedTransaction}
         onClose={handleCloseModal}
-        onUpdateStatus={handleUpdateStatus}
+        onUpdateStatus={(id, newStatus) => handleUpdateStatus(id, newStatus as any)}
       />
     </View>
   );

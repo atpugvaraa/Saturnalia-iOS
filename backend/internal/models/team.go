@@ -57,7 +57,7 @@ func NewTeam(eventID, inviteCode, teamName, leaderID string, minTeamSize int, re
 		TeamName:     teamName,
 		LeaderUserID: leaderID,
 		InviteCode:   strings.ToUpper(inviteCode),
-		Status:       StatusFor(1, minTeamSize),
+		Status:       TeamStatusPending,
 		MemberIDs:    []string{leaderID},
 		Responses:    responses,
 		CreatedAt:    now,

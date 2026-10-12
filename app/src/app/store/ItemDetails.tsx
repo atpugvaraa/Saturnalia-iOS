@@ -1,4 +1,3 @@
-// src/screens/App/Store/ItemDetailsScreen.tsx
 import React, { useState, useEffect } from "react";
 import {
   Text,
@@ -12,12 +11,16 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAlert } from "@/components";
 import { useStoreContext } from "@/state/StoreContext";
+import { useThemeStore } from "@/state/themeStore";
 
 const { width } = Dimensions.get("window");
 
 const ItemDetailsScreen = () => {
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
   const router = useRouter();
   const { itemId } = useLocalSearchParams() as { itemId: string };
   /* Removed API call */
@@ -166,15 +169,21 @@ const ItemDetailsScreen = () => {
     return checkItemInCart(item.id);
   };
 
+  const bgColor = isDark ? '#131316' : '#E0E0E0';
+  const cardBg = isDark ? '#1C1C20' : '#FFFFFF';
+  const cardBorder = isDark ? '#2A2A30' : '#D5D5D5';
+  const textColor = isDark ? '#FFFFFF' : '#111827';
+  const subTextColor = isDark ? '#A0A0A0' : '#6B7280';
+  const pillBg = isDark ? '#26262B' : '#F3F4F6';
+
   if (loading) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center">
-        <ActivityIndicator size="large" color="#FFBA00" />
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#41B8F0" />
         <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-[#0C3572] mt-4"
+          style={{ fontFamily: "Poppins_500Medium", color: subTextColor, marginTop: 16 }}
         >
-          Loading item...
+          Loading item details...
         </Text>
       </View>
     );
@@ -182,41 +191,80 @@ const ItemDetailsScreen = () => {
 
   if (!item) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center">
-        <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#0C3572]">
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 18 }}>
           Item not found
         </Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginTop: 16, backgroundColor: '#41B8F0', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
+        >
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#FFFFFF' }}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-transparent">
-      {/* Header */}
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="flex-row items-center justify-between px-6 pt-12 pb-4">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="p-3 bg-[#FFFFFF66] rounded-full"
-          >
-            <Ionicons name="arrow-back" size={24} color="#0C3572" />
-          </TouchableOpacity>
-          <Text
-            style={{ fontFamily: "Outfit_700Bold" }}
-            className="text-[#0C3572] text-xl"
-          >
-            Item Details
-          </Text>
-          <TouchableOpacity
-            onPress={() => router.push("/store/Cart")}
-            className="p-3 bg-[#FFFFFF66] rounded-full"
-          >
-            <Ionicons name="cart" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      {/* Top Header */}
+      <View
+        style={{
+          paddingTop: Math.max(insets.top + 8, 44),
+          paddingBottom: 14,
+          paddingHorizontal: 20,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          backgroundColor: bgColor,
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="arrow-back" size={20} color={textColor} />
+        </TouchableOpacity>
+        <Text
+          style={{ fontFamily: "Talina", fontSize: 22, color: textColor, letterSpacing: 0.5 }}
+        >
+          ITEM DETAILS
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.push("/store/Cart")}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="cart-outline" size={20} color="#41B8F0" />
+        </TouchableOpacity>
+      </View>
 
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 130 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Image Carousel */}
-        <View className="my-6">
+        <View style={{ marginVertical: 16 }}>
           <ScrollView
             horizontal
             pagingEnabled
@@ -230,60 +278,60 @@ const ItemDetailsScreen = () => {
             scrollEventThrottle={16}
           >
             {item.images && item.images.length > 0 ? (
-              item.images.map((image, index) => (
+              item.images.map((image: string, index: number) => (
                 <View
                   key={index}
-                  style={{ width }}
-                  className="bg-transparent px-6 h-80"
+                  style={{ width, paddingHorizontal: 20, height: 300 }}
                 >
                   <Image
                     source={{ uri: image }}
-                    className="w-full rounded-2xl h-full"
+                    style={{ width: '100%', height: '100%', borderRadius: 20, backgroundColor: cardBg }}
                     resizeMode="cover"
                   />
                 </View>
               ))
             ) : (
               <View
-                style={{ width }}
-                className="bg-white h-96 items-center justify-center"
+                style={{ width, height: 300, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 }}
               >
-                <Ionicons name="image-outline" size={64} color="#6B7280" />
+                <View style={{ width: '100%', height: '100%', borderRadius: 20, backgroundColor: cardBg, borderWidth: 1, borderColor: cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="image-outline" size={64} color={subTextColor} />
+                </View>
               </View>
             )}
           </ScrollView>
 
           {/* Image Indicators */}
           {item.images && item.images.length > 1 && (
-            <View className="flex-row justify-center mt-4">
-              {item.images.map((_, index) => (
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12 }}>
+              {item.images.map((_: any, index: number) => (
                 <View
                   key={index}
-                  className={`h-2 rounded-full mx-1 ${
-                    index === currentImageIndex
-                      ? "bg-[#FFBA00] w-6"
-                      : "bg-gray-600 w-2"
-                  }`}
+                  style={{
+                    height: 6,
+                    borderRadius: 3,
+                    marginHorizontal: 3,
+                    width: index === currentImageIndex ? 20 : 6,
+                    backgroundColor: index === currentImageIndex ? '#41B8F0' : (isDark ? '#323238' : '#D1D5DB'),
+                  }}
                 />
               ))}
             </View>
           )}
         </View>
 
-        <View className="px-6">
+        <View style={{ paddingHorizontal: 20 }}>
           {/* Item Info */}
-          <View className="mb-6">
-            <View className="flex-row items-center justify-between mb-2">
+          <View style={{ marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-[#0C3572] text-2xl flex-1"
+                style={{ fontFamily: "Talina", fontSize: 26, color: textColor, flex: 1, marginRight: 12 }}
               >
                 {item.name}
               </Text>
-              <View className="bg-[#FFBA00]/20 px-3 py-1 rounded-full">
+              <View style={{ backgroundColor: isDark ? 'rgba(65, 184, 240, 0.15)' : 'rgba(65, 184, 240, 0.12)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#FFBA00] capitalize"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: '#41B8F0', fontSize: 12, textTransform: 'uppercase' }}
                 >
                   {item.category}
                 </Text>
@@ -291,58 +339,61 @@ const ItemDetailsScreen = () => {
             </View>
 
             <Text
-              style={{ fontFamily: "Outfit_400Regular" }}
-              className="text-[#2175C0] text-base leading-6"
+              style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 14, lineHeight: 22 }}
             >
               {item.description}
             </Text>
           </View>
 
           {/* Price */}
-          <View className="bg-[#FFFFFF66] rounded-2xl p-4 mb-6">
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderWidth: 1,
+              borderColor: cardBorder,
+              borderRadius: 20,
+              padding: 18,
+              marginBottom: 20,
+            }}
+          >
             <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#2175C0] mb-2"
+              style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13, marginBottom: 4 }}
             >
               Price
             </Text>
-            <View className="flex-row items-center">
-              <View className="w-4 h-4 bg-[#FFBA00] rounded-full mr-2" />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-[#0C3572] text-3xl"
+                style={{ fontFamily: "Talina", fontSize: 32, color: textColor }}
               >
                 ₹{getTotalPrice()}
               </Text>
             </View>
             {selectedSize &&
-              item.sizeOptions.find((s) => s.size === selectedSize)
+              item.sizeOptions?.find((s: any) => s.size === selectedSize)
                 ?.priceModifier !== 0 && (
                 <Text
-                  style={{ fontFamily: "Outfit_400Regular" }}
-                  className="text-[#2175C0] text-sm mt-1"
+                  style={{ fontFamily: "Poppins_400Regular", color: '#41B8F0', fontSize: 12, marginTop: 4 }}
                 >
                   Base price: ₹{item.price} + ₹
                   {
-                    item.sizeOptions.find((s) => s.size === selectedSize)
+                    item.sizeOptions?.find((s: any) => s.size === selectedSize)
                       ?.priceModifier
                   }{" "}
-                  (size)
+                  (size adjustment)
                 </Text>
               )}
           </View>
 
           {/* Size Selection */}
-          {item.sizeOptions.length > 0 && (
-            <View className="mb-6">
+          {item.sizeOptions && item.sizeOptions.length > 0 && (
+            <View style={{ marginBottom: 20 }}>
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#0C3572] text-lg mb-3"
+                style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 16, marginBottom: 12 }}
               >
                 Select Size
               </Text>
-              <View className="flex-row flex-wrap">
-                {item.sizeOptions.map((sizeOption) => {
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {item.sizeOptions.map((sizeOption: any) => {
                   const isAvailable =
                     sizeOption.qtyAvailable === -1 ||
                     sizeOption.qtyAvailable > 0;
@@ -353,40 +404,45 @@ const ItemDetailsScreen = () => {
                       key={sizeOption.size}
                       disabled={!isAvailable}
                       onPress={() => setSelectedSize(sizeOption.size)}
-                      className={`px-6 py-3 rounded-xl mr-3 mb-3 ${
-                        isSelected
-                          ? "bg-[#FFBA00]"
-                          : isAvailable
-                          ? "bg-[#FFFFFF66] border-2 border-[#A0B3D0]"
-                          : "bg-white border-2 border-[#A0B3D0]"
-                      }`}
+                      style={{
+                        paddingHorizontal: 20,
+                        paddingVertical: 12,
+                        borderRadius: 14,
+                        borderWidth: 1.5,
+                        borderColor: isSelected ? '#41B8F0' : cardBorder,
+                        backgroundColor: isSelected ? (isDark ? 'rgba(65, 184, 240, 0.15)' : '#E0F2FE') : cardBg,
+                        opacity: isAvailable ? 1 : 0.4,
+                      }}
                     >
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className={`text-base ${
-                          isSelected
-                            ? "text-black"
-                            : isAvailable
-                            ? "text-[#0C3572]"
-                            : "text-gray-600"
-                        }`}
+                        style={{
+                          fontFamily: "Poppins_600SemiBold",
+                          fontSize: 15,
+                          color: isSelected ? '#41B8F0' : textColor,
+                        }}
                       >
                         {sizeOption.size}
                       </Text>
                       {sizeOption.priceModifier > 0 && isAvailable && (
                         <Text
-                          style={{ fontFamily: "Outfit_400Regular" }}
-                          className={`text-xs ${
-                            isSelected ? "text-black" : "text-[#2175C0]"
-                          }`}
+                          style={{
+                            fontFamily: "Poppins_400Regular",
+                            fontSize: 11,
+                            color: isSelected ? '#41B8F0' : subTextColor,
+                            marginTop: 2,
+                          }}
                         >
                           +₹{sizeOption.priceModifier}
                         </Text>
                       )}
                       {!isAvailable && (
                         <Text
-                          style={{ fontFamily: "Outfit_400Regular" }}
-                          className="text-xs text-gray-600"
+                          style={{
+                            fontFamily: "Poppins_400Regular",
+                            fontSize: 11,
+                            color: subTextColor,
+                            marginTop: 2,
+                          }}
                         >
                           Out
                         </Text>
@@ -400,29 +456,42 @@ const ItemDetailsScreen = () => {
 
           {/* Quantity Selection */}
           {isItemInCartCheck() ? null : (
-            <View className="mb-6">
+            <View style={{ marginBottom: 20 }}>
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#0C3572] text-lg mb-3"
+                style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 16, marginBottom: 12 }}
               >
                 Quantity
               </Text>
-              <View className="flex-row items-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <TouchableOpacity
                   onPress={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="bg-[#FFFFFF66] p-3 rounded-xl"
+                  style={{
+                    backgroundColor: cardBg,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: quantity <= 1 ? 0.4 : 1,
+                  }}
                   disabled={quantity <= 1}
                 >
                   <Ionicons
                     name="remove"
-                    size={24}
-                    color={quantity <= 1 ? "#6B7280" : "#FFBA00"}
+                    size={20}
+                    color={textColor}
                   />
                 </TouchableOpacity>
 
                 <Text
-                  style={{ fontFamily: "Outfit_700Bold" }}
-                  className="text-[#0C3572] text-2xl mx-8"
+                  style={{
+                    fontFamily: "Poppins_700Bold",
+                    color: textColor,
+                    fontSize: 22,
+                    marginHorizontal: 24,
+                  }}
                 >
                   {quantity}
                 </Text>
@@ -431,19 +500,28 @@ const ItemDetailsScreen = () => {
                   onPress={() =>
                     setQuantity(Math.min(getMaxQuantity(), quantity + 1))
                   }
-                  className="bg-[#FFFFFF66] p-3 rounded-xl"
+                  style={{
+                    backgroundColor: cardBg,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: quantity >= getMaxQuantity() ? 0.4 : 1,
+                  }}
                   disabled={quantity >= getMaxQuantity()}
                 >
                   <Ionicons
                     name="add"
-                    size={24}
-                    color={quantity >= getMaxQuantity() ? "#6B7280" : "#FFBA00"}
+                    size={20}
+                    color={textColor}
                   />
                 </TouchableOpacity>
 
                 <Text
-                  style={{ fontFamily: "Outfit_400Regular" }}
-                  className="text-[#2175C0] ml-4"
+                  style={{ fontFamily: "Poppins_400Regular", color: subTextColor, marginLeft: 16, fontSize: 13 }}
                 >
                   Max: {getMaxQuantity()}
                 </Text>
@@ -452,10 +530,10 @@ const ItemDetailsScreen = () => {
           )}
 
           {isItemInCartCheck() && (
-            <View className="mb-6">
+            <View style={{ backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#DCFCE7', padding: 14, borderRadius: 16, marginBottom: 20, flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
               <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-green-500"
+                style={{ fontFamily: "Poppins_500Medium", color: '#22c55e', fontSize: 14, marginLeft: 8 }}
               >
                 This item is already in your cart.
               </Text>
@@ -463,8 +541,17 @@ const ItemDetailsScreen = () => {
           )}
 
           {/* Stock Info */}
-          <View className="bg-[#FFFFFF66] rounded-2xl p-4 mb-6">
-            <View className="flex-row items-center">
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderWidth: 1,
+              borderColor: cardBorder,
+              borderRadius: 20,
+              padding: 16,
+              marginBottom: 20,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons
                 name={
                   item.currentInventory < 0 || item.currentInventory > 10
@@ -483,8 +570,7 @@ const ItemDetailsScreen = () => {
                 }
               />
               <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#0C3572] ml-2"
+                style={{ fontFamily: "Poppins_500Medium", color: textColor, marginLeft: 8, fontSize: 14 }}
               >
                 {item.currentInventory < 0
                   ? "In Stock"
@@ -499,41 +585,63 @@ const ItemDetailsScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Bottom Action Buttons */}
-      <View className="px-6 pb-8 pt-4 bg-white border-t border-[#A0B3D0]">
+      {/* Bottom Action Bar */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: cardBg,
+          borderTopWidth: 1,
+          borderTopColor: cardBorder,
+          paddingHorizontal: 20,
+          paddingTop: 14,
+          paddingBottom: Math.max(insets.bottom + 10, 24),
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: isDark ? 0.3 : 0.08,
+          shadowRadius: 10,
+          elevation: 10,
+        }}
+      >
         {isItemInCartCheck() ? (
-          /* Item is already in cart - show View Cart button */
           <TouchableOpacity
             onPress={() => router.push("/store/Cart")}
-            className="bg-[#FFBA00] rounded-xl py-4 items-center"
+            style={{ backgroundColor: '#41B8F0', borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
           >
-            <View className="flex-row items-center">
-              <Ionicons name="cart" size={20} color="#000" />
-              <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-black ml-2"
-              >
-                View Cart
-              </Text>
-            </View>
+            <Ionicons name="cart" size={20} color="#FFFFFF" />
+            <Text
+              style={{ fontFamily: "Poppins_600SemiBold", color: '#FFFFFF', fontSize: 16, marginLeft: 8 }}
+            >
+              View Cart
+            </Text>
           </TouchableOpacity>
         ) : (
-          /* Item not in cart - show Add to Cart button */
           <TouchableOpacity
             onPress={handleAddToCart}
             disabled={addingToCart || item.currentInventory === 0}
-            className={`bg-[#FFBA00] rounded-xl py-4 items-center ${
-              addingToCart || item.currentInventory === 0 ? "opacity-50" : ""
-            }`}
+            style={{
+              backgroundColor: addingToCart || item.currentInventory === 0 ? (isDark ? '#2A2A30' : '#E5E7EB') : '#41B8F0',
+              borderRadius: 16,
+              paddingVertical: 16,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+            }}
           >
             {addingToCart ? (
-              <ActivityIndicator size="small" color="#000" />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <View className="flex-row items-center">
-                <Ionicons name="cart-outline" size={20} color="#000" />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="cart-outline" size={20} color={addingToCart || item.currentInventory === 0 ? subTextColor : '#FFFFFF'} />
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-black ml-2"
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    fontSize: 16,
+                    color: addingToCart || item.currentInventory === 0 ? subTextColor : '#FFFFFF',
+                    marginLeft: 8,
+                  }}
                 >
                   Add to Cart
                 </Text>

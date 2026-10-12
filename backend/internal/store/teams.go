@@ -101,17 +101,15 @@ func (s *Store) JoinTeam(ctx context.Context, teamID, userID, regID string, reg 
 		if err != nil {
 			return err
 		}
-		if team.Paid || locked {
+		if team.Paid || locked || team.Status == models.TeamStatusConfirmed {
 			return ErrTeamLocked
 		}
 
 		members := append(append([]string{}, team.MemberIDs...), userID)
-		status := models.StatusFor(len(members), minSize)
 		now := isotime.Now()
 
 		if err := tx.Update(teamRef, []firestore.Update{
 			{Path: "memberIds", Value: members},
-			{Path: "status", Value: status},
 			{Path: "updatedAt", Value: now},
 		}); err != nil {
 			return err
@@ -121,7 +119,6 @@ func (s *Store) JoinTeam(ctx context.Context, teamID, userID, regID string, reg 
 		}
 
 		team.MemberIDs = members
-		team.Status = status
 		team.UpdatedAt = now
 		team.Normalise()
 		updated = team
@@ -153,19 +150,22 @@ func (s *Store) RemoveMember(ctx context.Context, teamID, memberID string, minSi
 		}
 
 		kept := team.Without(memberID)
-		if err := tx.Update(teamRef, []firestore.Update{
+		updates := []firestore.Update{
 			{Path: "memberIds", Value: kept},
-			{Path: "status", Value: models.StatusFor(len(kept), minSize)},
 			{Path: "updatedAt", Value: isotime.Now()},
-		}); err != nil {
+		}
+		if minSize > 0 && len(kept) < minSize {
+			updates = append(updates, firestore.Update{Path: "status", Value: models.TeamStatusPending})
+		}
+
+		if err := tx.Update(teamRef, updates); err != nil {
 			return err
 		}
 		return tx.Delete(s.FS.Collection(ColRegistrations).Doc(models.RegistrationID(team.EventID, memberID)))
 	})
 }
 
-// DeleteTeam removes the team and the leader registration, but only once the
-// leader is the last member standing.
+// DeleteTeam removes the team and all registrations if the caller is the leader.
 func (s *Store) DeleteTeam(ctx context.Context, teamID, leaderID string) error {
 	teamRef := s.FS.Collection(ColTeams).Doc(teamID)
 
@@ -181,13 +181,38 @@ func (s *Store) DeleteTeam(ctx context.Context, teamID, leaderID string) error {
 		if !team.IsLeader(leaderID) {
 			return ErrNotLeader
 		}
-		if len(team.MemberIDs) > 1 {
-			return ErrTeamNotEmpty
-		}
 		if err := tx.Delete(teamRef); err != nil {
 			return err
 		}
-		return tx.Delete(s.FS.Collection(ColRegistrations).Doc(models.RegistrationID(team.EventID, leaderID)))
+		for _, mID := range team.MemberIDs {
+			if err := tx.Delete(s.FS.Collection(ColRegistrations).Doc(models.RegistrationID(team.EventID, mID))); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// ConfirmTeam marks the team as confirmed by the team leader.
+func (s *Store) ConfirmTeam(ctx context.Context, teamID, leaderID string) error {
+	teamRef := s.FS.Collection(ColTeams).Doc(teamID)
+
+	return s.FS.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		snap, err := tx.Get(teamRef)
+		if err != nil {
+			return wrap(err)
+		}
+		team, err := decodeTeam(snap)
+		if err != nil {
+			return err
+		}
+		if !team.IsLeader(leaderID) {
+			return ErrNotLeader
+		}
+		return tx.Update(teamRef, []firestore.Update{
+			{Path: "status", Value: models.TeamStatusConfirmed},
+			{Path: "updatedAt", Value: isotime.Now()},
+		})
 	})
 }
 

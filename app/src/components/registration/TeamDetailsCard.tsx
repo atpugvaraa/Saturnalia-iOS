@@ -1,13 +1,12 @@
-import React from "react";
-import { View, Text, TouchableOpacity, Platform } from "react-native";
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { showAlert } from "../index";
-import { Copy } from "lucide-react-native";
+import { Copy, Users, Check, Send, CheckCircle2 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { FirebaseEvent, TeamRegistrationData } from '@/types/models';
 import TeamMemberItem from "./TeamMemberItem";
 import TeamStatusMessage from "./TeamStatusMessage";
-import Button from "../ui/Button";
-import DashedHr from "../ui/DashedLine";
+import { useThemeStore } from "@/state/themeStore";
 
 interface TeamDetailsCardProps {
   teamData: TeamRegistrationData;
@@ -28,72 +27,244 @@ const TeamDetailsCard: React.FC<TeamDetailsCardProps> = ({
   onRemoveMember,
   onSubmitTeam,
 }) => {
+  const { isDark } = useThemeStore();
+  const [copied, setCopied] = useState(false);
+
+  const cardBg = isDark ? '#1C1C22' : '#FFFFFF';
+  const cardBorder = isDark ? '#2B2B34' : '#E2E8F0';
+  const textPrimary = isDark ? '#FFFFFF' : '#0F172A';
+  const textSecondary = isDark ? '#94A3B8' : '#64748B';
+
   const handleCopyInviteCode = async () => {
     if (teamData?.inviteCode) {
       await Clipboard.setStringAsync(teamData.inviteCode);
+      setCopied(true);
       showAlert("Copied!", "Invite code copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
+  const memberCount = teamData.members?.length ?? 0;
+  const minSize = eventData?.minTeamSize ?? 1;
+  const maxSize = eventData?.maxTeamSize ?? null;
+  const hasEnoughMembers = memberCount >= minSize;
+
+  const getTeamConstraintLabel = () => {
+    if (minSize && maxSize) {
+      return minSize === maxSize ? `Required: ${minSize}` : `Size: ${minSize} – ${maxSize}`;
+    }
+    if (minSize > 1) {
+      return `Min: ${minSize}`;
+    }
+    if (maxSize) {
+      return `Max: ${maxSize}`;
+    }
+    return null;
+  };
+
+  const constraintLabel = getTeamConstraintLabel();
+
   return (
-    <View className="mb-6 bg-[#fff] rounded-xl p-5">
-      <View className="flex-row items-center justify-between mb-3">
-        <View className="flex-row items-center">
+    <View
+      style={{
+        backgroundColor: cardBg,
+        borderColor: cardBorder,
+        borderWidth: 1,
+        borderRadius: 18,
+        padding: 16,
+        marginBottom: 16,
+        width: '100%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.25 : 0.04,
+        shadowRadius: 6,
+        elevation: 2,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header: Team Name & Team Size */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 120 }}>
           <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-[#2175C0] text-lg"
+            style={{
+              fontFamily: 'Poppins_500Medium',
+              fontSize: 10,
+              color: textSecondary,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              marginBottom: 2,
+            }}
           >
-            Team Name:
+            Team Name
+          </Text>
+          <Text
+            style={{
+              fontFamily: 'Poppins_700Bold',
+              fontSize: 17,
+              color: textPrimary,
+            }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {teamData.teamName || "Unnamed Team"}
           </Text>
         </View>
-        <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-[#2175C0] text-lg"
-        >
-          Team Size:
-        </Text>
-      </View>
 
-      <View className="flex-row items-center justify-between mb-3">
-        <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-[#0C3572] text-xl mb-2"
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: isDark ? 'rgba(65, 184, 240, 0.12)' : 'rgba(65, 184, 240, 0.1)',
+            borderColor: 'rgba(65, 184, 240, 0.25)',
+            borderWidth: 1,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 12,
+            flexShrink: 0,
+          }}
         >
-          {teamData.teamName || "Not set"}
-        </Text>
-        <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-[#0C3572] text-xl mb-2"
-        >
-          {teamData.members?.length ?? 0} / {eventData?.maxTeamSize || "∞"}
-        </Text>
-      </View>
-
-      {/* Invite Code */}
-      <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#2175C0] text-md mb-1">Invite Code</Text>
-      <View className="flex-row items-center justify-between bg-[#DBE2ED] border-[#2175C0] border rounded-lg p-3 mb-3">
-        <View className="flex-1">
+          <Users size={12} color="#41B8F0" style={{ marginRight: 5 }} />
           <Text
-            style={{ fontFamily: "Outfit_700Bold" }}
-            className="text-[#0C3572] text-center text-lg ml-9"
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 12,
+              color: '#41B8F0',
+            }}
           >
-            {teamData.inviteCode}
+            {memberCount} / {maxSize || '∞'} members
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={handleCopyInviteCode}
-          className="p-2 rounded-lg ml-3 bg-[#F05423]"
-        >
-          <Copy size={20} color="#FFF" />
-        </TouchableOpacity>
       </View>
+
+      {/* Invite Code Box */}
+      {teamData.inviteCode ? (
+        <View style={{ marginBottom: 14 }}>
+          <Text
+            style={{
+              fontFamily: 'Poppins_500Medium',
+              fontSize: 10,
+              color: textSecondary,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              marginBottom: 5,
+            }}
+          >
+            Team Invite Code
+          </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: isDark ? '#23232B' : '#F1F5F9',
+              borderColor: isDark ? '#32323E' : '#E2E8F0',
+              borderWidth: 1,
+              borderRadius: 12,
+              paddingLeft: 14,
+              paddingRight: 6,
+              paddingVertical: 5,
+              width: '100%',
+            }}
+          >
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: 'Poppins_700Bold',
+                fontSize: 15,
+                letterSpacing: 1.5,
+                color: '#FFBA00',
+              }}
+              numberOfLines={1}
+              ellipsizeMode="middle"
+            >
+              {teamData.inviteCode}
+            </Text>
+
+            <TouchableOpacity
+              onPress={handleCopyInviteCode}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: copied ? '#10B981' : isDark ? '#333340' : '#E2E8F0',
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 8,
+                flexShrink: 0,
+              }}
+              activeOpacity={0.7}
+            >
+              {copied ? (
+                <>
+                  <Check size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#FFFFFF' }}>
+                    Copied
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Copy size={13} color={textPrimary} style={{ marginRight: 4 }} />
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: textPrimary }}>
+                    Copy
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       {/* Team Members List */}
-      <View className="my-3 border-dashed border-t border-[#A0B3D0] pt-4">
-        {Platform.OS === "ios" ? <DashedHr className={'mb-5 -mt-3'} color="#0C3572" height={1} dash={[1, 1]} /> : null}
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+          paddingTop: 12,
+          marginBottom: 6,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 6,
+            marginBottom: 8,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 13,
+              color: textPrimary,
+              flexShrink: 1,
+            }}
+          >
+            Team Members ({memberCount})
+          </Text>
 
+          {constraintLabel && (
+            <Text
+              style={{
+                fontFamily: 'Poppins_500Medium',
+                fontSize: 11,
+                color: hasEnoughMembers ? '#10B981' : '#F59E0B',
+                flexShrink: 0,
+              }}
+            >
+              {constraintLabel}
+            </Text>
+          )}
+        </View>
 
-        <Text className="text-[#0C3572] font-semibold mb-2">Members</Text>
         {(teamData.members || []).map((member) => (
           <TeamMemberItem
             key={member.userId}
@@ -111,61 +282,94 @@ const TeamDetailsCard: React.FC<TeamDetailsCardProps> = ({
         ))}
       </View>
 
-      {/* Team Status Message */}
+      {/* Team Status & Action Area for Pending State */}
       {teamData.status === "pending" && (
-        <View className="mt-2">
-          {/* Team Size Status */}
-          {eventData && eventData.minTeamSize && (
-            <View className="mb-3 bg-[#DBE2ED] border border-[#2175C0] rounded-lg p-3">
+        <View style={{ marginTop: 6 }}>
+          {!hasEnoughMembers && (
+            <View
+              style={{
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                borderColor: 'rgba(245, 158, 11, 0.3)',
+                borderWidth: 1,
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 10,
+              }}
+            >
               <Text
-                className={`text-sm font-medium ${(teamData.members?.length ?? 0) >= eventData.minTeamSize
-                    ? "text-green-400"
-                    : "text-orange-400"
-                  }`}
+                style={{
+                  fontFamily: 'Poppins_500Medium',
+                  fontSize: 12,
+                  color: '#F59E0B',
+                  lineHeight: 18,
+                }}
               >
-                Team Size: {teamData.members?.length ?? 0} / {eventData.minTeamSize}-
-                {eventData.maxTeamSize || "∞"}
+                ⚠️ Your team needs at least {minSize} members before registration can be completed. Share your invite code with teammates.
               </Text>
-              {(teamData.members?.length ?? 0) < eventData.minTeamSize && (
-                <Text className="text-orange-400 text-xs mt-1">
-                  Need {eventData.minTeamSize - (teamData.members?.length ?? 0)} more
-                  member
-                  {eventData.minTeamSize - (teamData.members?.length ?? 0) !== 1
-                    ? "s"
-                    : ""}{" "}
-                  to submit
-                </Text>
-              )}
             </View>
           )}
 
-          {/* Submit Team Button - Only for leader when team has enough members */}
-          {isLeader &&
-            eventData &&
-            eventData.minTeamSize &&
-            (teamData.members?.length ?? 0) >= eventData.minTeamSize && (
-              <Button
-                title={
-                  submittingTeam ? "Submitting..." : "Submit Team for Review"
-                }
-                onPress={onSubmitTeam}
-                variant="none"
-                className="mb-3 bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl"
-                textClassName="text-[#0C3572]"
-                disabled={submittingTeam}
-              />
-            )}
+          {/* Leader Complete Registration Button */}
+          {isLeader && hasEnoughMembers && (
+            <TouchableOpacity
+              onPress={onSubmitTeam}
+              disabled={submittingTeam}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: '#10B981',
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                marginBottom: 8,
+                width: '100%',
+                opacity: submittingTeam ? 0.7 : 1,
+              }}
+            >
+              {submittingTeam ? (
+                <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+              ) : (
+                <CheckCircle2 size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
+              )}
+              <Text
+                style={{
+                  fontFamily: 'Poppins_700Bold',
+                  fontSize: 13,
+                  color: '#FFFFFF',
+                  letterSpacing: 0.3,
+                }}
+              >
+                {submittingTeam ? "Completing Registration..." : "Complete Registration"}
+              </Text>
+            </TouchableOpacity>
+          )}
 
-          <View className="bg-[#DBE2ED] border border-[#2175C0] rounded-lg p-3">
-            <Text className="text-[#0C3572] text-sm">
-              {(teamData.members?.length ?? 0) >= (eventData?.minTeamSize || 1)
-                ? "✓ Your team meets the minimum size requirement. The team leader can now submit for review."
-                : "⚠️ Team is incomplete. Share the invite code with teammates to complete your team."}
-            </Text>
-          </View>
+          {hasEnoughMembers && !isLeader && (
+            <View
+              style={{
+                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.08)',
+                borderColor: 'rgba(16, 185, 129, 0.25)',
+                borderWidth: 1,
+                borderRadius: 10,
+                padding: 10,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: 'Poppins_500Medium',
+                  fontSize: 12,
+                  color: '#10B981',
+                }}
+              >
+                ✓ Minimum team size met. Waiting for the team leader to complete registration.
+              </Text>
+            </View>
+          )}
         </View>
       )}
-      {teamData.status && <TeamStatusMessage status={teamData.status} />}
+
+      {teamData.status && <TeamStatusMessage status={teamData.status as any} />}
     </View>
   );
 };

@@ -1,15 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Switch, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Switch, ActivityIndicator, TextInput, StatusBar } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserStore } from '@/state/userStore';
+import { useThemeStore } from '@/state/themeStore';
 import { initiateEventPayment, getPaymentStatus, validateCoupon, CouponResponse } from '@/api/payments';
 import { showAlert } from '@/components';
 import * as WebBrowser from 'expo-web-browser';
-import Header from "@/components/layout/Header";
-
-const ACCOMMODATION_PRICE = 300;
-const FOOD_PRICE = 200;
+import { getAppAccommodation } from '@/api/appConfig';
 
 interface DayInfo {
   key: string;
@@ -18,16 +17,21 @@ interface DayInfo {
 }
 
 const FESTIVAL_DAYS: DayInfo[] = [
-  { key: 'day0', title: 'Day 0', date: 'Pre-Fest / Arrival Day' },
-  { key: 'day1', title: 'Day 1', date: 'Festival Day 1' },
-  { key: 'day2', title: 'Day 2', date: 'Festival Day 2' },
-  { key: 'day3', title: 'Day 3', date: 'Festival Day 3' },
-  { key: 'day4', title: 'Day 4', date: 'Festival Day 4 / Departure' },
+  { key: 'day0', title: '19 Nov', date: 'Wednesday (from 8:00 PM)' },
+  { key: 'day1', title: '20 Nov', date: 'Thursday' },
+  { key: 'day2', title: '21 Nov', date: 'Friday' },
+  { key: 'day3', title: '22 Nov', date: 'Saturday' },
+  { key: 'day4', title: '23 Nov', date: 'Sunday' },
 ];
 
 export default function AccommodationScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
   const { userData: user, refreshUserProfile } = useUserStore();
+
+  const [accPrice, setAccPrice] = useState(300);
+  const [foodPrice, setFoodPrice] = useState(200);
 
   const [phase, setPhase] = useState<'select' | 'initiating' | 'opening' | 'verifying'>('select');
   const [selectedAcc, setSelectedAcc] = useState<Record<string, boolean>>({
@@ -41,12 +45,39 @@ export default function AccommodationScreen() {
   const [validCoupon, setValidCoupon] = useState<CouponResponse | null>(null);
   const [couponError, setCouponError] = useState('');
 
+  const bgColor = isDark ? '#131316' : '#E0E0E0';
+  const cardBg = isDark ? '#1C1C20' : '#FFFFFF';
+  const cardBorder = isDark ? '#2A2A30' : '#D5D5D5';
+  const textColor = isDark ? '#FFFFFF' : '#111827';
+  const subTextColor = isDark ? '#A0A0A0' : '#6B7280';
+  const inputBg = isDark ? '#26262B' : '#F3F4F6';
+
   // Refresh profile on mount to ensure accommodation and food states are fresh
   useFocusEffect(
     useCallback(() => {
       refreshUserProfile().catch(() => {});
     }, [refreshUserProfile])
   );
+
+  // Fetch dynamic accommodation price from backend app collection
+  useEffect(() => {
+    getAppAccommodation()
+      .then(res => {
+        if (res) {
+          if (typeof res.amount === 'number' && res.amount > 0) {
+            setAccPrice(res.amount);
+          } else if (typeof res.price === 'number' && res.price > 0) {
+            setAccPrice(res.price);
+          }
+          if (typeof res.foodAmount === 'number' && res.foodAmount > 0) {
+            setFoodPrice(res.foodAmount);
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch accommodation price:', err);
+      });
+  }, []);
 
   // Sync state with user's already owned days
   useEffect(() => {
@@ -92,10 +123,10 @@ export default function AccommodationScreen() {
   const calculateTotal = () => {
     let total = 0;
     Object.entries(selectedAcc).forEach(([day, selected]) => {
-      if (selected && !user?.accommodation?.[day]) total += ACCOMMODATION_PRICE;
+      if (selected && !user?.accommodation?.[day]) total += accPrice;
     });
     Object.entries(selectedFood).forEach(([day, selected]) => {
-      if (selected && !user?.food?.[day]) total += FOOD_PRICE;
+      if (selected && !user?.food?.[day]) total += foodPrice;
     });
     return total;
   };
@@ -125,9 +156,7 @@ export default function AccommodationScreen() {
         if (payment?.status === 'success' || payment?.status === 'failure') {
           return payment;
         }
-      } catch (e) {
-        // intermediate network retry
-      }
+      } catch (e) {}
       if (attempt < maxAttempts - 1) {
         await new Promise(r => setTimeout(r, delayMs));
       }
@@ -136,49 +165,45 @@ export default function AccommodationScreen() {
   };
 
   const handlePay = async () => {
-    if (total === 0) {
-      showAlert("No changes", "You have not selected any new accommodation or meal days to purchase.");
+    if (total <= 0) {
+      showAlert("Nothing Selected", "Please select at least one day for accommodation or food to continue.");
       return;
+    }
+
+    const accToPay: Record<string, boolean> = {};
+    const foodToPay: Record<string, boolean> = {};
+
+    Object.entries(selectedAcc).forEach(([day, selected]) => {
+      if (selected && !user?.accommodation?.[day]) accToPay[day] = true;
+    });
+    Object.entries(selectedFood).forEach(([day, selected]) => {
+      if (selected && !user?.food?.[day]) foodToPay[day] = true;
+    });
+
+    const hasAcc = Object.keys(accToPay).length > 0;
+    const hasFood = Object.keys(foodToPay).length > 0;
+
+    let paymentType = 'accommodation';
+    if (hasAcc && hasFood) paymentType = 'accommodation_and_food';
+    else if (hasFood) paymentType = 'food';
+
+    let appliedCoupon: string | undefined = undefined;
+    if (validCoupon) {
+      if (validCoupon.minCartValue && total < validCoupon.minCartValue) {
+        showAlert(
+          "Coupon Condition Not Met",
+          `Coupon "${validCoupon.code}" requires a minimum cart value of ₹${validCoupon.minCartValue}. Please select more options or remove the coupon.`
+        );
+        return;
+      }
+      appliedCoupon = validCoupon.code;
     }
 
     try {
       setPhase('initiating');
 
-      const accToPay: Record<string, boolean> = {};
-      const foodToPay: Record<string, boolean> = {};
-
-      Object.entries(selectedAcc).forEach(([day, selected]) => {
-        if (selected && !user?.accommodation?.[day]) accToPay[day] = true;
-      });
-      Object.entries(selectedFood).forEach(([day, selected]) => {
-        if (selected && !user?.food?.[day]) foodToPay[day] = true;
-      });
-
-      let pType = 'accommodation';
-      const hasAcc = Object.keys(accToPay).length > 0;
-      const hasFood = Object.keys(foodToPay).length > 0;
-      if (hasAcc && hasFood) {
-        pType = 'accommodation_and_food';
-      } else if (hasFood) {
-        pType = 'accommodation_and_food';
-      }
-
-      let appliedCoupon: string | undefined = undefined;
-      if (validCoupon) {
-        if (validCoupon.minCartValue && total < validCoupon.minCartValue) {
-          showAlert(
-            "Coupon Condition Not Met",
-            `Coupon "${validCoupon.code}" requires a minimum cart value of ₹${validCoupon.minCartValue}. Please select more options or remove the coupon.`
-          );
-          setPhase('select');
-          return;
-        }
-        appliedCoupon = validCoupon.code;
-      }
-
       const res = await initiateEventPayment({
-        eventId: "",
-        paymentType: pType,
+        paymentType,
         couponCode: appliedCoupon,
         accommodation: accToPay,
         food: foodToPay,
@@ -194,13 +219,13 @@ export default function AccommodationScreen() {
           await fetch(res.paymentUrl, { headers: { Accept: 'application/json' } });
           urlStatus = 'success';
         } catch (e) {
-          const redirectUrl = 'app://events/Payment';
+          const redirectUrl = 'app://profile/Accommodation';
           const result = await WebBrowser.openAuthSessionAsync(res.paymentUrl, redirectUrl);
           browserResultType = result.type;
         }
       } else {
         setPhase('opening');
-        const redirectUrl = 'app://events/Payment';
+        const redirectUrl = 'app://profile/Accommodation';
         const result = await WebBrowser.openAuthSessionAsync(res.paymentUrl, redirectUrl);
         browserResultType = result.type;
 
@@ -218,25 +243,23 @@ export default function AccommodationScreen() {
       const payment = await pollPaymentStatusWithRetry(orderId);
       const status = payment?.status || urlStatus || 'pending';
 
+      setPhase('select');
+
       if (status === 'success') {
         await refreshUserProfile();
-        handleRemoveCoupon();
-        setPhase('select');
         showAlert(
-          "Accommodation Confirmed!",
-          "Your stay and meal pass have been booked successfully and updated in your profile."
+          "Booking Confirmed!",
+          "Your accommodation and food pass payment was successful. Details have been updated on your profile."
         );
       } else if (status === 'failure') {
-        setPhase('select');
         showAlert(
           "Payment Failed",
-          "Your payment could not be processed by the gateway. Please try again."
+          "Your transaction could not be processed. Please try again."
         );
       } else {
-        setPhase('select');
         if (browserResultType === 'cancel' || browserResultType === 'dismiss') {
           showAlert(
-            "Payment Incomplete",
+            "Payment Cancelled",
             "The payment window was closed before completion. If your payment was deducted, it will update shortly; otherwise you can try again."
           );
         } else {
@@ -257,39 +280,80 @@ export default function AccommodationScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#transparent" }}>
-      <Header />
-      <ScrollView
-        className="flex-1 px-6 pt-4"
-        contentContainerStyle={{ paddingBottom: 160 }}
-        showsVerticalScrollIndicator={false}
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
+      {/* Top Header */}
+      <View
+        style={{
+          paddingTop: Math.max(insets.top + 8, 44),
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: bgColor,
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+        }}
       >
-        {/* Title Bar */}
-        <View className="flex-row items-center space-x-3 mb-4 mt-2">
-          <TouchableOpacity onPress={() => router.back()} className="p-1">
-            <Ionicons name="arrow-back" size={24} color="#0C3572" />
-          </TouchableOpacity>
-          <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-2xl ml-2">
-            Accommodation & Meals
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 14,
+          }}
+        >
+          <Ionicons name="arrow-back" size={20} color={textColor} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{ fontFamily: "Talina", fontSize: 24, color: textColor, letterSpacing: 0.5 }}
+          >
+            ACCOMMODATION & MEALS
+          </Text>
+          <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 13, color: '#41B8F0' }}>
+            Campus Hostel & Food Passes
           </Text>
         </View>
+      </View>
 
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 160 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Existing Booking Summary Card */}
         {bookedDaysList.length > 0 ? (
-          <View className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl mb-6 shadow-sm">
-            <View className="flex-row items-center mb-2">
-              <Ionicons name="checkmark-done-circle" size={22} color="#059669" />
-              <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-emerald-800 text-base ml-2">
+          <View
+            style={{
+              backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#DCFCE7',
+              borderColor: '#22c55e',
+              borderWidth: 1,
+              padding: 16,
+              borderRadius: 20,
+              marginBottom: 20,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+              <Ionicons name="checkmark-done-circle" size={20} color="#22c55e" />
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#22c55e', fontSize: 15, marginLeft: 8 }}>
                 Active Campus Pass
               </Text>
             </View>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-emerald-700 text-xs mb-3 leading-5">
-              Hostel room keys and meal verification will be issued at the hospitality desk.
+            <Text style={{ fontFamily: 'Poppins_400Regular', color: textColor, fontSize: 12, marginBottom: 12, lineHeight: 18 }}>
+              Hostel room keys and meal verification will be issued at the hospitality desk upon arrival.
             </Text>
-            <View className="flex-row flex-wrap gap-2">
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {bookedDaysList.map(d => (
-                <View key={d.key} className="bg-white px-3 py-1.5 rounded-xl border border-emerald-300 flex-row items-center">
-                  <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-emerald-800 text-xs">
+                <View key={d.key} style={{ backgroundColor: cardBg, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: cardBorder }}>
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', color: textColor, fontSize: 11 }}>
                     {d.title}: {user?.accommodation?.[d.key] ? "Hostel" : ""}{user?.accommodation?.[d.key] && user?.food?.[d.key] ? " + " : ""}{user?.food?.[d.key] ? "Meals" : ""}
                   </Text>
                 </View>
@@ -297,15 +361,24 @@ export default function AccommodationScreen() {
             </View>
           </View>
         ) : (
-          <View className="bg-blue-50 border border-blue-200 p-4 rounded-2xl mb-6 shadow-sm">
-            <View className="flex-row items-center mb-1">
-              <Ionicons name="information-circle" size={20} color="#2175C0" />
-              <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-base ml-2">
+          <View
+            style={{
+              backgroundColor: isDark ? 'rgba(65, 184, 240, 0.12)' : 'rgba(65, 184, 240, 0.1)',
+              borderColor: '#41B8F0',
+              borderWidth: 1,
+              padding: 16,
+              borderRadius: 20,
+              marginBottom: 20,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+              <Ionicons name="information-circle" size={18} color="#41B8F0" />
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#41B8F0', fontSize: 14, marginLeft: 8 }}>
                 Campus Stay & Dining
               </Text>
             </View>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs leading-5">
-              Select the festival days you need campus hostel accommodation (₹{ACCOMMODATION_PRICE}/day) and 3 meals/day food pass (₹{FOOD_PRICE}/day). Previously booked days are locked and preserved.
+            <Text style={{ fontFamily: 'Poppins_400Regular', color: textColor, fontSize: 12, lineHeight: 18 }}>
+              Select festival days you need campus hostel accommodation (₹{accPrice}/day) and 3 meals/day dining pass (₹{foodPrice}/day).
             </Text>
           </View>
         )}
@@ -316,30 +389,40 @@ export default function AccommodationScreen() {
           const foodLocked = user?.food?.[day.key] || false;
 
           return (
-            <View key={day.key} className="mb-5 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-              <View className="flex-row justify-between items-center mb-3">
-                <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-lg">
+            <View
+              key={day.key}
+              style={{
+                backgroundColor: cardBg,
+                borderWidth: 1,
+                borderColor: cardBorder,
+                borderRadius: 20,
+                padding: 18,
+                marginBottom: 14,
+              }}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: textColor, fontSize: 16 }}>
                   {day.title}
                 </Text>
-                <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">
+                <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, fontSize: 12 }}>
                   {day.date}
                 </Text>
               </View>
 
               {/* Accommodation Option */}
-              <View className="flex-row justify-between items-center py-2.5 border-b border-gray-100">
-                <View className="flex-1 pr-4">
-                  <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-sm">
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: isDark ? '#2A2A30' : '#F3F4F6' }}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={{ fontFamily: 'Poppins_500Medium', color: textColor, fontSize: 14 }}>
                     Hostel Stay
                   </Text>
-                  <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">
-                    Campus hostel room (₹{ACCOMMODATION_PRICE}/day)
+                  <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, fontSize: 12 }}>
+                    Campus hostel room (₹{accPrice}/day)
                   </Text>
                 </View>
                 {accLocked ? (
-                  <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
-                    <Ionicons name="checkmark-circle" size={14} color="#15803d" />
-                    <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 text-xs ml-1">
+                  <View style={{ backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#22c55e', fontSize: 11, marginLeft: 4 }}>
                       Paid
                     </Text>
                   </View>
@@ -347,26 +430,26 @@ export default function AccommodationScreen() {
                   <Switch
                     value={selectedAcc[day.key]}
                     onValueChange={() => toggleAcc(day.key)}
-                    trackColor={{ false: '#d1d5db', true: '#EEB170' }}
-                    thumbColor={selectedAcc[day.key] ? '#0C3572' : '#f4f3f4'}
+                    trackColor={{ false: isDark ? '#323238' : '#D1D5DB', true: '#41B8F0' }}
+                    thumbColor="#FFFFFF"
                   />
                 )}
               </View>
 
               {/* Food Option */}
-              <View className="flex-row justify-between items-center py-2.5 pt-3">
-                <View className="flex-1 pr-4">
-                  <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-sm">
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 }}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={{ fontFamily: 'Poppins_500Medium', color: textColor, fontSize: 14 }}>
                     Meal Pass
                   </Text>
-                  <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">
-                    3 fresh meals included (₹{FOOD_PRICE}/day)
+                  <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, fontSize: 12 }}>
+                    3 fresh meals included (₹{foodPrice}/day)
                   </Text>
                 </View>
                 {foodLocked ? (
-                  <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
-                    <Ionicons name="checkmark-circle" size={14} color="#15803d" />
-                    <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 text-xs ml-1">
+                  <View style={{ backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#22c55e', fontSize: 11, marginLeft: 4 }}>
                       Paid
                     </Text>
                   </View>
@@ -374,8 +457,8 @@ export default function AccommodationScreen() {
                   <Switch
                     value={selectedFood[day.key]}
                     onValueChange={() => toggleFood(day.key)}
-                    trackColor={{ false: '#d1d5db', true: '#EEB170' }}
-                    thumbColor={selectedFood[day.key] ? '#0C3572' : '#f4f3f4'}
+                    trackColor={{ false: isDark ? '#323238' : '#D1D5DB', true: '#41B8F0' }}
+                    thumbColor="#FFFFFF"
                   />
                 )}
               </View>
@@ -384,51 +467,80 @@ export default function AccommodationScreen() {
         })}
 
         {/* Promo Code Card */}
-        <View className="bg-white border border-gray-100 p-5 rounded-2xl mb-6 shadow-sm">
-          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] mb-3">
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            borderRadius: 20,
+            padding: 18,
+            marginBottom: 20,
+          }}
+        >
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', color: textColor, fontSize: 15, marginBottom: 12 }}>
             Have a promo code?
           </Text>
-          <View className="flex-row space-x-2 gap-2">
+          <View style={{ flexDirection: 'row', gap: 10 }}>
             <TextInput
               value={couponCode}
               onChangeText={setCouponCode}
-              placeholder="Enter coupon code"
-              placeholderTextColor="#A0ABC0"
+              placeholder="ENTER PROMO CODE"
+              placeholderTextColor={subTextColor}
               autoCapitalize="characters"
-              className="flex-1 bg-[#F2F5F8] px-4 py-3 rounded-xl text-[#0C3572] border border-gray-100"
-              style={{ fontFamily: 'Outfit_500Medium' }}
+              style={{
+                flex: 1,
+                backgroundColor: inputBg,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: cardBorder,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                color: textColor,
+                fontFamily: 'Poppins_500Medium',
+                fontSize: 14,
+              }}
             />
             {validCoupon ? (
               <TouchableOpacity
                 onPress={handleRemoveCoupon}
-                className="bg-red-100 px-5 justify-center rounded-xl"
+                style={{
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+                  paddingHorizontal: 18,
+                  justifyContent: 'center',
+                  borderRadius: 14,
+                }}
               >
-                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-red-600">Remove</Text>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#ef4444', fontSize: 14 }}>Remove</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 onPress={handleApplyCoupon}
-                className="bg-[#0C3572] px-6 justify-center rounded-xl"
+                style={{
+                  backgroundColor: '#41B8F0',
+                  paddingHorizontal: 20,
+                  justifyContent: 'center',
+                  borderRadius: 14,
+                }}
               >
-                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#EEB170]">Apply</Text>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#FFFFFF', fontSize: 14 }}>Apply</Text>
               </TouchableOpacity>
             )}
           </View>
           {couponError ? (
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-red-500 text-xs mt-2">
+            <Text style={{ fontFamily: 'Poppins_400Regular', color: '#ef4444', marginTop: 8, fontSize: 12 }}>
               {couponError}
             </Text>
           ) : null}
           {validCoupon ? (
-            <View className="mt-3">
-              <View className="flex-row items-center bg-green-50 p-2.5 rounded-lg">
-                <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
-                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 ml-2 text-sm">
+            <View style={{ marginTop: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#DCFCE7', padding: 12, borderRadius: 12 }}>
+                <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#22c55e', marginLeft: 8, fontSize: 13 }}>
                   Coupon applied: -₹{discount.toFixed(2)}
                 </Text>
               </View>
               {validCoupon.minCartValue && total < validCoupon.minCartValue ? (
-                <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-amber-600 text-xs mt-1.5">
+                <Text style={{ fontFamily: 'Poppins_400Regular', color: '#f59e0b', fontSize: 12, marginTop: 6 }}>
                   Requires minimum cart value of ₹{validCoupon.minCartValue} (current: ₹{total}).
                 </Text>
               ) : null}
@@ -438,40 +550,68 @@ export default function AccommodationScreen() {
       </ScrollView>
 
       {/* Floating Bottom Bar */}
-      <View className="bg-white border-t border-gray-100 px-6 py-5 flex-row justify-between items-center shadow-[0_-10px_40px_rgba(0,0,0,0.08)] pb-8">
-        <View>
-          <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] text-sm">
-            Total to Pay
-          </Text>
-          <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-3xl">
-            ₹{finalAmount.toFixed(2)}
-          </Text>
-          {discount > 0 && (
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-gray-400 text-xs line-through mt-0.5">
-              Original: ₹{total.toFixed(2)}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: cardBg,
+          borderTopWidth: 1,
+          borderTopColor: cardBorder,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: Math.max(insets.bottom + 12, 28),
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: isDark ? 0.3 : 0.08,
+          shadowRadius: 12,
+          elevation: 10,
+        }}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={{ fontFamily: 'Poppins_500Medium', color: subTextColor, fontSize: 13 }}>
+              Total to Pay
             </Text>
-          )}
-        </View>
-        <TouchableOpacity
-          onPress={handlePay}
-          disabled={phase !== 'select' || total === 0}
-          className={`px-10 py-4 rounded-xl flex-row items-center space-x-2 ${
-            total === 0 || phase !== 'select' ? 'bg-gray-200' : 'bg-[#0C3572]'
-          }`}
-        >
-          {phase !== 'select' && (
-            <ActivityIndicator color="#EEB170" size="small" style={{ marginRight: 8 }} />
-          )}
-          <Text
-            style={{ fontFamily: 'Outfit_600SemiBold' }}
-            className={`text-lg ${total === 0 || phase !== 'select' ? 'text-gray-400' : 'text-[#EEB170]'}`}
+            <Text style={{ fontFamily: 'Talina', color: textColor, fontSize: 28 }}>
+              ₹{finalAmount.toFixed(2)}
+            </Text>
+            {discount > 0 && (
+              <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, fontSize: 12, textDecorationLine: 'line-through' }}>
+                Original: ₹{total.toFixed(2)}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity
+            onPress={handlePay}
+            disabled={phase !== 'select' || total === 0}
+            style={{
+              paddingHorizontal: 32,
+              paddingVertical: 15,
+              borderRadius: 16,
+              backgroundColor: total === 0 || phase !== 'select' ? (isDark ? '#2A2A30' : '#E5E7EB') : '#41B8F0',
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
           >
-            {phase === 'initiating' ? 'Initiating...' :
-             phase === 'opening' ? 'Opening...' :
-             phase === 'verifying' ? 'Verifying...' :
-             total === 0 ? 'Select Days' : 'Pay Now'}
-          </Text>
-        </TouchableOpacity>
+            {phase !== 'select' && (
+              <ActivityIndicator color="#FFFFFF" size="small" style={{ marginRight: 8 }} />
+            )}
+            <Text
+              style={{
+                fontFamily: 'Poppins_600SemiBold',
+                fontSize: 16,
+                color: total === 0 || phase !== 'select' ? subTextColor : '#FFFFFF',
+              }}
+            >
+              {phase === 'initiating' ? 'Initiating...' :
+               phase === 'opening' ? 'Opening...' :
+               phase === 'verifying' ? 'Verifying...' :
+               total === 0 ? 'Select Days' : 'Pay Now'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );

@@ -190,7 +190,7 @@ const StoryContent = React.memo(
     // FIX 1: Separate effect for image timer with proper cleanup
     React.useEffect(() => {
       let imageTimer: NodeJS.Timeout | null = null;
-      
+
       progress.value = 0; // reset
 
       if (isActive && !isVideo && isImageLoaded) {
@@ -263,7 +263,7 @@ const StoryContent = React.memo(
               </View>
             )}
             <Image
-              source={typeof mediaUrl === 'number' ? mediaUrl : (typeof mediaUrl === 'object' && (mediaUrl as any)?.uri ? mediaUrl : { uri: String(mediaUrl) })}
+              source={typeof mediaUrl === 'number' ? mediaUrl : { uri: mediaUrl }}
               style={styles.image}
               resizeMode="cover"
               onLoad={() => setIsImageLoaded(true)}
@@ -710,31 +710,31 @@ const StoryCubeViewer: React.FC<StoryCubeViewerProps> = ({
         <SafeAreaView style={styles.flex}>
           <GestureDetector gesture={composedGesture}>
             <View style={styles.container} collapsable={false}>
-            <Animated.View
-              style={[
-                {
-                  width: SCREEN_WIDTH * users.length,
-                  height: "100%",
-                  flexDirection: "row",
-                },
-                animatedContainerStyle,
-              ]}
-            >
-              {users.map((user, index) => (
-                <StoryPage
-                  key={String(user.id ?? index)}
-                  user={user}
-                  index={index}
-                  scrollX={scrollX}
-                  activeUserIndex={activeUserIndex}
-                  storyIndex={storyIndices.get(user.id) ?? 0}
-                  onVideoEnd={handleNext}
-                  onDeleteStory={handleDeleteStory}
-                  onClose={onClose}
-                  userProfile={userProfile}
-                />
-              ))}
-            </Animated.View>
+              <Animated.View
+                style={[
+                  {
+                    width: SCREEN_WIDTH * users.length,
+                    height: "100%",
+                    flexDirection: "row",
+                  },
+                  animatedContainerStyle,
+                ]}
+              >
+                {users.map((user, index) => (
+                  <StoryPage
+                    key={String(user.id ?? index)}
+                    user={user}
+                    index={index}
+                    scrollX={scrollX}
+                    activeUserIndex={activeUserIndex}
+                    storyIndex={storyIndices.get(user.id) ?? 0}
+                    onVideoEnd={handleNext}
+                    onDeleteStory={handleDeleteStory}
+                    onClose={onClose}
+                    userProfile={userProfile}
+                  />
+                ))}
+              </Animated.View>
             </View>
           </GestureDetector>
         </SafeAreaView>

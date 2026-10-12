@@ -1,4 +1,3 @@
-// src/screens/App/Profile/ProfileDetailsScreen.tsx
 import React from "react";
 import {
   Text,
@@ -7,20 +6,29 @@ import {
   TouchableOpacity,
   StatusBar,
   Alert,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUserStore } from "@/state/userStore";
-import Header from "@/components/layout/Header";
-import { Linking } from "react-native";
+import { useThemeStore } from "@/state/themeStore";
 import { getDeleteFlag } from "@/utils/versionCheck";
 import { Button, showAlert } from "@/components";
-import { setStringAsync } from "expo-clipboard";
+
 const ProfileDetailsScreen = () => {
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
   const router = useRouter();
   const { userData: userProfile } = useUserStore();
   const [isDelete, setIsDelete] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
+
+  const bgColor = isDark ? '#131316' : '#E0E0E0';
+  const cardBg = isDark ? '#1C1C20' : '#FFFFFF';
+  const cardBorder = isDark ? '#2A2A30' : '#D5D5D5';
+  const textColor = isDark ? '#FFFFFF' : '#111827';
+  const subTextColor = isDark ? '#A0A0A0' : '#6B7280';
 
   React.useEffect(() => {
     const fetchDeleteFlag = async () => {
@@ -39,20 +47,18 @@ const ProfileDetailsScreen = () => {
     value: string;
     icon: any;
   }) => (
-    <View className="flex-row items-center py-4 border-b border-[#A0B3D0]/30">
-      <View className="w-10 h-10 rounded-full bg-[#EEB170]/20 items-center justify-center mr-4">
-        <Ionicons name={icon} size={20} color="#EEB170" />
+    <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: isDark ? '#2A2A30' : '#F3F4F6' }}>
+      <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: isDark ? 'rgba(65, 184, 240, 0.15)' : 'rgba(65, 184, 240, 0.12)', alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+        <Ionicons name={icon} size={18} color="#41B8F0" />
       </View>
-      <View className="flex-1">
+      <View style={{ flex: 1 }}>
         <Text
-          style={{ fontFamily: "Outfit_400Regular" }}
-          className="text-[#2175C0] text-sm mb-1"
+          style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12, marginBottom: 2 }}
         >
           {label}
         </Text>
         <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-[#0C3572] text-base"
+          style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 15 }}
         >
           {value}
         </Text>
@@ -118,51 +124,92 @@ const ProfileDetailsScreen = () => {
   };
 
   return (
-    <View className="flex-1 bg-transparent">
-      <StatusBar barStyle="light-content" />
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* Header */}
-      <Header />
-
-      <View className="flex-row items-center justify-between mb-4 px-6 mt-6">
-        <TouchableOpacity onPress={() => router.back()} className="mr-4">
-          <Ionicons name="arrow-back" size={24} color="#0C3572" />
-        </TouchableOpacity>
-        <Text
-          style={{ fontFamily: "Outfit_700Bold" }}
-          className="text-[#0C3572] text-2xl"
+      {/* Top Header */}
+      <View
+        style={{
+          paddingTop: Math.max(insets.top + 8, 44),
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: bgColor,
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 14,
+          }}
         >
-          Profile Details
-        </Text>
-        <View className="w-12" />
+          <Ionicons name="arrow-back" size={20} color={textColor} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{ fontFamily: "Talina", fontSize: 24, color: textColor, letterSpacing: 0.5 }}
+          >
+            PROFILE DETAILS
+          </Text>
+          <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 13, color: '#41B8F0' }}>
+            Account & Registration Info
+          </Text>
+        </View>
       </View>
 
       <ScrollView
-        className="flex-1 px-6"
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* Profile Summary Card */}
-        <View className="bg-[#FFFFFF] rounded-2xl p-6 mb-6">
-          <View className="flex-row items-center mb-4">
-            <View className="w-16 h-16 rounded-full bg-[#EEB170]/20 items-center justify-center mr-4">
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            borderRadius: 24,
+            padding: 20,
+            marginBottom: 20,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+            <View
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                backgroundColor: isDark ? 'rgba(65, 184, 240, 0.15)' : 'rgba(65, 184, 240, 0.12)',
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 16,
+              }}
+            >
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-[#EEB170] text-2xl"
+                style={{ fontFamily: "Talina", color: '#41B8F0', fontSize: 28 }}
               >
                 {userProfile?.displayName?.charAt(0).toUpperCase() || "U"}
               </Text>
             </View>
-            <View className="flex-1">
+            <View style={{ flex: 1 }}>
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#0C3572] text-xl mb-1"
+                style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 18, marginBottom: 2 }}
               >
                 {userProfile?.displayName || "User Name"}
               </Text>
               <Text
-                style={{ fontFamily: "Outfit_400Regular" }}
-                className="text-[#2175C0] text-sm"
+                style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 13 }}
               >
                 {userProfile?.email || "email@example.com"}
               </Text>
@@ -170,40 +217,67 @@ const ProfileDetailsScreen = () => {
           </View>
 
           {/* Quick Info Pills */}
-          <View className="flex-row flex-wrap gap-2 mt-2">
-            <View className="bg-[#FFFFFF66] px-3 py-2 rounded-full flex-row items-center border-[1px]">
-              <Ionicons name="school" size={14} color="#EEB170" />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <View
+              style={{
+                backgroundColor: isDark ? '#26262B' : '#F3F4F6',
+                borderColor: cardBorder,
+                borderWidth: 1,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 12,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <Ionicons name="school-outline" size={14} color="#41B8F0" />
               <Text
-                style={{ fontFamily: "Outfit_400Regular" }}
-                className="text-[#2175C0] text-xs ml-1"
+                style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 12, marginLeft: 6 }}
               >
                 {userProfile?.email?.includes("thapar")
-                  ? "Host College"
-                  : "Visitor"}
+                  ? "Host College Student"
+                  : "External Participant"}
               </Text>
             </View>
             {userProfile?.graduationYear && (
-              <View className="bg-[#FFFFFF66] px-3 py-2 rounded-full flex-row items-center border-[1px]">
-                <Ionicons name="calendar" size={14} color="#EEB170" />
+              <View
+                style={{
+                  backgroundColor: isDark ? '#26262B' : '#F3F4F6',
+                  borderColor: cardBorder,
+                  borderWidth: 1,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="calendar-outline" size={14} color="#41B8F0" />
                 <Text
-                  style={{ fontFamily: "Outfit_400Regular" }}
-                  className="text-[#2175C0] text-xs ml-1"
+                  style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 12, marginLeft: 6 }}
                 >
                   Class of {userProfile.graduationYear}
                 </Text>
               </View>
             )}
           </View>
-        
         </View>
 
         {/* Personal Information Card */}
-        <View className="bg-[#FFFFFF] rounded-2xl p-6 mb-6">
-          <View className="flex-row items-center mb-4">
-            <Ionicons name="person-circle" size={24} color="#EEB170" />
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            borderRadius: 24,
+            padding: 20,
+            marginBottom: 20,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+            <Ionicons name="person-circle-outline" size={22} color="#41B8F0" />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-lg ml-2"
+              style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 16, marginLeft: 8 }}
             >
               Personal Information
             </Text>
@@ -212,58 +286,64 @@ const ProfileDetailsScreen = () => {
           <InfoRow
             label="Full Name"
             value={userProfile?.displayName || "Not provided"}
-            icon="person"
+            icon="person-outline"
           />
           <InfoRow
             label="Email Address"
             value={userProfile?.email || "Not provided"}
-            icon="mail"
+            icon="mail-outline"
           />
-      {!isDelete && (
-        <InfoRow
-        label="Phone Number"
-        value={userProfile?.phoneNumber || "Not provided"}
-        icon="call"
-        />
-      )}
+          {!isDelete && (
+            <InfoRow
+              label="Phone Number"
+              value={userProfile?.phoneNumber || "Not provided"}
+              icon="call-outline"
+            />
+          )}
         </View>
 
         {/* Academic Information Card */}
-        <View className="bg-[#FFFFFF] rounded-2xl p-6 mb-6">
-          <View className="flex-row items-center mb-4">
-            <Ionicons name="school" size={24} color="#EEB170" />
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            borderRadius: 24,
+            padding: 20,
+            marginBottom: 20,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+            <Ionicons name="school-outline" size={22} color="#41B8F0" />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-lg ml-2"
+              style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 16, marginLeft: 8 }}
             >
               Academic Information
             </Text>
           </View>
 
           <InfoRow
-            label="College/University"
+            label="College / University"
             value={userProfile?.collegeName || "Not provided"}
-            icon="business"
+            icon="business-outline"
           />
           <InfoRow
-            label="Roll Number"
+            label="Roll Number / Student ID"
             value={userProfile?.rollNumber || "Not provided"}
-            icon="card"
+            icon="card-outline"
           />
-          <View className="flex-row items-center py-4">
-            <View className="w-10 h-10 rounded-full bg-[#EEB170]/20 items-center justify-center mr-4">
-              <Ionicons name="calendar" size={20} color="#EEB170" />
+          <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 14 }}>
+            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: isDark ? 'rgba(65, 184, 240, 0.15)' : 'rgba(65, 184, 240, 0.12)', alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+              <Ionicons name="calendar-outline" size={18} color="#41B8F0" />
             </View>
-            <View className="flex-1">
+            <View style={{ flex: 1 }}>
               <Text
-                style={{ fontFamily: "Outfit_400Regular" }}
-                className="text-[#2175C0] text-sm mb-1"
+                style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12, marginBottom: 2 }}
               >
                 Graduation Year
               </Text>
               <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#0C3572] text-base"
+                style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 15 }}
               >
                 {userProfile?.graduationYear?.toString() || "Not provided"}
               </Text>
@@ -271,75 +351,92 @@ const ProfileDetailsScreen = () => {
           </View>
         </View>
 
-        {/* Account Statistics Card */}
-        <View className="bg-[#FFFFFF] rounded-2xl p-6 mb-6">
-          <View className="flex-row items-center mb-4">
-            <Ionicons name="stats-chart" size={24} color="#EEB170" />
+        {/* Account Status Card */}
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            borderRadius: 24,
+            padding: 20,
+            marginBottom: 20,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+            <Ionicons name="shield-checkmark-outline" size={22} color="#41B8F0" />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-lg ml-2"
+              style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 16, marginLeft: 8 }}
             >
-              Account Info
+              Account Status
             </Text>
           </View>
 
-          <View className="bg-[#FFFFFF66] rounded-xl p-4">
-            <View className="flex-row items-center">
-              <Ionicons name="shield-checkmark" size={20} color="#10B981" />
-              <View className="flex-1 ml-3">
-                <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-[#0C3572] text-sm mb-1"
-                >
-                  Account Status
-                </Text>
-                <Text
-                  style={{ fontFamily: "Outfit_400Regular" }}
-                  className="text-[#2175C0] text-xs"
-                >
-                  Your account is active and verified
-                </Text>
-              </View>
-              <View className="bg-green-500/20 px-3 py-1 rounded-full">
-                <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-green-400 text-xs"
-                >
-                  Active
-                </Text>
-              </View>
+          <View style={{ backgroundColor: isDark ? '#26262B' : '#F3F4F6', borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center" }}>
+            <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text
+                style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 14 }}
+              >
+                Active & Verified
+              </Text>
+              <Text
+                style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}
+              >
+                Ready for Saturnalia festival
+              </Text>
+            </View>
+            <View style={{ backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+              <Text
+                style={{ fontFamily: "Poppins_600SemiBold", color: "#10B981", fontSize: 12 }}
+              >
+                Verified
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Help Section */}
-        <View className="bg-[#FFFFFF] rounded-2xl p-6 mb-6">
-          <View className="flex-row items-center mb-4">
-            <Ionicons name="information-circle" size={24} color="#EEB170" />
+        {/* Danger Zone */}
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+            borderRadius: 24,
+            padding: 20,
+            marginBottom: 20,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+            <Ionicons name="warning-outline" size={22} color="#EF4444" />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-lg ml-2"
+              style={{ fontFamily: "Poppins_600SemiBold", color: '#EF4444', fontSize: 16, marginLeft: 8 }}
             >
-              Need Help?
+              Danger Zone
             </Text>
           </View>
 
           <Text
-            style={{ fontFamily: "Outfit_400Regular" }}
-            className="text-[#2175C0] text-sm leading-6"
+            style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 13, lineHeight: 20, marginBottom: 16 }}
           >
-            If you need to update your profile information or have any
-            questions, please contact the event organizers.
+            Deleting your account will remove your event registrations and profile permanently.
           </Text>
 
-          <Button
-            title="Delete My Account"
-            variant="danger"
-            className="mt-4"
-            loading={isDeleting}
-            disabled={isDeleting}
+          <TouchableOpacity
             onPress={handleDeleteAccount}
-          />
+            disabled={isDeleting}
+            style={{
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+              borderColor: '#EF4444',
+              borderWidth: 1,
+              borderRadius: 16,
+              paddingVertical: 14,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#EF4444', fontSize: 15 }}>
+              {isDeleting ? "Deleting Account..." : "Delete My Account"}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>

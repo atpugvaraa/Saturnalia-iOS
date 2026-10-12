@@ -6,6 +6,7 @@ import {
   Dimensions,
   Modal,
   ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
@@ -29,6 +30,8 @@ import {
 } from "lucide-react-native";
 import { useUserStore } from "@/state/userStore";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Dimensions available if needed
 // const { width, height } = Dimensions.get("window");
@@ -331,11 +334,19 @@ export default function QRScanner({
     }
   };
 
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+
   // Check camera permissions
   if (!permission) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center">
-        <Text className="text-[#0C3572] text-lg">
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 16 }}>
           Requesting camera permission...
         </Text>
       </View>
@@ -344,29 +355,59 @@ export default function QRScanner({
 
   if (!permission.granted) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center px-6">
-        <View className="items-center">
-          <QrCode size={80} color="#EEB170" />
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+        <View style={{ alignItems: "center" }}>
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: "#41B8F020",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 16,
+            }}
+          >
+            <QrCode size={48} color="#41B8F0" />
+          </View>
           <Text
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-            className="text-[#0C3572] text-2xl text-center mt-6 mb-4"
+            style={{
+              fontFamily: "Talina",
+              color: textPrimary,
+              fontSize: 22,
+              textAlign: "center",
+              marginBottom: 8,
+            }}
           >
             Camera Access Required
           </Text>
           <Text
-            style={{ fontFamily: "Outfit_400Regular" }}
-            className="text-[#2175C0] text-center mb-8"
+            style={{
+              fontFamily: "Poppins_400Regular",
+              color: textSecondary,
+              textAlign: "center",
+              marginBottom: 24,
+              fontSize: 13,
+            }}
           >
             We need camera permission to scan QR codes for user verification
           </Text>
           <TouchableOpacity
-            className="bg-[#EEB170] px-8 py-4 rounded-xl"
+            style={{
+              backgroundColor: "#41B8F0",
+              paddingHorizontal: 28,
+              paddingVertical: 14,
+              borderRadius: 14,
+            }}
             onPress={requestPermission}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#121212] text-lg"
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: "#FFFFFF",
+                fontSize: 15,
+              }}
             >
               Grant Permission
             </Text>
@@ -379,96 +420,164 @@ export default function QRScanner({
   // Category Selection Screen
   if (showCategorySelection) {
     return (
-      <View className="flex-1 bg-transparent">
+      <View style={{ flex: 1, backgroundColor: bgColor }}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
         {/* Header */}
-        <View className="bg-[#EEB170] pt-12 pb-6 px-6 rounded-b-3xl">
-          <View className="flex-row items-center mb-4">
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              className="mr-4"
-              activeOpacity={0.7}
+        <View
+          style={{
+            paddingTop: insets.top + 8,
+            paddingBottom: 16,
+            paddingHorizontal: 20,
+            flexDirection: "row",
+            alignItems: "center",
+            borderBottomWidth: 1,
+            borderBottomColor: cardBorder,
+            backgroundColor: bgColor,
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Dashboard")}
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 21,
+              backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: 14,
+            }}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={22} color={textPrimary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontFamily: "Talina",
+                fontSize: 22,
+                color: textPrimary,
+                letterSpacing: 0.5,
+              }}
             >
-              <ArrowLeft size={28} color="#121212" />
-            </TouchableOpacity>
-            <View className="flex-1">
-              <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-[#121212] text-2xl"
-              >
-                QR Scanner
-              </Text>
-              <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#121212] text-sm opacity-80"
-              >
-                Select a scanning category
-              </Text>
-            </View>
+              QR Scanner
+            </Text>
+            <Text
+              style={{
+                fontFamily: "Poppins_400Regular",
+                fontSize: 12,
+                color: "#41B8F0",
+                marginTop: 1,
+              }}
+            >
+              Select verification category
+            </Text>
           </View>
         </View>
 
         {/* Category Cards */}
-        <View className="flex-1 px-6 pt-8">
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}>
           <Text
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-            className="text-[#0C3572] text-lg mb-4"
+            style={{
+              fontFamily: "Poppins_600SemiBold",
+              color: textPrimary,
+              fontSize: 16,
+              marginBottom: 14,
+            }}
           >
             Choose Scanning Mode
           </Text>
 
           {categories.length === 0 ? (
-            <View className="flex-1 items-center justify-center">
-              <QrCode size={64} color="#6B7280" />
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+              <QrCode size={64} color={textSecondary} />
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#2175C0] text-xl mt-4 text-center"
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  color: textPrimary,
+                  fontSize: 18,
+                  marginTop: 16,
+                  textAlign: "center",
+                }}
               >
                 No Access
               </Text>
               <Text
-                style={{ fontFamily: "Outfit_400Regular" }}
-                className="text-gray-500 text-center mt-2 px-8"
+                style={{
+                  fontFamily: "Poppins_400Regular",
+                  color: textSecondary,
+                  textAlign: "center",
+                  marginTop: 8,
+                  paddingHorizontal: 32,
+                  fontSize: 13,
+                }}
               >
                 You don't have permission to access any scanning categories
               </Text>
             </View>
           ) : (
-            <View className="gap-4">
+            <View style={{ gap: 12 }}>
               {categories.map((category) => {
                 const IconComponent = category.icon;
                 return (
                   <TouchableOpacity
                     key={category.id}
                     onPress={() => handleCategorySelect(category.id)}
-                    className={`${category.bgColor} border ${category.borderColor} rounded-2xl p-6`}
-                    activeOpacity={0.7}
+                    style={{
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: cardBorder,
+                      borderRadius: 18,
+                      padding: 18,
+                    }}
+                    activeOpacity={0.75}
                   >
-                    <View className="flex-row items-center mb-3">
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
                       <View
-                        className="w-14 h-14 rounded-xl items-center justify-center mr-4"
-                        style={{ backgroundColor: category.color + "40" }}
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 14,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginRight: 14,
+                          backgroundColor: category.color + "20",
+                        }}
                       >
-                        <IconComponent size={28} color={category.color} />
+                        <IconComponent size={24} color={category.color} />
                       </View>
-                      <View className="flex-1">
+                      <View style={{ flex: 1 }}>
                         <Text
-                          style={{ fontFamily: "Outfit_600SemiBold" }}
-                          className="text-[#0C3572] text-xl mb-1"
+                          style={{
+                            fontFamily: "Poppins_600SemiBold",
+                            color: textPrimary,
+                            fontSize: 16,
+                            marginBottom: 2,
+                          }}
                         >
                           {category.name}
                         </Text>
                         <Text
-                          style={{ fontFamily: "Outfit_400Regular" }}
-                          className="text-[#2175C0] text-sm"
+                          style={{
+                            fontFamily: "Poppins_400Regular",
+                            color: textSecondary,
+                            fontSize: 12,
+                          }}
                         >
                           {category.description}
                         </Text>
                       </View>
                       <View
-                        className="w-10 h-10 rounded-full items-center justify-center"
-                        style={{ backgroundColor: category.color + "20" }}
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 17,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.05)",
+                        }}
                       >
-                        <Text style={{ fontSize: 20 }}>→</Text>
+                        <Text style={{ fontSize: 16, color: textSecondary }}>→</Text>
                       </View>
                     </View>
                   </TouchableOpacity>

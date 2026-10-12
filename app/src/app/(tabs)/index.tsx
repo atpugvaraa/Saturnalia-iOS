@@ -13,6 +13,7 @@ import { useEvents } from '@/hooks/useEvents';
 import ChatBot from '@/components/interactive/ChatBot';
 import { Bell, Bot, Menu, Plus } from 'lucide-react-native';
 import { useStories } from '@/hooks/useStories';
+import { useBanners } from '@/hooks/useBanners';
 import StoryUploadButton from '@/components/story/StoryUploadButton';
 import { Corousal } from '@/types/models';
 import HeroBanner from '@/components/display/HeroBanner';
@@ -66,11 +67,10 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
   const [showStoryViewer, setShowStoryViewer] = useState(false);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(0);
   const [showChatBot, setShowChatBot] = useState(false);
-  const [corousalData, setCorousalData] = useState<Corousal[]>([]);
-  const [corousalLoading, setCorousalLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { userData: userProfile,refreshUserProfile } = useUserStore();
+  const { userData: userProfile, refreshUserProfile } = useUserStore();
 
+  const { banners, loading: bannersLoading, refresh: refreshBanners } = useBanners();
   const { events: allEvents, loading, error, refresh: refreshEvents } = useEvents();
   const { stories, loading: storiesLoading, refresh: refreshStories } = useStories();
 
@@ -84,34 +84,15 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
   // Guard: once data has loaded for the first time, never show the skeleton again
   // (prevents flash when navigating back to this screen)
   const hasLoadedOnce = useRef(false);
-  if (!hasLoadedOnce.current && !corousalLoading && !storiesLoading && !loading) {
+  if (!hasLoadedOnce.current && !bannersLoading && !storiesLoading && !loading) {
     hasLoadedOnce.current = true;
   }
-
-  const fetchCorousalData = useCallback(async () => {
-    setCorousalLoading(true);
-    try {
-      setCorousalData([]);
-    } catch (err) {
-      console.error('Error fetching corousal data:', err);
-      setCorousalData([]);
-    } finally {
-      setCorousalLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCorousalData();
-  }, [fetchCorousalData]);
-
-
-
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await Promise.all([
-        fetchCorousalData(),
+        refreshBanners(),
         refreshStories(),
         refreshEvents(),
         refreshUserProfile()
@@ -121,7 +102,7 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
     } finally {
       setRefreshing(false);
     }
-  }, [fetchCorousalData, refreshStories, refreshEvents, refreshUserProfile]);
+  }, [refreshBanners, refreshStories, refreshEvents, refreshUserProfile]);
 
 
 
@@ -227,7 +208,7 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
   const isInitialLoading = !hasLoadedOnce.current && (
     (loading && allEvents.length === 0) ||
     (storiesLoading && stories.length === 0) ||
-    corousalLoading
+    (bannersLoading && banners.length === 0)
   );
 
   if (isInitialLoading) {
@@ -251,7 +232,7 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
         }
       >
         {/* Full-section Hero Banner with Top and Bottom Gradients */}
-        <HeroBanner userProfile={userProfile} />
+        <HeroBanner userProfile={userProfile} banners={banners} />
 
         {/* Event Stories Section - Located right under the banner */}
         <View style={{ marginTop: 22, marginBottom: 6 }}>
@@ -271,6 +252,18 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
           {storiesLoading && stories.length === 0 ? (
             <View className="py-6 items-center">
               <ActivityIndicator size="small" color="#FFBA00" />
+            </View>
+          ) : stories.length === 0 ? (
+            <View style={{ paddingHorizontal: 24, paddingVertical: 12 }}>
+              <Text
+                style={{
+                  fontFamily: 'Poppins_400Regular',
+                  color: isDark ? '#9CA3AF' : '#6B7280',
+                  fontSize: 14,
+                }}
+              >
+                More stories on the way
+              </Text>
             </View>
           ) : (
             <FlatList
@@ -456,7 +449,7 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
       {/* Story Cube Viewer Modal */}
       {showStoryViewer && stories.length > 0 && (
         <StoryCubeViewer
-          users={stories.map((userStory) => ({
+          users={stories.map((userStory: UserStory) => ({
             id: userStory.userId,
             user: userStory.name,
             stories: userStory.stories.map((story: any) => ({

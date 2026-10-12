@@ -24,6 +24,7 @@ import { Reel } from '@/types/models';
 import { showAlert } from "../../components";
 import { MOCK_REELS } from "@/mocks/reels";
 import { API_BASE_URL } from "@/config/api";
+import { useReels } from "@/hooks/useReels";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -536,11 +537,10 @@ const ReelsScreen: React.FC = () => {
   const router = useRouter();
   const { isDark } = useThemeStore();
   const { openDrawer } = useAdminDrawerStore();
-  const [reels, setReels] = useState<Reel[]>([]);
+  const { reels, loading: isLoading, refresh: refreshReels } = useReels();
   const [isMuted, setIsMuted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingEvent, setIsLoadingEvent] = useState(false);
 
   const tabBarHeight = 80;
@@ -550,17 +550,11 @@ const ReelsScreen: React.FC = () => {
 
   const flatListRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    setReels(MOCK_REELS);
-    setIsLoading(false);
-  }, []);
-
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    setReels(MOCK_REELS);
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await refreshReels();
     setIsRefreshing(false);
-  }, []);
+  }, [refreshReels]);
 
   const handleToggleMute = useCallback(() => setIsMuted((prev) => !prev), []);
 
@@ -573,13 +567,8 @@ const ReelsScreen: React.FC = () => {
 
       setIsLoadingEvent(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/events/${eventId}`);
-        if (!response.ok) {
-          showAlert("Error", "Event not found. Please try again later.");
-          return;
-        }
-        const data = await response.json();
-        const eventData = data.event;
+        const { getEvent } = await import('@/api/events' );
+        const eventData = await getEvent(eventId);
         if (eventData) {
           router.push({ pathname: "/events/EventDetails", params: { eventData: JSON.stringify(eventData) } });
         } else {
@@ -671,16 +660,122 @@ const ReelsScreen: React.FC = () => {
     [USABLE_HEIGHT]
   );
 
+  if (isLoading && reels.length === 0) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: '#000000',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <ActivityIndicator size="large" color="#41B8F0" />
+        <Text
+          style={{
+            fontFamily: 'Poppins_500Medium',
+            color: '#FFFFFF',
+            marginTop: 14,
+            fontSize: 14,
+          }}
+        >
+          Loading festival reels...
+        </Text>
+      </View>
+    );
+  }
+
+  if (reels.length === 0) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: isDark ? '#131316' : '#E0E0E0',
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 24,
+        }}
+      >
+        {/* Floating Hamburger Menu */}
+        <View
+          style={{
+            position: 'absolute',
+            top: Math.max(insets.top + 8, 16),
+            left: 16,
+            zIndex: 20,
+          }}
+        >
+          <TouchableOpacity
+            onPress={openDrawer}
+            activeOpacity={0.75}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: isDark ? 0.25 : 0.06,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+          </TouchableOpacity>
+        </View>
+
+        <Text
+          style={{
+            fontFamily: 'Talina',
+            fontSize: 32,
+            color: isDark ? '#FFFFFF' : '#000000',
+            textAlign: 'center',
+            marginBottom: 8,
+          }}
+        >
+          No Reels Available
+        </Text>
+        <Text
+          style={{
+            fontFamily: 'Poppins_400Regular',
+            fontSize: 14,
+            color: isDark ? '#9CA3AF' : '#6B7280',
+            textAlign: 'center',
+            marginBottom: 20,
+          }}
+        >
+          Check back soon for exciting festival content!
+        </Text>
+        <TouchableOpacity
+          onPress={handleRefresh}
+          style={{
+            backgroundColor: '#41B8F0',
+            paddingHorizontal: 22,
+            paddingVertical: 12,
+            borderRadius: 14,
+          }}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              color: '#FFFFFF',
+              fontSize: 14,
+            }}
+          >
+            Refresh Reels
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: isDark ? '#131316' : '#E0E0E0',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 24,
-      }}
-    >
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
       {/* Top Left Floating Hamburger Menu */}
       <View
         style={{
@@ -697,83 +792,22 @@ const ReelsScreen: React.FC = () => {
             width: 44,
             height: 44,
             borderRadius: 22,
-            backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+            backgroundColor: 'rgba(0, 0, 0, 0.45)',
             borderWidth: 1,
-            borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
+            borderColor: 'rgba(255, 255, 255, 0.2)',
             alignItems: 'center',
             justifyContent: 'center',
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: isDark ? 0.25 : 0.06,
+            shadowOpacity: 0.35,
             shadowRadius: 4,
-            elevation: 2,
+            elevation: 4,
           }}
         >
-          <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+          <Ionicons name="menu" size={22} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
-      <Text
-        style={{
-          fontFamily: 'Talina',
-          fontSize: 34,
-          color: isDark ? '#FFFFFF' : '#000000',
-          textAlign: 'center',
-          marginBottom: 8,
-          letterSpacing: 0.5,
-        }}
-      >
-        Coming Soon
-      </Text>
-      <Text
-        style={{
-          fontFamily: 'Poppins_500Medium',
-          fontSize: 16,
-          color: '#41B8F0',
-          textAlign: 'center',
-        }}
-      >
-        Exciting reels are on the way!
-      </Text>
-    </View>
-  );
-
-  /*
-  if (isLoading) {
-    return (
-      <View className="flex-1 bg-black justify-center items-center">
-        <ActivityIndicator size="large" color="#ffffff" />
-        <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-white mt-4"
-        >
-          Loading reels...
-        </Text>
-      </View>
-    );
-  }
-
-  if (reels.length === 0) {
-    return (
-      <View className="flex-1 bg-black justify-center items-center px-6">
-        <Text
-          style={{ fontFamily: "Outfit_600SemiBold" }}
-          className="text-white text-xl text-center"
-        >
-          No reels available yet
-        </Text>
-        <Text
-          style={{ fontFamily: "Outfit_400Regular" }}
-          className="text-gray-400 text-center mt-2"
-        >
-          Check back soon for exciting content!
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View className="flex-1 bg-black">
       <FlatList
         ref={flatListRef}
         data={reels}
@@ -800,7 +834,6 @@ const ReelsScreen: React.FC = () => {
       />
     </View>
   );
-  */
 };
 
 export default ReelsScreen;

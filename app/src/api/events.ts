@@ -183,6 +183,15 @@ export async function removeTeamMember(teamRef: string, userId: string) {
   }
 }
 
+export async function confirmTeam(teamRef: string) {
+  const response = await apiFetch(`/teams/${teamRef}/confirm`, { method: "POST" }, "required");
+  if (!response.ok) {
+    throw new Error(await readError(response, "Failed to complete team registration"));
+  }
+  const data = await response.json();
+  return data.team;
+}
+
 export async function getMyEvents(): Promise<Array<{ event: FirebaseEvent; registration: any; team?: any }>> {
   const response = await apiFetch("/me/events", {}, "required");
   if (!response.ok) {

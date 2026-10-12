@@ -35,6 +35,7 @@ import {
 } from "@/api/admin";
 import { Input } from "@/components";
 import { useUserStore } from "@/state/userStore";
+import { useThemeStore } from "@/state/themeStore";
 import { showAlert } from "@/components";
 
 // Phase 3: Custom Field Types
@@ -89,15 +90,23 @@ export default function EventInfo({
   onEventUpdate,
   navigation,
 }: EventInfoProps) {
+  const { isDark } = useThemeStore();
   const [isEditing, setIsEditing] = useState(false);
   const { userData: userProfile } = useUserStore();
+
+  const bgColor = isDark ? '#131316' : '#E0E0E0';
+  const cardBg = isDark ? '#1C1C20' : '#FFFFFF';
+  const cardBorder = isDark ? '#2A2A30' : '#D5D5D5';
+  const textColor = isDark ? '#FFFFFF' : '#111827';
+  const subTextColor = isDark ? '#A0A0A0' : '#6B7280';
+  const inputBg = isDark ? '#26262B' : '#F3F4F6';
 
   // Safety check for undefined event
   if (!event) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center">
-        <ActivityIndicator size="large" color="#EEB170" />
-        <Text className="text-[#2175C0] mt-4">Loading event information...</Text>
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#41B8F0" />
+        <Text style={{ fontFamily: 'Poppins_500Medium', color: subTextColor, marginTop: 16 }}>Loading event information...</Text>
       </View>
     );
   }
@@ -130,7 +139,7 @@ export default function EventInfo({
   const [venueResults, setVenueResults] = useState<any[]>([]);
 
   // Refs for search timeout
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleEdit = () => {
     // Double-check permissions before allowing edit
@@ -621,80 +630,78 @@ export default function EventInfo({
   };
 
   const renderViewMode = () => (
-    <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:80 }}>
+    <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
       {/* Hero Image */}
-      <View className="mb-4">
+      <View style={{ marginBottom: 16 }}>
         {event.coverImage ? (
-          <View className="h-60 rounded-2xl overflow-hidden bg-[#FFFFFF66]">
+          <View style={{ height: 220, borderRadius: 20, overflow: 'hidden', backgroundColor: cardBg, borderWidth: 1, borderColor: cardBorder }}>
             <Image
               source={{
                 uri: event.coverImage,
               }}
-              className="w-full h-full"
+              style={{ width: '100%', height: '100%' }}
               resizeMode="cover"
-              onError={() => {
-                // Handle image load error silently
-              }}
+              onError={() => {}}
             />
           </View>
         ) : (
-          <View className="h-48 rounded-2xl bg-[#FFFFFF66] items-center justify-center">
-            <ImageIcon size={48} color="#666" />
-            <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-gray-500 text-sm mt-2">
-              No image available
+          <View style={{ height: 160, borderRadius: 20, backgroundColor: cardBg, borderWidth: 1, borderColor: cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+            <ImageIcon size={44} color={subTextColor} />
+            <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 13, marginTop: 8 }}>
+              No cover image uploaded
             </Text>
           </View>
         )}
       </View>
 
       {/* Header Section */}
-      <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-4 border border-[#A0B3D0]">
-        <View className="flex-row items-start justify-between mb-4">
-          <View className="flex-1">
-            <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-[#0C3572] text-2xl mb-2">
+      <View style={{ backgroundColor: cardBg, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: cardBorder }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <Text style={{ fontFamily: "Talina", color: textColor, fontSize: 24, marginBottom: 6 }}>
               {event.title}
             </Text>
-            <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-base leading-6">
+            <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 14, lineHeight: 22 }}>
               {event.shortDescription}
             </Text>
           </View>
           {canEdit() && (
             <TouchableOpacity
-              className="bg-[#EEB170] px-4 py-2 rounded-xl flex-row items-center"
+              style={{ backgroundColor: '#41B8F0', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 14, flexDirection: 'row', alignItems: 'center' }}
               onPress={handleEdit}
               activeOpacity={0.7}
             >
-              <Edit size={18} color="#121212" />
-              <Text className="text-[#121212] font-semibold ml-2">Edit</Text>
+              <Edit size={16} color="#FFFFFF" />
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#FFFFFF', marginLeft: 6, fontSize: 13 }}>Edit</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Status Badges */}
-        <View className="flex-row flex-wrap gap-2">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {event.isFeatured && (
-            <View className="bg-[#10B981]/20 px-3 py-1 rounded-full">
-              <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#10B981] text-sm">
+            <View style={{ backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#22c55e", fontSize: 12 }}>
                 Featured
               </Text>
             </View>
           )}
           {event.paymentRequired && (
-            <View className="bg-[#F59E0B]/20 px-3 py-1 rounded-full">
-              <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#F59E0B] text-sm">
+            <View style={{ backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#f59e0b", fontSize: 12 }}>
                 Paid Event
               </Text>
             </View>
           )}
           {!event.isPublic && (
-            <View className="bg-[#EF4444]/20 px-3 py-1 rounded-full">
-              <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#EF4444] text-sm">
+            <View style={{ backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#ef4444", fontSize: 12 }}>
                 Private
               </Text>
             </View>
           )}
-          <View className="bg-[#3B82F6]/20 px-3 py-1 rounded-full">
-            <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#3B82F6] text-sm capitalize">
+          <View style={{ backgroundColor: isDark ? 'rgba(65, 184, 240, 0.15)' : '#E0F2FE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+            <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 12, textTransform: 'capitalize' }}>
               {event.category}
             </Text>
           </View>
@@ -702,17 +709,17 @@ export default function EventInfo({
       </View>
 
       {/* Event Details */}
-      <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-4 border border-[#A0B3D0]">
-        <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-[#EEB170] text-xl mb-4">
+      <View style={{ backgroundColor: cardBg, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: cardBorder }}>
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#41B8F0', fontSize: 17, marginBottom: 16 }}>
           Event Details
         </Text>
 
         {/* Date & Time */}
-        <View className="flex-row items-center mb-4">
-          <Calendar size={20} color="#EEB170" />
-          <View className="ml-3 flex-1">
-            <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#0C3572]">Event Date</Text>
-            <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-sm">
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+          <Calendar size={18} color="#41B8F0" />
+          <View style={{ marginLeft: 12, flex: 1 }}>
+            <Text style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 14 }}>Event Date</Text>
+            <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>
               {formatDate(event.dateTime || event.startDateTime)}
             </Text>
           </View>
@@ -720,21 +727,21 @@ export default function EventInfo({
 
         {/* Venue */}
         {event.venueName && (
-          <View className="flex-row items-center mb-4">
-            <MapPin size={20} color="#EEB170" />
-            <View className="ml-3 flex-1">
-              <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#0C3572]">Venue</Text>
-              <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-sm">{event.venueName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+            <MapPin size={18} color="#41B8F0" />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 14 }}>Venue</Text>
+              <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>{event.venueName}</Text>
             </View>
           </View>
         )}
 
         {/* Event Type */}
-        <View className="flex-row items-center mb-4">
-          <Users size={20} color="#EEB170" />
-          <View className="ml-3 flex-1">
-            <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#0C3572]">Event Type</Text>
-            <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-sm capitalize">
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+          <Users size={18} color="#41B8F0" />
+          <View style={{ marginLeft: 12, flex: 1 }}>
+            <Text style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 14 }}>Event Type</Text>
+            <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12, textTransform: 'capitalize' }}>
               {event.eventType}
               {event.eventType === "team" &&
                 event.maxTeamSize &&
@@ -745,11 +752,11 @@ export default function EventInfo({
 
         {/* Registration Fee */}
         {event.paymentRequired && (
-          <View className="flex-row items-center mb-4">
-            <DollarSign size={20} color="#EEB170" />
-            <View className="ml-3 flex-1">
-              <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#0C3572]">Registration Fee</Text>
-              <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-sm">
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <DollarSign size={18} color="#41B8F0" />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 14 }}>Registration Fee</Text>
+              <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>
                 Host: ₹{event.registrationFee?.host || 0} • Other: ₹
                 {event.registrationFee?.other || 0}
               </Text>
@@ -759,14 +766,13 @@ export default function EventInfo({
       </View>
 
       {/* Description */}
-      <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-4 border border-[#A0B3D0]">
-        <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-[#EEB170] text-xl mb-4">
+      <View style={{ backgroundColor: cardBg, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: cardBorder }}>
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#41B8F0', fontSize: 17, marginBottom: 12 }}>
           Description
         </Text>
         <MarkdownText
-          lightMode={false}
-
-          style={{ fontSize: 14, lineHeight: 22 ,fontFamily: "Outfit_400Regular"}}
+          lightMode={!isDark}
+          style={{ fontSize: 14, lineHeight: 22, fontFamily: "Poppins_400Regular", color: textColor }}
         >
           {event.description}
         </MarkdownText>
@@ -774,11 +780,11 @@ export default function EventInfo({
 
       {/* Rules */}
       {event.rules && (
-        <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-4 border border-[#A0B3D0]">
-          <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-[#EEB170] text-xl mb-4">Rules</Text>
+        <View style={{ backgroundColor: cardBg, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: cardBorder }}>
+          <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#41B8F0', fontSize: 17, marginBottom: 12 }}>Rules</Text>
           <MarkdownText
-            lightMode={false}
-            style={{ fontSize: 14, lineHeight: 22, fontFamily: "Outfit_400Regular" }}
+            lightMode={!isDark}
+            style={{ fontSize: 14, lineHeight: 22, fontFamily: "Poppins_400Regular", color: textColor }}
           >
             {event.rules}
           </MarkdownText>
@@ -787,11 +793,11 @@ export default function EventInfo({
 
       {/* Prizes */}
       {event.prizes && (
-        <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-4 border border-[#A0B3D0]">
-          <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-[#EEB170] text-xl mb-4">Prizes</Text>
+        <View style={{ backgroundColor: cardBg, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: cardBorder }}>
+          <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#41B8F0', fontSize: 17, marginBottom: 12 }}>Prizes</Text>
           <MarkdownText
-            lightMode={false}
-            style={{ fontSize: 14, lineHeight: 22, fontFamily: "Outfit_400Regular" }}
+            lightMode={!isDark}
+            style={{ fontSize: 14, lineHeight: 22, fontFamily: "Poppins_400Regular", color: textColor }}
           >
             {event.prizes}
           </MarkdownText>
@@ -809,88 +815,101 @@ export default function EventInfo({
   ];
 
   const renderCategorySelector = () => (
-    <View className="mb-4">
-      <Text className="text-[#0C3572] text-base font-semibold mb-3">
+    <View style={{ marginBottom: 16 }}>
+      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 14, marginBottom: 10 }}>
         Category *
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View className="flex-row gap-3">
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              className={`px-4 py-2 rounded-full border ${
-                editData.category === cat
-                  ? "bg-[#EEB170] border-[#EEB170]"
-                  : "bg-transparent border-[#A0B3D0]"
-              }`}
-              onPress={() => setEditData({ ...editData, category: cat })}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={{ fontFamily: "Outfit_400Regular" }}
-                className={`text-sm font-semibold ${
-                  editData.category === cat ? "text-[#121212]" : "text-[#2175C0]"
-                }`}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {categories.map((cat) => {
+            const isSelected = editData.category === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  borderWidth: 1.5,
+                  borderColor: isSelected ? '#41B8F0' : cardBorder,
+                  backgroundColor: isSelected ? (isDark ? 'rgba(65, 184, 240, 0.15)' : '#E0F2FE') : cardBg,
+                }}
+                onPress={() => setEditData({ ...editData, category: cat })}
+                activeOpacity={0.7}
               >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={{
+                    fontFamily: isSelected ? "Poppins_600SemiBold" : "Poppins_500Medium",
+                    fontSize: 13,
+                    color: isSelected ? '#41B8F0' : subTextColor,
+                  }}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
   );
 
   const renderEventTypeSelector = () => (
-    <View className="mb-4">
-      <Text className="text-[#0C3572] text-base font-semibold mb-3">
+    <View style={{ marginBottom: 16 }}>
+      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 14, marginBottom: 10 }}>
         Event Type *
       </Text>
-      <View className="flex-row gap-2">
-        {["individual", "team", "externalLink"].map((type) => (
-          <TouchableOpacity
-            key={type}
-            className={`flex-1 px-3 py-3 rounded-xl border ${
-              editData.eventType === type
-                ? "bg-[#EEB170] border-[#EEB170]"
-                : "bg-transparent border-[#A0B3D0]"
-            }`}
-            onPress={() => {
-              const updates: any = { eventType: type };
-
-              // Reset type-specific fields when changing type
-              if (type === "individual") {
-                updates.minTeamSize = undefined;
-                updates.maxTeamSize = updates.sameCollegeOnly = undefined;
-                updates.externalUrl = "";
-              } else if (type === "externalLink") {
-                updates.minTeamSize = undefined;
-                updates.maxTeamSize = undefined;
-                updates.sameCollegeOnly = undefined;
-                updates.venueName = "";
-                updates.venueId = "";
-                updates.maxParticipants = "";
-              } else if (type === "team") {
-                updates.externalUrl = "";
-                if (!editData.minTeamSize) updates.minTeamSize = 2;
-                if (!editData.maxTeamSize) updates.maxTeamSize = 5;
-              }
-
-              setEditData({ ...editData, ...updates });
-            }}
-            activeOpacity={0.7}
-          >
-            <Text
-              className={`text-center font-semibold text-xs ${
-                editData.eventType === type ? "text-[#121212]" : "text-[#2175C0]"
-              }`}
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        {["individual", "team", "externalLink"].map((type) => {
+          const isSelected = editData.eventType === type;
+          return (
+            <TouchableOpacity
+              key={type}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 14,
+                borderWidth: 1.5,
+                borderColor: isSelected ? '#41B8F0' : cardBorder,
+                backgroundColor: isSelected ? (isDark ? 'rgba(65, 184, 240, 0.15)' : '#E0F2FE') : cardBg,
+                alignItems: 'center',
+              }}
+              onPress={() => {
+                const updates: any = { eventType: type };
+                if (type === "individual") {
+                  updates.minTeamSize = undefined;
+                  updates.maxTeamSize = updates.sameCollegeOnly = undefined;
+                  updates.externalUrl = "";
+                } else if (type === "externalLink") {
+                  updates.minTeamSize = undefined;
+                  updates.maxTeamSize = undefined;
+                  updates.sameCollegeOnly = undefined;
+                  updates.venueName = "";
+                  updates.venueId = "";
+                  updates.maxParticipants = "";
+                } else if (type === "team") {
+                  updates.externalUrl = "";
+                  if (!editData.minTeamSize) updates.minTeamSize = 2;
+                  if (!editData.maxTeamSize) updates.maxTeamSize = 5;
+                }
+                setEditData({ ...editData, ...updates });
+              }}
+              activeOpacity={0.7}
             >
-              {type === "externalLink"
-                ? "External"
-                : type.charAt(0).toUpperCase() + type.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text
+                style={{
+                  fontFamily: isSelected ? "Poppins_600SemiBold" : "Poppins_500Medium",
+                  fontSize: 12,
+                  color: isSelected ? '#41B8F0' : subTextColor,
+                }}
+              >
+                {type === "externalLink"
+                  ? "External"
+                  : type.charAt(0).toUpperCase() + type.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -901,18 +920,18 @@ export default function EventInfo({
     onValueChange: (value: boolean) => void,
     description?: string
   ) => (
-    <View className="flex-row items-center justify-between mb-4">
-      <View className="flex-1 mr-4">
-        <Text className="text-[#0C3572] text-base font-semibold">{label}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <View style={{ flex: 1, marginRight: 14 }}>
+        <Text style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 14 }}>{label}</Text>
         {description && (
-          <Text className="text-[#2175C0] text-sm mt-1">{description}</Text>
+          <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12, marginTop: 2 }}>{description}</Text>
         )}
       </View>
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: "#2C2C2C", true: "#EEB170" }}
-        thumbColor={value ? "#121212" : "#666"}
+        trackColor={{ false: isDark ? '#323238' : '#D1D5DB', true: '#41B8F0' }}
+        thumbColor="#FFFFFF"
       />
     </View>
   );
@@ -922,12 +941,12 @@ export default function EventInfo({
     children: React.ReactNode,
     icon?: React.ReactNode
   ) => (
-    <View className="mb-6">
-      <View className="flex-row items-center mb-4">
+    <View style={{ marginBottom: 20 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
         {icon}
-        <Text className="text-[#EEB170] text-lg font-bold ml-2">{title}</Text>
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#41B8F0', fontSize: 16, marginLeft: 8 }}>{title}</Text>
       </View>
-      <View className="bg-[#FFFFFF66] rounded-2xl p-6 border border-[#A0B3D0]">
+      <View style={{ backgroundColor: cardBg, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: cardBorder }}>
         {children}
       </View>
     </View>
@@ -941,7 +960,7 @@ export default function EventInfo({
     isReel = false
   ) => (
     <View className="mb-4">
-      <Text className="text-[#0C3572] text-base font-semibold mb-3">{label}</Text>
+      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15, marginBottom: 8 }}>{label}</Text>
       {(editData[arrayName] || []).map((item: string, index: number) => (
         <View key={index} className="flex-row items-center mb-3">
           <View className="flex-1 mr-3">
@@ -952,45 +971,46 @@ export default function EventInfo({
             />
           </View>
           <TouchableOpacity
-            className="bg-[#FFFFFF66] p-3 rounded-xl mr-2"
+            style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+            className="p-3 rounded-xl mr-2"
             onPress={() => {
-              // Simulate file picker (would use actual file picker in real implementation)
               showAlert("Upload", "File upload would be implemented here");
             }}
             disabled={uploadingImageIdx === index}
           >
             {uploadingImageIdx === index ? (
-              <ActivityIndicator size="small" color="#EEB170" />
+              <ActivityIndicator size="small" color="#41B8F0" />
             ) : (
-              <Upload size={16} color="#EEB170" />
+              <Upload size={16} color="#41B8F0" />
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            className="bg-red-600 p-3 rounded-xl"
+            className="bg-red-500/20 border border-red-500/40 p-3 rounded-xl"
             onPress={() => removeArrayItem(arrayName, index)}
           >
-            <Trash2 size={16} color="#fff" />
+            <Trash2 size={16} color="#EF4444" />
           </TouchableOpacity>
         </View>
       ))}
       <TouchableOpacity
-        className="border-green-600 border-2 px-4 py-3 rounded-xl flex-row items-center justify-center"
+        style={{ borderColor: "#41B8F0", borderWidth: 1.5, backgroundColor: isDark ? "rgba(65, 184, 240, 0.1)" : "rgba(65, 184, 240, 0.08)" }}
+        className="px-4 py-3 rounded-xl flex-row items-center justify-center"
         onPress={() => addArrayItem(arrayName)}
       >
-        <Plus size={16} color="#4ADE80" />
-        <Text className="text-green-600 font-semibold ml-2">
+        <Plus size={16} color="#41B8F0" />
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", marginLeft: 8 }}>
           Add {isReel ? "Reel" : "Image"}
         </Text>
       </TouchableOpacity>
       {uploadError && (
-        <Text className="text-red-400 text-sm mt-2">{uploadError}</Text>
+        <Text style={{ fontFamily: "Poppins_400Regular" }} className="text-red-400 text-sm mt-2">{uploadError}</Text>
       )}
     </View>
   );
 
   const renderLinkArray = () => (
     <View className="mb-4">
-      <Text className="text-[#0C3572] text-base font-semibold mb-3">Links</Text>
+      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15, marginBottom: 8 }}>Links</Text>
       {(editData.links || []).map((link: string, index: number) => (
         <View key={index} className="flex-row items-center mb-3">
           <View className="flex-1 mr-3">
@@ -1001,26 +1021,27 @@ export default function EventInfo({
             />
           </View>
           <TouchableOpacity
-            className="bg-red-600 p-3 rounded-xl"
+            className="bg-red-500/20 border border-red-500/40 p-3 rounded-xl"
             onPress={() => removeArrayItem("links", index)}
           >
-            <Trash2 size={16} color="#fff" />
+            <Trash2 size={16} color="#EF4444" />
           </TouchableOpacity>
         </View>
       ))}
       <TouchableOpacity
-        className="border-green-600 border-2 px-4 py-3 rounded-xl flex-row items-center justify-center"
+        style={{ borderColor: "#41B8F0", borderWidth: 1.5, backgroundColor: isDark ? "rgba(65, 184, 240, 0.1)" : "rgba(65, 184, 240, 0.08)" }}
+        className="px-4 py-3 rounded-xl flex-row items-center justify-center"
         onPress={() => addArrayItem("links")}
       >
-        <Plus size={16} color="#4ADE80" />
-        <Text className="text-green-600 font-semibold ml-2">Add Link</Text>
+        <Plus size={16} color="#41B8F0" />
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", marginLeft: 8 }}>Add Link</Text>
       </TouchableOpacity>
     </View>
   );
 
   const renderCoordinatorSearch = () => (
     <View className="mb-4">
-      <Text className="text-[#0C3572] text-base font-semibold mb-3">
+      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15, marginBottom: 8 }}>
         Coordinators
       </Text>
 
@@ -1028,26 +1049,27 @@ export default function EventInfo({
       {(editData.coordinators || []).map((coordinator: any, index: number) => (
         <View
           key={index}
-          className="bg-[#FFFFFF66] rounded-xl p-4 mb-3 flex-row items-center"
+          style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+          className="rounded-xl p-4 mb-3 flex-row items-center"
         >
-          <View className="w-10 h-10 bg-[#EEB170] rounded-full items-center justify-center mr-3">
-            <Text className="text-[#121212] font-bold">
+          <View className="w-10 h-10 bg-[#41B8F0] rounded-full items-center justify-center mr-3">
+            <Text className="text-white font-bold">
               {coordinator.name?.charAt(0) || "?"}
             </Text>
           </View>
           <View className="flex-1">
-            <Text className="text-[#0C3572] font-semibold">{coordinator.name}</Text>
-            <Text className="text-[#2175C0] text-sm">{coordinator.email}</Text>
+            <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor }}>{coordinator.name}</Text>
+            <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 13 }}>{coordinator.email}</Text>
             {coordinator.phone && (
-              <Text className="text-[#2175C0] text-sm">{coordinator.phone}</Text>
+              <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>{coordinator.phone}</Text>
             )}
           </View>
           <TouchableOpacity
-            className="bg-red-600 p-2 rounded-lg"
+            className="bg-red-500/20 border border-red-500/40 p-2 rounded-lg"
             onPress={() => removeCoordinator(index)}
             disabled={editData.coordinators?.length <= 1}
           >
-            <Trash2 size={16} color="#fff" />
+            <Trash2 size={16} color="#EF4444" />
           </TouchableOpacity>
         </View>
       ))}
@@ -1066,14 +1088,14 @@ export default function EventInfo({
 
       {searching && (
         <View className="flex-row items-center mb-3">
-          <ActivityIndicator size="small" color="#EEB170" />
-          <Text className="text-[#2175C0] ml-2">Searching users...</Text>
+          <ActivityIndicator size="small" color="#41B8F0" />
+          <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, marginLeft: 8 }}>Searching users...</Text>
         </View>
       )}
 
       {searchResults.length > 0 && (
         <View className="mb-3">
-          <Text className="text-[#2175C0] text-sm mb-2">
+          <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13, marginBottom: 8 }}>
             Found {searchResults.length} user
             {searchResults.length !== 1 ? "s" : ""} matching "{searchTerm}"
           </Text>
@@ -1081,22 +1103,23 @@ export default function EventInfo({
             {searchResults.map((user) => (
               <TouchableOpacity
                 key={user.userId}
-                className="bg-[#FFFFFF66] rounded-xl p-3 mb-2 flex-row items-center"
+                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="rounded-xl p-3 mb-2 flex-row items-center"
                 onPress={() => addCoordinator(user)}
               >
-                <View className="w-8 h-8 bg-[#EEB170] rounded-full items-center justify-center mr-3">
-                  <Text className="text-[#121212] font-bold text-xs">
+                <View className="w-8 h-8 bg-[#41B8F0] rounded-full items-center justify-center mr-3">
+                  <Text className="text-white font-bold text-xs">
                     {user.displayName?.charAt(0) || "?"}
                   </Text>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-[#0C3572] font-semibold">
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor }}>
                     {user.displayName}
                   </Text>
-                  <Text className="text-[#2175C0] text-sm">{user.email}</Text>
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>{user.email}</Text>
                 </View>
-                <View className="bg-[#EEB170] px-2 py-1 rounded">
-                  <Text className="text-[#121212] text-xs font-semibold">
+                <View className="bg-[#41B8F0]/20 border border-[#41B8F0]/30 px-2 py-1 rounded">
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 11 }}>
                     {user.collegeName}
                   </Text>
                 </View>
@@ -1110,12 +1133,11 @@ export default function EventInfo({
 
   const renderVenueSearch = () => (
     <View className="mb-4">
-      <Text className="text-[#0C3572] text-base font-semibold mb-3">Venue</Text>
+      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15, marginBottom: 8 }}>Venue</Text>
       <Input
         value={venueSearchTerm || editData.venueName || ""}
         onChangeText={(value) => {
           setVenueSearchTerm(value);
-          // Update editData immediately to prevent conflicts
           setEditData({
             ...editData,
             venueName: value,
@@ -1136,7 +1158,8 @@ export default function EventInfo({
             {venueResults.map((venue) => (
               <TouchableOpacity
                 key={venue.venueId}
-                className="bg-[#FFFFFF66] rounded-xl p-3 mb-2"
+                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="rounded-xl p-3 mb-2"
                 onPress={() => {
                   setEditData({
                     ...editData,
@@ -1147,10 +1170,10 @@ export default function EventInfo({
                   setVenueResults([]);
                 }}
               >
-                <Text className="text-[#0C3572] font-semibold">
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor }}>
                   {venue.venueName}
                 </Text>
-                <Text className="text-[#2175C0] text-sm">
+                <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>
                   ID: {venue.venueId}
                 </Text>
               </TouchableOpacity>
@@ -1168,24 +1191,27 @@ export default function EventInfo({
     currentType: CustomField["type"]
   ) => (
     <View className="mb-3">
-      <Text className="text-[#0C3572] text-sm font-semibold mb-2">Field Type</Text>
+      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 13, marginBottom: 6 }}>Field Type</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View className="flex-row gap-2">
           {(["text", "number", "link", "select", "multi-select"] as const).map(
             (type) => (
               <TouchableOpacity
                 key={type}
-                className={`px-3 py-2 rounded-lg border ${
-                  currentType === type
-                    ? "bg-[#EEB170] border-[#EEB170]"
-                    : "bg-transparent border-[#A0B3D0]"
-                }`}
+                style={{
+                  backgroundColor: currentType === type ? "#41B8F0" : cardBg,
+                  borderColor: currentType === type ? "#41B8F0" : cardBorder,
+                  borderWidth: 1,
+                }}
+                className="px-3 py-2 rounded-lg"
                 onPress={() => changeCustomFieldType(fieldIndex, type)}
               >
                 <Text
-                  className={`text-xs font-semibold ${
-                    currentType === type ? "text-[#121212]" : "text-[#2175C0]"
-                  }`}
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: currentType === type ? "#FFFFFF" : subTextColor,
+                    fontSize: 12,
+                  }}
                 >
                   {type === "multi-select"
                     ? "Multi-Select"
@@ -1204,7 +1230,7 @@ export default function EventInfo({
 
     return (
       <View className="mb-3">
-        <Text className="text-[#0C3572] text-sm font-semibold mb-2">Options</Text>
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 13, marginBottom: 6 }}>Options</Text>
         {field.options.map((option, optionIndex) => (
           <View key={optionIndex} className="flex-row items-center mb-2">
             <View className="flex-1 mr-2">
@@ -1217,20 +1243,21 @@ export default function EventInfo({
               />
             </View>
             <TouchableOpacity
-              className="bg-red-600 p-3 rounded-lg"
+              className="bg-red-500/20 border border-red-500/40 p-3 rounded-lg"
               onPress={() => removeFieldOption(fieldIndex, optionIndex)}
               disabled={field.options.length <= 1}
             >
-              <Trash2 size={14} color="#fff" />
+              <Trash2 size={14} color="#EF4444" />
             </TouchableOpacity>
           </View>
         ))}
         <TouchableOpacity
-          className="border-green-600 border-2 px-3 py-2 rounded-lg flex-row items-center justify-center"
+          style={{ borderColor: "#41B8F0", borderWidth: 1.5, backgroundColor: isDark ? "rgba(65, 184, 240, 0.1)" : "rgba(65, 184, 240, 0.08)" }}
+          className="px-3 py-2 rounded-lg flex-row items-center justify-center"
           onPress={() => addFieldOption(fieldIndex)}
         >
-          <Plus size={14} color="#4ADE80" />
-          <Text className="text-green-600 font-semibold ml-1 text-sm">
+          <Plus size={14} color="#41B8F0" />
+          <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", marginLeft: 6, fontSize: 13 }}>
             Add Option
           </Text>
         </TouchableOpacity>
@@ -1310,7 +1337,7 @@ export default function EventInfo({
 
   const renderCustomFields = () => (
     <View className="mb-4">
-      <Text className="text-[#0C3572] text-base font-semibold mb-3">
+      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15, marginBottom: 8 }}>
         Custom Registration Fields
       </Text>
 
@@ -1318,18 +1345,19 @@ export default function EventInfo({
         (field: CustomField, index: number) => (
           <View
             key={field.fieldId}
-            className="bg-[#FFFFFF66] rounded-xl p-4 mb-4"
+            style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+            className="rounded-xl p-4 mb-4"
           >
             {/* Field Header */}
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[#0C3572] font-semibold">
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor }}>
                 Field {index + 1}
               </Text>
               <TouchableOpacity
-                className="bg-red-600 p-2 rounded-lg"
+                className="bg-red-500/20 border border-red-500/40 p-2 rounded-lg"
                 onPress={() => removeCustomField(index)}
               >
-                <Trash2 size={16} color="#fff" />
+                <Trash2 size={16} color="#EF4444" />
               </TouchableOpacity>
             </View>
 
@@ -1349,7 +1377,7 @@ export default function EventInfo({
 
             {/* Required Toggle */}
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[#0C3572] text-sm font-semibold">
+              <Text style={{ fontFamily: "Poppins_500Medium", color: textColor, fontSize: 13 }}>
                 Required Field
               </Text>
               <Switch
@@ -1357,8 +1385,8 @@ export default function EventInfo({
                 onValueChange={(value) =>
                   updateCustomField(index, { isRequired: value })
                 }
-                trackColor={{ false: "#2C2C2C", true: "#EEB170" }}
-                thumbColor={field.isRequired ? "#121212" : "#666"}
+                trackColor={{ false: isDark ? "#2C2C2E" : "#E5E7EB", true: "#41B8F0" }}
+                thumbColor="#FFFFFF"
               />
             </View>
 
@@ -1370,17 +1398,18 @@ export default function EventInfo({
 
       {/* Add Custom Field Button */}
       <TouchableOpacity
-        className="border-green-600 border-2 px-4 py-3 rounded-xl flex-row items-center justify-center"
+        style={{ borderColor: "#41B8F0", borderWidth: 1.5, backgroundColor: isDark ? "rgba(65, 184, 240, 0.1)" : "rgba(65, 184, 240, 0.08)" }}
+        className="px-4 py-3 rounded-xl flex-row items-center justify-center"
         onPress={addCustomField}
       >
-        <Plus size={16} color="#4ADE80" />
-        <Text className="text-green-600  font-semibold ml-2">Add Custom Field</Text>
+        <Plus size={16} color="#41B8F0" />
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", marginLeft: 8 }}>Add Custom Field</Text>
       </TouchableOpacity>
     </View>
   );
 
   const renderEditMode = () => (
-    <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:80 }}>
+    <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
       {/* Basic Information */}
       {renderSection(
         "Basic Information",
@@ -1430,8 +1459,8 @@ export default function EventInfo({
           {/* Image Preview */}
           {editData.coverImage && (
             <View className="mb-4">
-              <Text className="text-[#2175C0] text-sm mb-2">Image Preview:</Text>
-              <View className="h-32 rounded-xl overflow-hidden bg-[#FFFFFF66]">
+              <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13, marginBottom: 8 }}>Image Preview:</Text>
+              <View style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }} className="h-32 rounded-xl overflow-hidden">
                 <Image
                   source={{ uri: editData.coverImage }}
                   className="w-full h-full"
@@ -1468,7 +1497,6 @@ export default function EventInfo({
                     label="Min Team Size *"
                     value={editData.minTeamSize?.toString() || ""}
                     onChangeText={(value) => {
-                      // Allow free editing, only parse when value is complete
                       if (value === "" || /^\d+$/.test(value)) {
                         setEditData({
                           ...editData,
@@ -1486,7 +1514,6 @@ export default function EventInfo({
                     label="Max Team Size *"
                     value={editData.maxTeamSize?.toString() || ""}
                     onChangeText={(value) => {
-                      // Allow free editing, only parse when value is complete
                       if (value === "" || /^\d+$/.test(value)) {
                         setEditData({
                           ...editData,
@@ -1517,7 +1544,7 @@ export default function EventInfo({
             "Display this event prominently on the homepage"
           )}
         </>,
-        <Info size={20} color="#EEB170" />
+        <Info size={20} color="#41B8F0" />
       )}
 
       {/* Event Dates & Venue */}
@@ -1561,7 +1588,6 @@ export default function EventInfo({
                 label="Max Participants"
                 value={editData.maxParticipants?.toString() || ""}
                 onChangeText={(value) => {
-                  // Allow free editing, only parse when value is complete
                   if (value === "" || /^\d+$/.test(value)) {
                     setEditData({
                       ...editData,
@@ -1576,7 +1602,7 @@ export default function EventInfo({
             </>
           )}
         </>,
-        <Calendar size={20} color="#EEB170" />
+        <Calendar size={20} color="#41B8F0" />
       )}
 
       {/* Event Settings */}
@@ -1613,36 +1639,38 @@ export default function EventInfo({
           {/* Payment Type selector for team events */}
           {editData.eventType === "team" && (
             <View className="mb-4">
-              <Text className="text-[#0C3572] text-base font-semibold mb-3">
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 14, marginBottom: 8 }}>
                 Payment Type
               </Text>
               <View className="flex-row gap-3">
                 {["fixed", "perHead"].map((type) => (
                   <TouchableOpacity
                     key={type}
-                    className={`flex-1 px-4 py-3 rounded-xl border ${
-                      editData.paymentType === type
-                        ? "bg-[#EEB170] border-[#EEB170]"
-                        : "bg-transparent border-[#A0B3D0]"
-                    }`}
+                    style={{
+                      backgroundColor: editData.paymentType === type ? "#41B8F0" : cardBg,
+                      borderColor: editData.paymentType === type ? "#41B8F0" : cardBorder,
+                      borderWidth: 1,
+                    }}
+                    className="flex-1 px-4 py-3 rounded-xl"
                     onPress={() =>
                       setEditData({ ...editData, paymentType: type })
                     }
                     activeOpacity={0.7}
                   >
                     <Text
-                      className={`text-center font-semibold capitalize ${
-                        editData.paymentType === type
-                          ? "text-[#121212]"
-                          : "text-[#2175C0]"
-                      }`}
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        color: editData.paymentType === type ? "#FFFFFF" : subTextColor,
+                        textAlign: "center",
+                        textTransform: "capitalize",
+                      }}
                     >
                       {type === "perHead" ? "Per Head" : "Fixed"}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text className="text-[#2175C0] text-sm mt-2">
+              <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12, marginTop: 8 }}>
                 Choose how registration fees are charged for teams
               </Text>
             </View>
@@ -1664,7 +1692,6 @@ export default function EventInfo({
                     label="Host Fee (₹)"
                     value={editData.registrationFee?.host?.toString() || ""}
                     onChangeText={(value) => {
-                      // Allow free editing, only parse when value is complete
                       if (value === "" || /^\d+$/.test(value)) {
                         setEditData({
                           ...editData,
@@ -1684,7 +1711,6 @@ export default function EventInfo({
                     label="Other Fee (₹)"
                     value={editData.registrationFee?.other?.toString() || ""}
                     onChangeText={(value) => {
-                      // Allow free editing, only parse when value is complete
                       if (value === "" || /^\d+$/.test(value)) {
                         setEditData({
                           ...editData,
@@ -1703,7 +1729,7 @@ export default function EventInfo({
             </>
           )}
         </>,
-        <Settings size={20} color="#EEB170" />
+        <Settings size={20} color="#41B8F0" />
       )}
 
       {/* Prizes & Media */}
@@ -1747,7 +1773,7 @@ export default function EventInfo({
           {renderLinkArray()}
           {renderImageArray("Reels", "reelsId", true)}
         </>,
-        <Award size={20} color="#EEB170" />
+        <Award size={20} color="#41B8F0" />
       )}
 
       {/* Coordinators */}
@@ -1755,41 +1781,43 @@ export default function EventInfo({
         "Coordinators",
         <>
           {renderCoordinatorSearch()}
-          <Text className="text-[#2175C0] text-sm">
+          <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 13 }}>
             At least one coordinator is required. Search by name or email to add
             coordinators.
           </Text>
         </>,
-        <UserPlus size={20} color="#EEB170" />
+        <UserPlus size={20} color="#41B8F0" />
       )}
 
       {/* Custom Registration Fields */}
       {renderSection(
         "Custom Registration Fields",
         <>{renderCustomFields()}</>,
-        <Info size={20} color="#EEB170" />
+        <Info size={20} color="#41B8F0" />
       )}
 
       {/* Action Buttons */}
-      <View className="bg-[#FFFFFF66] rounded-2xl p-6 border border-[#A0B3D0] mb-6">
+      <View
+        style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+        className="rounded-2xl p-5 mb-6 shadow-sm"
+      >
         <View className="flex-row gap-3">
           <TouchableOpacity
-            className={`flex-1 py-4 rounded-xl flex-row items-center border-2 justify-center ${
-              saving ? "border-[#EEB170]/50" : "border-[#EEB170]"
-            }`}
+            style={{ backgroundColor: "#41B8F0", opacity: saving ? 0.7 : 1 }}
+            className="flex-1 py-4 rounded-xl flex-row items-center justify-center shadow-sm"
             onPress={handleSave}
             disabled={saving}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
             {saving ? (
               <>
-                <ActivityIndicator color="#EEB170" />
-                <Text className="text-[#EEB170] font-bold ml-2">Saving...</Text>
+                <ActivityIndicator color="#FFFFFF" />
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 8 }}>Saving...</Text>
               </>
             ) : (
               <>
-                <Save size={20} color="#EEB170" />
-                <Text className="text-[#EEB170] font-bold ml-2">
+                <Save size={18} color="#FFFFFF" />
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 8 }}>
                   Save Changes
                 </Text>
               </>
@@ -1797,13 +1825,14 @@ export default function EventInfo({
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="flex-1 bg-[#FFFFFF66] py-4 rounded-xl flex-row items-center justify-center"
+            style={{ backgroundColor: isDark ? "#2A2A30" : "#E5E7EB" }}
+            className="flex-1 py-4 rounded-xl flex-row items-center justify-center"
             onPress={handleCancel}
             disabled={saving}
             activeOpacity={0.7}
           >
-            <X size={20} color="#fff" />
-            <Text className="text-[#0C3572] font-bold ml-2">Cancel</Text>
+            <X size={18} color={textColor} />
+            <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, marginLeft: 8 }}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>

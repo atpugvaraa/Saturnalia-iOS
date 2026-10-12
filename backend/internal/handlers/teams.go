@@ -248,7 +248,7 @@ func (a *API) LeaveTeam(c *gin.Context) {
 	a.applyMemberRemoval(c, team, event, user.UserID)
 }
 
-// DeleteTeam removes the team once the leader is the only member left.
+// DeleteTeam removes the team and all registrations when requested by the leader.
 func (a *API) DeleteTeam(c *gin.Context) {
 	team, _, ok := a.loadTeamForMutation(c)
 	if !ok {
@@ -263,10 +263,6 @@ func (a *API) DeleteTeam(c *gin.Context) {
 
 	if err := a.Store.DeleteTeam(c.Request.Context(), team.TeamID, user.UserID); err != nil {
 		switch {
-		case errors.Is(err, store.ErrTeamNotEmpty):
-			apierr.Respond(c, apierr.Conflict("team_not_empty",
-				"remove the other members before deleting the team").
-				WithDetails(gin.H{"memberCount": len(team.MemberIDs)}))
 		case errors.Is(err, store.ErrNotLeader):
 			apierr.Respond(c, apierr.Forbidden("leader_only", "only the team leader can delete the team"))
 		default:
@@ -277,6 +273,43 @@ func (a *API) DeleteTeam(c *gin.Context) {
 	a.Cache.Invalidate()
 
 	c.Status(http.StatusNoContent)
+}
+
+// ConfirmTeam marks the team as confirmed once the leader is satisfied with the team.
+func (a *API) ConfirmTeam(c *gin.Context) {
+	team, event, ok := a.loadTeamForMutation(c)
+	if !ok {
+		return
+	}
+	user := middleware.CurrentUser(c)
+
+	if !team.IsLeader(user.UserID) {
+		apierr.Respond(c, apierr.Forbidden("leader_only", "only the team leader can complete team registration"))
+		return
+	}
+
+	minSize := 1
+	if event != nil && event.MinTeamSize > 0 {
+		minSize = event.MinTeamSize
+	}
+
+	if len(team.MemberIDs) < minSize {
+		apierr.Respond(c, apierr.Conflict("insufficient_members", "your team does not have enough members to complete registration").
+			WithDetails(gin.H{"minTeamSize": minSize, "currentSize": len(team.MemberIDs)}))
+		return
+	}
+
+	if team.Status == models.TeamStatusConfirmed {
+		a.presentTeam(c, team)
+		return
+	}
+
+	if err := a.Store.ConfirmTeam(c.Request.Context(), team.TeamID, user.UserID); err != nil {
+		apierr.Respond(c, apierr.Internal("could not complete team registration"))
+		return
+	}
+	a.Cache.Invalidate()
+	a.reloadAndRespond(c, team.TeamID, "confirmed but the team could not be read back")
 }
 
 type transferBody struct {

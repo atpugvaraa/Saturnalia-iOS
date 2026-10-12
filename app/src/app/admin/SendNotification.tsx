@@ -10,22 +10,30 @@ import {
   StatusBar,
 } from 'react-native';
 import { showAlert } from '@/components';
-import { useNavigation } from 'expo-router';
+import { useAdminNavigation } from '@/hooks/useAdminNavigation';
 import { Ionicons } from '@expo/vector-icons';
-import { Bell, Send, TestTube } from 'lucide-react-native';
+import { ArrowLeft, Bell, Send, TestTube } from 'lucide-react-native';
 import { getToken } from '@/api/auth';
 import { API_BASE_URL } from '@/config/api';
+import { useThemeStore } from '@/state/themeStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SendNotification = () => {
-  const navigation = useNavigation();
+  const navigation = useAdminNavigation();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [topic, setTopic] = useState('all');
   const [sending, setSending] = useState(false);
 
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
 
-  // Your actual FCM notification API endpoint
   const NOTIFICATION_API = `${API_BASE_URL}/admin/notifications`;
 
   const handleSendNotification = async () => {
@@ -33,8 +41,8 @@ const SendNotification = () => {
       showAlert('Error', 'Please enter both title and message');
       return;
     }
-   const token = await getToken();
- 
+    const token = await getToken();
+
     showAlert(
       'Send Notification',
       `Send notification to ${topic === 'all' ? 'all users' : `topic: ${topic}`}?`,
@@ -46,31 +54,27 @@ const SendNotification = () => {
             try {
               setSending(true);
 
-              // Prepare notification data according to your API structure
               const notificationData = {
-                audience: topic, // 'all', 'host', 'outside'
+                audience: topic,
                 title: title.trim(),
                 body: body.trim(),
               };
 
-              // Add a 5 second delay so you can test background notifications!
               setTimeout(async () => {
                 try {
                   const response = await fetch(NOTIFICATION_API, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
-                      Authorization: `Bearer ${token}`,  
+                      Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify(notificationData),
                   });
 
                   const responseData = await response.json();
-                  console.log('Notification API response:', responseData);
 
                   if (response.ok) {
                     showAlert('Success', responseData.message || 'Notification sent successfully!');
-                    // Clear form
                     setTitle('');
                     setBody('');
                     setTopic('all');
@@ -78,15 +82,14 @@ const SendNotification = () => {
                     throw new Error(responseData.message || 'Failed to send notification');
                   }
                 } catch (error: any) {
-                  console.error('Error sending notification:', error.message);
                   showAlert('Error', error.message || 'Failed to send notification. Please try again.');
                 } finally {
                   setSending(false);
                 }
-              }, 5000);
+              }, 1000);
 
             } catch (error: any) {
-              // The try-catch here catches synchronous errors before the setTimeout, though the main work is now inside setTimeout.
+              setSending(false);
             }
           },
         },
@@ -101,164 +104,299 @@ const SendNotification = () => {
     }
 
     try {
-      // await showLocalNotification(title.trim(), body.trim());
-      showAlert('Test Sent', 'Check your notification tray!');
-    } catch (error) {
-      console.error('Error showing test notification:', error);
-      showAlert('Error', 'Failed to show test notification');
+      showAlert(
+        'Test Notification',
+        `Title: ${title}\nMessage: ${body}\nAudience: ${topic}`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      showAlert('Error', 'Failed to test notification');
     }
   };
 
   const topicOptions = [
-    { value: 'all', label: 'All Users', description: 'Send to all app users' },
-    { value: 'host', label: 'Host', description: 'Send to hosts only' },
-    { value: 'outside', label: 'Outside', description: 'Send to outside users' },
+    { label: 'All Users', value: 'all', description: 'Sends to all registered app users' },
+    { label: 'Host College Students', value: 'host', description: 'Sends only to host college students' },
+    { label: 'Visiting Students', value: 'outside', description: 'Sends to outside participants only' },
   ];
 
   return (
-    <View className="flex-1 bg-transparent">
-      <StatusBar barStyle="light-content" />
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       {/* Header */}
-      <View className="bg-[#EEB170]  pt-4 rounded-b-2xl pb-6 px-6 border-b border-[#A0B3D0]">
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
-            <Ionicons name="arrow-back" size={24} color="#000" />
-          </TouchableOpacity>
-          <View className="flex-1">
-            <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-black text-2xl">
-              Send Notification
-            </Text>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-black text-sm mt-1">
-              Push notifications to users
-            </Text>
-          </View>
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Dashboard")}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={22} color={textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
+          >
+            Push Notifications
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
+          >
+            Send broadcast messages to users
+          </Text>
         </View>
       </View>
 
       <ScrollView
-        className="flex-1 px-6 py-6"
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 60 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {/* Info Card */}
-        <View className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
-          <View className="flex-row items-start">
-            <Ionicons name="information-circle" size={20} color="#60A5FA" />
-            <View className="flex-1 ml-3">
-              <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-blue-400 text-sm mb-1">
-                Admin Access Required
-              </Text>
-              <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-blue-300 text-xs leading-5">
-                Enter admin password to send push notifications via Firebase Cloud Messaging.
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Admin Password */}
-        
-
         {/* Notification Title */}
-        <View className="mb-6">
-          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-base mb-3">
+        <View style={{ marginBottom: 18 }}>
+          <Text
+            style={{
+              fontFamily: "Poppins_600SemiBold",
+              color: textPrimary,
+              fontSize: 14,
+              marginBottom: 8,
+            }}
+          >
             Notification Title
           </Text>
           <TextInput
-            className="bg-[#FFFFFF66] rounded-xl px-4 py-4 text-[#0C3572] border border-gray-700"
-            style={{ fontFamily: 'Outfit_500Medium' }}
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 14,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              color: textPrimary,
+              borderWidth: 1,
+              borderColor: cardBorder,
+              fontFamily: "Poppins_500Medium",
+              fontSize: 14,
+            }}
             placeholder="Enter notification title..."
-            placeholderTextColor="#6B7280"
+            placeholderTextColor={textSecondary}
             value={title}
             onChangeText={setTitle}
             maxLength={100}
           />
-          <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-gray-500 text-xs mt-2">
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              color: textSecondary,
+              fontSize: 11,
+              marginTop: 4,
+            }}
+          >
             {title.length}/100 characters
           </Text>
         </View>
 
         {/* Notification Body */}
-        <View className="mb-6">
-          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-base mb-3">
+        <View style={{ marginBottom: 18 }}>
+          <Text
+            style={{
+              fontFamily: "Poppins_600SemiBold",
+              color: textPrimary,
+              fontSize: 14,
+              marginBottom: 8,
+            }}
+          >
             Message
           </Text>
           <TextInput
-            className="bg-[#FFFFFF66] rounded-xl px-4 py-4 text-[#0C3572] border border-gray-700"
-            style={{ fontFamily: 'Outfit_500Medium', minHeight: 120 }}
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 14,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              color: textPrimary,
+              borderWidth: 1,
+              borderColor: cardBorder,
+              fontFamily: "Poppins_400Regular",
+              fontSize: 14,
+              minHeight: 110,
+              textAlignVertical: "top",
+            }}
             placeholder="Enter notification message..."
-            placeholderTextColor="#6B7280"
+            placeholderTextColor={textSecondary}
             value={body}
             onChangeText={setBody}
             multiline
-            numberOfLines={5}
-            textAlignVertical="top"
+            numberOfLines={4}
             maxLength={300}
           />
-          <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-gray-500 text-xs mt-2">
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              color: textSecondary,
+              fontSize: 11,
+              marginTop: 4,
+            }}
+          >
             {body.length}/300 characters
           </Text>
         </View>
 
         {/* Topic Selection */}
-        <View className="mb-6">
-          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-base mb-3">
+        <View style={{ marginBottom: 20 }}>
+          <Text
+            style={{
+              fontFamily: "Poppins_600SemiBold",
+              color: textPrimary,
+              fontSize: 14,
+              marginBottom: 10,
+            }}
+          >
             Send To
           </Text>
-          {topicOptions.map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              className={`flex-row items-center justify-between p-4 rounded-xl mb-2 ${
-                topic === option.value
-                  ? 'bg-[#EEB170]/20 border border-[#EEB170]'
-                  : 'bg-[#FFFFFF66] border border-gray-700'
-              }`}
-              onPress={() => setTopic(option.value)}
-            >
-              <View className="flex-row items-center flex-1">
+          {topicOptions.map((option) => {
+            const isSelected = topic === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 16,
+                  borderRadius: 16,
+                  marginBottom: 10,
+                  backgroundColor: isSelected
+                    ? (isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE")
+                    : cardBg,
+                  borderWidth: 1,
+                  borderColor: isSelected ? "#41B8F0" : cardBorder,
+                }}
+                onPress={() => setTopic(option.value)}
+                activeOpacity={0.8}
+              >
                 <Ionicons
-                  name={topic === option.value ? 'radio-button-on' : 'radio-button-off'}
-                  size={24}
-                  color={topic === option.value ? '#EEB170' : '#6B7280'}
+                  name={isSelected ? "radio-button-on" : "radio-button-off"}
+                  size={20}
+                  color={isSelected ? "#41B8F0" : textSecondary}
                 />
-                <View className="ml-3 flex-1">
+                <View style={{ marginLeft: 12, flex: 1 }}>
                   <Text
-                    style={{ fontFamily: 'Outfit_500Medium' }}
-                    className={`${topic === option.value ? 'text-[#EEB170]' : 'text-[#0C3572]'}`}
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      color: isSelected ? "#41B8F0" : textPrimary,
+                      fontSize: 14,
+                    }}
                   >
                     {option.label}
                   </Text>
                   <Text
-                    style={{ fontFamily: 'Outfit_400Regular' }}
-                    className="text-[#2175C0] text-xs mt-1"
+                    style={{
+                      fontFamily: "Poppins_400Regular",
+                      color: textSecondary,
+                      fontSize: 12,
+                      marginTop: 2,
+                    }}
                   >
                     {option.description}
                   </Text>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Preview Card */}
         {(title.trim() || body.trim()) && (
-          <View className="mb-6">
-            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-base mb-3">
+          <View style={{ marginBottom: 20 }}>
+            <Text
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: textPrimary,
+                fontSize: 14,
+                marginBottom: 8,
+              }}
+            >
               Preview
             </Text>
-            <View className="bg-[#FFFFFF66] rounded-xl p-4 border border-gray-700">
-              <View className="flex-row items-start">
-                <View className="w-10 h-10 rounded-full bg-[#EEB170]/20 items-center justify-center mr-3">
-                  <Bell size={20} color="#EEB170" />
+            <View
+              style={{
+                backgroundColor: cardBg,
+                borderRadius: 16,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: cardBorder,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: "#41B8F020",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
+                  }}
+                >
+                  <Bell size={18} color="#41B8F0" />
                 </View>
-                <View className="flex-1">
-                  <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-base mb-1">
-                    {title || 'Notification Title'}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      color: textPrimary,
+                      fontSize: 15,
+                      marginBottom: 2,
+                    }}
+                  >
+                    {title || "Notification Title"}
                   </Text>
-                  <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-sm">
-                    {body || 'Notification message will appear here...'}
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_400Regular",
+                      color: textSecondary,
+                      fontSize: 13,
+                      lineHeight: 18,
+                    }}
+                  >
+                    {body || "Notification message will appear here..."}
                   </Text>
-                  <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-gray-500 text-xs mt-2">
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_400Regular",
+                      color: textSecondary,
+                      fontSize: 10,
+                      marginTop: 6,
+                    }}
+                  >
                     Just now
                   </Text>
                 </View>
@@ -268,64 +406,68 @@ const SendNotification = () => {
         )}
 
         {/* Action Buttons */}
-        <View className="flex-col gap-3">
-          {/* Test Notification Button */}
+        <View style={{ gap: 10 }}>
           <TouchableOpacity
-            className={`bg-blue-500/20 border border-blue-500 rounded-xl py-4 px-6 flex-row items-center justify-center ${
-              !title.trim() || !body.trim() ? 'opacity-50' : ''
-            }`}
+            style={{
+              backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE",
+              borderWidth: 1,
+              borderColor: "#41B8F0",
+              borderRadius: 14,
+              paddingVertical: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: !title.trim() || !body.trim() ? 0.5 : 1,
+            }}
             onPress={handleTestNotification}
             disabled={!title.trim() || !body.trim()}
+            activeOpacity={0.8}
           >
-            <TestTube size={20} color="#60A5FA" />
-            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-blue-400 ml-2 text-base">
-              Test Notification
+            <TestTube size={18} color="#41B8F0" />
+            <Text
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: "#41B8F0",
+                marginLeft: 8,
+                fontSize: 14,
+              }}
+            >
+              Test Preview
             </Text>
           </TouchableOpacity>
 
-          {/* Send Notification Button */}
           <TouchableOpacity
-            className={`bg-[#EEB170] rounded-xl py-4 px-6 flex-row items-center justify-center ${
-              sending || !title.trim() || !body.trim() ? 'opacity-50' : ''
-            }`}
+            style={{
+              backgroundColor: "#41B8F0",
+              borderRadius: 14,
+              paddingVertical: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: sending || !title.trim() || !body.trim() ? 0.5 : 1,
+            }}
             onPress={handleSendNotification}
-            disabled={sending || !title.trim() || !body.trim() }
+            disabled={sending || !title.trim() || !body.trim()}
+            activeOpacity={0.8}
           >
             {sending ? (
-              <ActivityIndicator size="small" color="#121212" />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Send size={20} color="#121212" />
-                <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-black ml-2 text-base">
-                  Send Notification
+                <Send size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: "#FFFFFF",
+                    marginLeft: 8,
+                    fontSize: 14,
+                  }}
+                >
+                  Send Broadcast Notification
                 </Text>
               </>
             )}
           </TouchableOpacity>
-        </View>
-
-        {/* API Endpoint Info */}
-        <View className="mt-6 bg-[#FFFFFF66] rounded-xl p-4 border border-gray-700">
-          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-sm mb-2">
-            FCM Endpoint
-          </Text>
-          <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">
-            {NOTIFICATION_API}
-          </Text>
-          <View className="mt-3 pt-3 border-t border-gray-700">
-            <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] text-xs mb-2">
-              Topic Mappings:
-            </Text>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">
-              • all → /topics/all_users
-            </Text>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">
-              • customers → /topics/host
-            </Text>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">
-              • salons → /topics/outside
-            </Text>
-          </View>
         </View>
       </ScrollView>
     </View>

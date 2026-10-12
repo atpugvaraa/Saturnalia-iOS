@@ -53,12 +53,12 @@ function CustomTabBar({
   // Dark mode navbar: #212121 with glassmorphism
   // Light mode navbar: translucent with blur
   const navBgColor = isDark
-    ? "rgba(33, 33, 33, 0.88)"
-    : "rgba(255, 255, 255, 0.68)";
+    ? "rgba(33, 33, 33, 1)"
+    : "rgba(255, 255, 255,1)";
 
   const navBorderColor = isDark
-    ? "rgba(255, 255, 255, 0.14)"
-    : "rgba(255, 255, 255, 0.85)";
+    ? "#FFFFFF33"
+    : "rgba(0, 0, 0,1)";
 
   return (
     <View

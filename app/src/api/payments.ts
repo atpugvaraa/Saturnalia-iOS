@@ -38,7 +38,7 @@ export interface InitiatePaymentResponse {
  * that should be opened in a WebView.
  */
 export interface PaymentOptions {
-  eventId: string;
+  eventId?: string;
   teamId?: string;
   paymentType?: string;
   couponCode?: string;
@@ -47,7 +47,8 @@ export interface PaymentOptions {
 }
 
 export async function initiateEventPayment(options: PaymentOptions): Promise<InitiatePaymentResponse> {
-  const body: Record<string, any> = { eventId: options.eventId };
+  const body: Record<string, any> = {};
+  if (options.eventId) body.eventId = options.eventId;
   if (options.teamId) body.teamId = options.teamId;
   if (options.paymentType) body.paymentType = options.paymentType;
   if (options.couponCode) body.couponCode = options.couponCode;

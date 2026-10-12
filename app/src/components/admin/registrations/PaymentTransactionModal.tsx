@@ -18,7 +18,8 @@ import {
   MapPin,
   FileText,
 } from "lucide-react-native";
-import { PaymentTransaction } from '@/types/adminTypes';
+import { PaymentTransaction } from "@/types/adminTypes";
+import { useThemeStore } from "@/state/themeStore";
 
 interface PaymentTransactionModalProps {
   visible: boolean;
@@ -33,6 +34,14 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
   loading,
   onClose,
 }) => {
+  const { isDark } = useThemeStore();
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+  const innerBg = isDark ? "#26262B" : "#F3F4F6";
+
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -57,25 +66,23 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
     icon,
     label,
     value,
-    valueColor = "text-white",
+    valueColor,
   }: {
     icon: React.ReactNode;
     label: string;
     value: string;
     valueColor?: string;
   }) => (
-    <View className="flex-row items-start py-3 border-b border-gray-700">
-      <View className="mr-3 mt-1">{icon}</View>
+    <View style={{ borderBottomWidth: 1, borderBottomColor: cardBorder }} className="flex-row items-start py-3">
+      <View className="mr-3 mt-0.5">{icon}</View>
       <View className="flex-1">
         <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-gray-400 text-sm mb-1"
+          style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 12, marginBottom: 2 }}
         >
           {label}
         </Text>
         <Text
-          style={{ fontFamily: "Outfit_600SemiBold" }}
-          className={`text-base ${valueColor}`}
+          style={{ fontFamily: "Poppins_600SemiBold", color: valueColor || textPrimary, fontSize: 14 }}
           selectable
         >
           {value}
@@ -91,20 +98,21 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-[#121212]">
+      <View style={{ flex: 1, backgroundColor: bgColor }}>
         {/* Header */}
-        <View className="bg-[#FFBA00] pt-12 pb-6 px-6 flex-row rounded-b-2xl items-center justify-between">
+        <View
+          style={{ backgroundColor: "#41B8F0" }}
+          className="pt-12 pb-6 px-6 flex-row rounded-b-2xl items-center justify-between shadow-sm"
+        >
           <View className="flex-1">
             <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#121212] text-2xl"
+              style={{ fontFamily: "Poppins_700Bold", color: "#FFFFFF", fontSize: 20 }}
             >
               Payment Details
             </Text>
             {transaction && (
               <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#121212] text-sm opacity-80"
+                style={{ fontFamily: "Poppins_500Medium", color: "#FFFFFF", fontSize: 12, opacity: 0.9, marginTop: 2 }}
               >
                 {transaction.merchantOrderId}
               </Text>
@@ -112,25 +120,27 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
           </View>
           <TouchableOpacity
             onPress={onClose}
-            className="ml-4"
+            className="ml-4 p-2 rounded-full bg-white/20"
             activeOpacity={0.7}
           >
-            <X size={28} color="#121212" />
+            <X size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
         {loading ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#FFBA00" />
-            <Text className="text-gray-600 mt-4">Loading transaction...</Text>
+            <ActivityIndicator size="large" color="#41B8F0" />
+            <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, marginTop: 12 }}>
+              Loading transaction...
+            </Text>
           </View>
         ) : !transaction ? (
           <View className="flex-1 items-center justify-center px-6">
-            <FileText size={64} color="#555" />
-            <Text className="text-gray-600 text-center mt-4 text-lg">
+            <FileText size={56} color={textSecondary} />
+            <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, textAlign: "center", marginTop: 16, fontSize: 16 }}>
               No payment transaction found
             </Text>
-            <Text className="text-gray-500 text-center mt-2">
+            <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, textAlign: "center", marginTop: 8, fontSize: 13 }}>
               This registration may not have a completed payment or the payment status is not "completed"
             </Text>
           </View>
@@ -141,22 +151,26 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
             contentContainerStyle={{ paddingBottom: 50 }}
           >
             {/* Status Section */}
-            <View className="bg-white mx-4 mt-4 rounded-xl p-4 shadow-sm">
+            <View
+              style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+              className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            >
               <View className="flex-row items-center justify-center mb-4">
-                <CheckCircle size={20} color="#10B981" />
+                <CheckCircle size={22} color="#10B981" />
                 <Text
-                  style={{ fontFamily: "Outfit_700Bold" }}
-                  className="ml-2 text-xl text-green-600"
+                  style={{ fontFamily: "Poppins_700Bold", color: "#10B981", fontSize: 16, marginLeft: 8 }}
                 >
                   PAYMENT SUCCESS
                 </Text>
               </View>
 
               {/* Amount Breakdown */}
-              <View className="bg-gray-50 border border-gray-100 rounded-lg p-4">
+              <View
+                style={{ backgroundColor: innerBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="rounded-xl p-4"
+              >
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#121212] text-center text-3xl mb-2"
+                  style={{ fontFamily: "Poppins_700Bold", color: textPrimary, textAlign: "center", fontSize: 28, marginBottom: 4 }}
                 >
                   {formatAmount(transaction.finalAmount)}
                 </Text>
@@ -164,15 +178,13 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
                 {transaction.originalAmount !== transaction.finalAmount && (
                   <View className="items-center">
                     <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-gray-500 text-base line-through"
+                      style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 14, textDecorationLine: "line-through" }}
                     >
                       {formatAmount(transaction.originalAmount)}
                     </Text>
                     {transaction.discountAmount > 0 && (
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-green-600 text-base"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: "#10B981", fontSize: 14, marginTop: 2 }}
                       >
                         Discount: -{formatAmount(transaction.discountAmount)}
                       </Text>
@@ -182,8 +194,7 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
 
                 {transaction.transactionFees > 0 && (
                   <Text
-                    style={{ fontFamily: "Outfit_400Regular" }}
-                    className="text-gray-500 text-center text-sm mt-1"
+                    style={{ fontFamily: "Poppins_400Regular", color: textSecondary, textAlign: "center", fontSize: 12, marginTop: 4 }}
                   >
                     Transaction Fees: +{formatAmount(transaction.transactionFees)}
                   </Text>
@@ -192,41 +203,43 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
             </View>
 
             {/* Basic Transaction Details */}
-            <View className="bg-white mx-4 mt-4 rounded-xl p-4 shadow-sm">
+            <View
+              style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+              className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            >
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#121212] text-lg mb-4"
+                style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15, marginBottom: 8 }}
               >
                 Transaction Information
               </Text>
 
               <DetailRow
-                icon={<CreditCard size={18} color="#FFBA00" />}
+                icon={<CreditCard size={17} color="#41B8F0" />}
                 label="Merchant Order ID"
                 value={transaction.merchantOrderId}
               />
 
               <DetailRow
-                icon={<Tag size={18} color="#6B7280" />}
+                icon={<Tag size={17} color={textSecondary} />}
                 label="Transaction ID"
                 value={transaction.id}
               />
 
               <DetailRow
-                icon={<DollarSign size={18} color="#6B7280" />}
+                icon={<DollarSign size={17} color={textSecondary} />}
                 label="Payment Type"
                 value={transaction.paymentType.toUpperCase()}
               />
 
               <DetailRow
-                icon={<Calendar size={18} color="#6B7280" />}
+                icon={<Calendar size={17} color={textSecondary} />}
                 label="Created At"
                 value={formatDate(transaction.createdAt)}
               />
 
               {transaction.completedAt && (
                 <DetailRow
-                  icon={<Calendar size={18} color="#10B981" />}
+                  icon={<Calendar size={17} color="#10B981" />}
                   label="Completed At"
                   value={formatDate(transaction.completedAt)}
                 />
@@ -235,29 +248,31 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
 
             {/* Event Registration Details */}
             {transaction.processedIntentions?.eventRegistration && (
-              <View className="bg-white mx-4 mt-4 rounded-xl p-4 shadow-sm">
+              <View
+                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+              >
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#121212] text-lg mb-4"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15, marginBottom: 8 }}
                 >
                   Event Registration
                 </Text>
 
                 <DetailRow
-                  icon={<MapPin size={18} color="#FFBA00" />}
+                  icon={<MapPin size={17} color="#41B8F0" />}
                   label="Event ID"
                   value={transaction.processedIntentions.eventRegistration.eventId}
                 />
 
                 <DetailRow
-                  icon={<Users size={18} color="#6B7280" />}
+                  icon={<Users size={17} color={textSecondary} />}
                   label="Event Type"
                   value={transaction.processedIntentions.eventRegistration.eventType.toUpperCase()}
                 />
 
                 {transaction.processedIntentions.eventRegistration.teamName && (
                   <DetailRow
-                    icon={<Users size={18} color="#FFBA00" />}
+                    icon={<Users size={17} color="#41B8F0" />}
                     label="Team Name"
                     value={
                       transaction.processedIntentions.eventRegistration.teamName
@@ -267,14 +282,14 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
 
                 {transaction.processedIntentions.eventRegistration.teamId && (
                   <DetailRow
-                    icon={<Tag size={18} color="#6B7280" />}
+                    icon={<Tag size={17} color={textSecondary} />}
                     label="Team ID"
                     value={transaction.processedIntentions.eventRegistration.teamId}
                   />
                 )}
 
                 <DetailRow
-                  icon={<DollarSign size={18} color="#6B7280" />}
+                  icon={<DollarSign size={17} color={textSecondary} />}
                   label="Registration Amount"
                   value={formatAmount(
                     transaction.processedIntentions.eventRegistration.amount
@@ -285,16 +300,18 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
 
             {/* Accommodation Details */}
             {transaction.processedIntentions?.accommodation && (
-              <View className="bg-white mx-4 mt-4 rounded-xl p-4 shadow-sm">
+              <View
+                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+              >
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#121212] text-lg mb-4"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15, marginBottom: 8 }}
                 >
                   Accommodation
                 </Text>
 
                 <DetailRow
-                  icon={<DollarSign size={18} color="#6B7280" />}
+                  icon={<DollarSign size={17} color={textSecondary} />}
                   label="Accommodation Total"
                   value={formatAmount(
                     transaction.processedIntentions.accommodation.amount || 0
@@ -305,16 +322,18 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
 
             {/* Food Details */}
             {transaction.processedIntentions?.food && (
-              <View className="bg-white mx-4 mt-4 rounded-xl p-4 shadow-sm">
+              <View
+                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+              >
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#121212] text-lg mb-4"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15, marginBottom: 8 }}
                 >
                   Food
                 </Text>
 
                 <DetailRow
-                  icon={<DollarSign size={18} color="#6B7280" />}
+                  icon={<DollarSign size={17} color={textSecondary} />}
                   label="Food Total"
                   value={formatAmount(
                     transaction.processedIntentions.food.amount || 0
@@ -325,29 +344,31 @@ const PaymentTransactionModal: React.FC<PaymentTransactionModalProps> = ({
 
             {/* Coupon Details */}
             {transaction.couponCode && transaction.couponDetails && (
-              <View className="bg-[#2C2C2C] mx-4 mt-4 mb-4 rounded-xl p-4">
+              <View
+                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="mx-4 mt-4 mb-4 rounded-2xl p-5 shadow-sm"
+              >
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-white text-lg mb-4"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15, marginBottom: 8 }}
                 >
                   Coupon Applied
                 </Text>
 
                 <DetailRow
-                  icon={<Tag size={18} color="#10B981" />}
+                  icon={<Tag size={17} color="#10B981" />}
                   label="Coupon Code"
                   value={transaction.couponCode}
-                  valueColor="text-green-400"
+                  valueColor="#10B981"
                 />
 
                 <DetailRow
-                  icon={<DollarSign size={18} color="#10B981" />}
+                  icon={<DollarSign size={17} color="#10B981" />}
                   label="Discount Type"
                   value={transaction.couponDetails.discountType.toUpperCase()}
                 />
 
                 <DetailRow
-                  icon={<DollarSign size={18} color="#10B981" />}
+                  icon={<DollarSign size={17} color="#10B981" />}
                   label="Discount Value"
                   value={
                     transaction.couponDetails.discountType === "flat"

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,29 +6,30 @@ import {
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
-  Linking,
 } from "react-native";
 import { showAlert } from "@/components";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft, Clock, AlertTriangle, Hotel, CheckCircle2, Trash2, XCircle, CreditCard, ChevronRight } from "lucide-react-native";
 import { useUserStore } from "@/state/userStore";
-import { useCallback } from "react";
-import { FirebaseEvent } from "@/types/models";
-import Button from "@/components/ui/Button";
-import Header from "@/components/layout/Header";
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import RegistrationStatusCard from "@/components/registration/RegistrationStatusCard";
 import TeamDetailsCard from "@/components/registration/TeamDetailsCard";
 import EventTicketCard from "@/components/registration/EventTicketCard";
 import TeamSubmissionModal from "@/components/registration/TeamSubmissionModal";
 import { useEventDetail } from "@/hooks/useEventDetail";
-import { useDeleteTeam, useRemoveTeamMember, useUnregisterForEvent } from "@/hooks/useEventMutations";
-
-interface MyEventDetailsRouteParams {
-  eventId: string;
-}
+import { useDeleteTeam, useRemoveTeamMember, useUnregisterForEvent, useConfirmTeam } from "@/hooks/useEventMutations";
 
 const MyEventDetailsScreen: React.FC = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C22" : "#FFFFFF";
+  const cardBorder = isDark ? "#2B2B34" : "#E2E8F0";
+  const textPrimary = isDark ? "#FFFFFF" : "#0F172A";
+  const textSecondary = isDark ? "#94A3B8" : "#64748B";
+
   const { eventId } = useLocalSearchParams() as { eventId: string };
 
   const { userData: userProfile } = useUserStore();
@@ -46,12 +47,12 @@ const MyEventDetailsScreen: React.FC = () => {
   );
 
   const [submittingTeam, setSubmittingTeam] = useState(false);
-  const [isSubmissionModalVisible, setIsSubmissionModalVisible] =
-    useState(false);
+  const [isSubmissionModalVisible, setIsSubmissionModalVisible] = useState(false);
 
   const deleteTeamMutation = useDeleteTeam();
   const removeTeamMemberMutation = useRemoveTeamMember();
   const unregisterMutation = useUnregisterForEvent();
+  const confirmTeamMutation = useConfirmTeam();
 
   const handleRemoveMember = (memberUserId: string, memberName: string) => {
     if (!teamData) {
@@ -59,7 +60,7 @@ const MyEventDetailsScreen: React.FC = () => {
       return;
     }
 
-    showAlert("Remove member", `Remove ${memberName} from the team?`, [
+    showAlert("Remove Member", `Remove ${memberName} from the team?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Remove",
@@ -83,10 +84,16 @@ const MyEventDetailsScreen: React.FC = () => {
       return;
     }
 
-    showAlert("Delete team", "This will cancel the whole team's registration.", [
+    const isConfirmed = teamData.status === "confirmed";
+    const title = isConfirmed ? "Delete Confirmed Team" : "Delete Team";
+    const message = isConfirmed
+      ? "Your team registration is currently confirmed. Are you sure you want to delete this team? This will cancel the event registration for you and all your teammates."
+      : "Are you sure you want to delete this team? This will cancel the event registration for the whole team.";
+
+    showAlert(title, message, [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Delete",
+        text: "Yes, Delete Team",
         style: "destructive",
         onPress: () => {
           if (!teamData?.teamId) return;
@@ -115,10 +122,9 @@ const MyEventDetailsScreen: React.FC = () => {
     ]);
   };
 
-  const handleSubmitTeam = async () => {
+  const handleCompleteRegistration = async () => {
     if (!eventData || !teamData) return;
 
-    // Validate team size
     if (
       eventData.minTeamSize &&
       (teamData.members?.length ?? 0) < eventData.minTeamSize
@@ -127,51 +133,52 @@ const MyEventDetailsScreen: React.FC = () => {
         "Insufficient Team Size",
         `Your team needs at least ${
           eventData.minTeamSize
-        } members to submit. Currently you have ${
+        } members before registration can be completed. Currently you have ${
           teamData.members.length
         } member${
           teamData.members.length !== 1 ? "s" : ""
-        }.\n\nPlease share the invite code with your teammates before submitting.`
+        }.\n\nPlease share the invite code with your teammates.`
       );
       return;
     }
 
-    setIsSubmissionModalVisible(true);
-    // showAlert(
-    //   'Submit Team',
-    //   `Are you sure you want to submit your team for review? Your team has ${teamData.members.length} member${teamData.members.length !== 1 ? 's' : ''}.`,
-    //   [
-    //     { text: 'Cancel', style: 'cancel' },
-    //     {
-    //       text: 'Submit',
-    //       onPress: async () => {
-    //         try {
-    //           setSubmittingTeam(true);
-    //           // Submit with empty custom fields since they should have been filled during registration
-    //           let referredBy = '';
-    //           const result = await submitTeam(eventId, [], referredBy);
+    if (eventData.customFields && eventData.customFields.length > 0) {
+      setIsSubmissionModalVisible(true);
+      return;
+    }
 
-    //           if (result.success) {
-    //             showAlert('Success', 'Team submitted successfully! Your registration is now awaiting admin approval.');
-    //             await fetchRegistrationData();
-    //           } else {
-    //             showAlert('Error', result.error);
-    //           }
-    //         } catch (error: any) {
-    //           showAlert('Error', error.message || 'Failed to submit team');
-    //         } finally {
-    //           setSubmittingTeam(false);
-    //         }
-    //       },
-    //     },
-    //   ]
-    // );
+    showAlert(
+      "Complete Registration",
+      "Are you satisfied with your team? Once confirmed, registration will be finalized.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Complete Registration",
+          onPress: () => {
+            if (!teamData?.teamId) return;
+            setSubmittingTeam(true);
+            confirmTeamMutation.mutate(teamData.teamId, {
+              onSuccess: () => {
+                showAlert("Success", "Team registration has been successfully confirmed!");
+                refresh();
+              },
+              onError: (err: any) => {
+                showAlert("Error", err.message || "Failed to complete team registration");
+              },
+              onSettled: () => {
+                setSubmittingTeam(false);
+              },
+            });
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center">
-        <StatusBar barStyle="light-content" />
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center" }}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
         <ActivityIndicator size="large" color="#FFBA00" />
       </View>
     );
@@ -179,61 +186,115 @@ const MyEventDetailsScreen: React.FC = () => {
 
   if (!registration) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center px-6">
-        <StatusBar barStyle="light-content" />
-        <Text className="text-[#0C3572] text-xl text-center">
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+        <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 18, color: textPrimary, textAlign: "center" }}>
           Registration not found
         </Text>
         <TouchableOpacity
           onPress={() => router.back()}
-          className="mt-4 bg-yellow-400 px-6 py-3 rounded-xl"
+          style={{
+            marginTop: 16,
+            backgroundColor: "#FFBA00",
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 14,
+          }}
+          activeOpacity={0.8}
         >
-          <Text className="text-black font-semibold">Go Back</Text>
+          <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#000000", fontSize: 14 }}>
+            Go Back
+          </Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   const isLeader = teamData?.leaderUserId === userId;
+  const hasAccommodation = Object.values(userProfile?.accommodation || {}).some(Boolean) || Object.values(userProfile?.food || {}).some(Boolean);
 
   return (
-    <View className="flex-1 bg-transparent">
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
       {/* Header */}
-      <Header />
-      <View className="px-6 pt-12 pb-4 flex-row items-center justify-between">
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#0C3572" />
-        </TouchableOpacity>
-        <Text
-          style={{ fontFamily: "Outfit_700Bold" }}
-          ellipsizeMode="tail"
-          numberOfLines={1}
-          className="text-[#0C3572] w-[80%] text-3xl"
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 12,
+            flexShrink: 0,
+          }}
+          activeOpacity={0.7}
         >
-          {eventData?.title || registration.eventName}
-        </Text>
-        <View className="w-8" />
+          <ArrowLeft size={20} color={textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text
+            style={{
+              fontFamily: "Talina",
+              fontSize: 19,
+              color: textPrimary,
+              letterSpacing: 0.4,
+            }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {eventData?.title || registration.eventName}
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Poppins_500Medium",
+              fontSize: 11,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
+          >
+            Registration Details
+          </Text>
+        </View>
       </View>
 
       <ScrollView
-        className="flex-1 px-6 py-6"
+        style={{ flex: 1, width: "100%" }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
       >
-        {/* Status Card */}
+        {/* Registration Status Card with Team Constraints */}
         <RegistrationStatusCard
-          status={registration.paymentStatus === 'pending' ? 'payment_pending' : (registration.status || 'pending')}
+          status={
+            eventData?.eventType === 'team' && teamData
+              ? (registration.paymentStatus === 'pending' ? 'payment_pending' : (teamData.status as any || 'pending'))
+              : (registration.paymentStatus === 'pending' ? 'payment_pending' : (registration.status || 'pending'))
+          }
           eventCategory={registration.eventCategory || eventData?.category || ''}
           eventType={(eventData?.eventType === 'team' ? 'team' : 'individual')}
           registeredAt={registration.registeredAt || new Date().toISOString()}
+          minTeamSize={eventData?.minTeamSize}
+          maxTeamSize={eventData?.maxTeamSize}
+          currentTeamSize={teamData?.members?.length}
         />
 
-        {/* Event Ticket with QR Code - Only show when confirmed */}
+        {/* Event Ticket Pass with QR Code */}
         {registration.status !== "rejected" && (
-          <View className="mb-4">
-            <EventTicketCard registration={registration} eventData={eventData} />
-
-          </View>
+          <EventTicketCard registration={registration} eventData={eventData} />
         )}
 
         {/* Team Details for Team Events */}
@@ -245,46 +306,63 @@ const MyEventDetailsScreen: React.FC = () => {
             isLeader={isLeader}
             submittingTeam={submittingTeam}
             onRemoveMember={handleRemoveMember}
-            onSubmitTeam={handleSubmitTeam}
+            onSubmitTeam={handleCompleteRegistration}
           />
         )}
 
-        {/* Payment Pending for Team Members (non-leader) */}
+        {/* Payment Pending Notice for Team Members (non-leader) */}
         {registration.paymentStatus === 'pending' && eventData?.eventType === 'team' && !isLeader && (
-          <View className="mb-6 bg-amber-50 border border-amber-300 rounded-xl p-4">
-            <View className="flex-row items-center mb-2">
-              <Ionicons name="time" size={20} color="#d97706" />
-              <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-amber-800 ml-2 text-base">
+          <View
+            style={{
+              backgroundColor: isDark ? 'rgba(255, 186, 0, 0.1)' : 'rgba(255, 186, 0, 0.12)',
+              borderColor: 'rgba(255, 186, 0, 0.35)',
+              borderWidth: 1,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 16,
+              width: '100%',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              <Clock size={16} color="#FFBA00" style={{ marginRight: 8, flexShrink: 0 }} />
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#FFBA00', fontSize: 14, flexShrink: 1 }}>
                 Waiting for Team Leader Payment
               </Text>
             </View>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-amber-700 text-sm leading-5">
+            <Text style={{ fontFamily: 'Poppins_400Regular', color: isDark ? '#FDE68A' : '#92400E', fontSize: 13, lineHeight: 19 }}>
               The registration fee for this team event must be completed by your team leader to confirm the team's registration.
             </Text>
           </View>
         )}
 
-        {/* Payment Button - shown when paymentStatus is pending for leader or individual */}
+        {/* Payment Action Area */}
         {registration.paymentStatus === 'pending' && (eventData?.eventType === 'individual' || isLeader) && (
-          <View className="mb-6">
-            <View className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-3">
-              <View className="flex-row items-center mb-2">
-                <Ionicons name="warning" size={18} color="#d97706" />
-                <Text
-                  style={{ fontFamily: 'Outfit_600SemiBold' }}
-                  className="text-amber-700 ml-2"
-                >
+          <View style={{ marginBottom: 16, width: '100%' }}>
+            <View
+              style={{
+                backgroundColor: isDark ? 'rgba(255, 186, 0, 0.12)' : 'rgba(255, 186, 0, 0.12)',
+                borderColor: 'rgba(255, 186, 0, 0.35)',
+                borderWidth: 1,
+                borderRadius: 16,
+                padding: 16,
+                marginBottom: 12,
+                width: '100%',
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <AlertTriangle size={16} color="#FFBA00" style={{ marginRight: 8, flexShrink: 0 }} />
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#FFBA00', fontSize: 14, flexShrink: 1 }}>
                   Payment Pending
                 </Text>
               </View>
-              <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-amber-600 text-sm">
+              <Text style={{ fontFamily: 'Poppins_400Regular', color: isDark ? '#FDE68A' : '#92400E', fontSize: 13, lineHeight: 19 }}>
                 {eventData?.eventType === 'team'
                   ? 'Complete payment to confirm your team\'s registration. Payment covers the entire team.'
                   : 'Complete payment to confirm your registration.'}
               </Text>
             </View>
-            <Button
-              title="Complete Payment"
+
+            <TouchableOpacity
               onPress={() => router.push({
                 pathname: '/events/Payment',
                 params: {
@@ -292,90 +370,219 @@ const MyEventDetailsScreen: React.FC = () => {
                   ...(teamData?.teamId ? { teamId: teamData.teamId } : {}),
                 },
               })}
-              variant="none"
-              className="bg-[#FEE59C] border-[#0C3572] border-2 flex-row items-center justify-center rounded-xl py-4"
-              textClassName="text-[#0C3572] font-semibold"
-            />
+              activeOpacity={0.85}
+              style={{
+                backgroundColor: '#FFBA00',
+                borderRadius: 14,
+                height: 52,
+                width: '100%',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#FFBA00',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.3,
+                shadowRadius: 6,
+                elevation: 3,
+              }}
+            >
+              <CreditCard size={17} color="#000000" style={{ marginRight: 8 }} />
+              <Text style={{ fontFamily: 'Poppins_700Bold', color: '#000000', fontSize: 14, letterSpacing: 0.3 }}>
+                Complete Payment
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
         {/* Accommodation & Food Card */}
         {!userProfile?.isHostCollegeStudent && (
-          <View className="mb-6 bg-white border border-[#DBE2ED] rounded-2xl p-5 shadow-sm">
-            <View className="flex-row items-center justify-between mb-2">
-              <View className="flex-row items-center">
-                <Ionicons name="bed-outline" size={22} color="#0C3572" />
-                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg ml-2">
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderColor: cardBorder,
+              borderWidth: 1,
+              borderRadius: 18,
+              padding: 16,
+              marginBottom: 16,
+              width: '100%',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: isDark ? 0.25 : 0.04,
+              shadowRadius: 6,
+              elevation: 2,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8, minWidth: 0 }}>
+                <View
+                  style={{
+                    backgroundColor: isDark ? 'rgba(65, 184, 240, 0.15)' : 'rgba(65, 184, 240, 0.1)',
+                    padding: 7,
+                    borderRadius: 10,
+                    marginRight: 8,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Hotel size={18} color="#41B8F0" />
+                </View>
+                <Text
+                  style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: textPrimary, flexShrink: 1 }}
+                  numberOfLines={1}
+                >
                   Accommodation & Food
                 </Text>
               </View>
-              {(Object.values(userProfile?.accommodation || {}).some(Boolean) || Object.values(userProfile?.food || {}).some(Boolean)) ? (
-                <View className="bg-green-100 px-3 py-1 rounded-full">
-                  <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 text-xs">
+
+              {hasAccommodation && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                    borderColor: 'rgba(16, 185, 129, 0.3)',
+                    borderWidth: 1,
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 10,
+                    flexShrink: 0,
+                  }}
+                >
+                  <CheckCircle2 size={11} color="#10B981" style={{ marginRight: 4 }} />
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#10B981' }}>
                     Pass Active
                   </Text>
                 </View>
-              ) : null}
+              )}
             </View>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-sm mb-4 leading-5">
-              {(Object.values(userProfile?.accommodation || {}).some(Boolean) || Object.values(userProfile?.food || {}).some(Boolean))
-                ? 'You have booked accommodation or meal passes. You can add more days or view details from your profile.'
+
+            <Text
+              style={{
+                fontFamily: 'Poppins_400Regular',
+                fontSize: 12,
+                color: textSecondary,
+                lineHeight: 18,
+                marginBottom: 12,
+              }}
+            >
+              {hasAccommodation
+                ? 'You have booked accommodation or meal passes. You can add more days or review details in your profile.'
                 : eventData?.eventType === 'team' && !isLeader
                   ? 'Accommodation is individual per person. Book your hostel stay and meals separately from the team registration.'
                   : 'Attending Saturnalia from outside? Book hostel accommodation (₹300/day) and meal passes (₹200/day).'}
             </Text>
-            <Button
-              title={(Object.values(userProfile?.accommodation || {}).some(Boolean) || Object.values(userProfile?.food || {}).some(Boolean)) ? "Manage Accommodation" : "Book Accommodation & Food"}
+
+            <TouchableOpacity
               onPress={() => router.push('/profile/Accommodation')}
-              variant="none"
-              className="bg-[#0C3572] rounded-xl py-3 items-center justify-center"
-              textClassName="text-[#EEB170] font-semibold"
-            />
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+                borderColor: cardBorder,
+                borderWidth: 1,
+                borderRadius: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: 'Poppins_600SemiBold',
+                  fontSize: 12,
+                  color: '#41B8F0',
+                  marginRight: 4,
+                }}
+              >
+                {hasAccommodation ? "Manage Accommodation" : "Book Accommodation & Food"}
+              </Text>
+              <ChevronRight size={15} color="#41B8F0" />
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Rejected Status Message for Individual Events */}
-        {eventData?.eventType === "individual" &&
-          registration.status === "rejected" && (
-            <View className="mb-6 bg-red-900/20 border border-red-600/30 rounded-lg p-4">
-              <Text className="text-red-400 text-sm font-semibold mb-2">
-                Registration Rejected
-              </Text>
-              <Text className="text-red-400 text-sm">
-                Your registration has been rejected. Please contact the event
-                organizers for more information.
+        {/* Rejected Status Notice */}
+        {eventData?.eventType === "individual" && registration.status === "rejected" && (
+          <View
+            style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              borderColor: 'rgba(239, 68, 68, 0.3)',
+              borderWidth: 1,
+              borderRadius: 16,
+              padding: 14,
+              marginBottom: 16,
+              width: '100%',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              <XCircle size={16} color="#EF4444" style={{ marginRight: 6, flexShrink: 0 }} />
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#EF4444', fontSize: 13, flexShrink: 1 }}>
+                Registration Not Approved
               </Text>
             </View>
-          )}
+            <Text style={{ fontFamily: 'Poppins_400Regular', color: isDark ? '#FECACA' : '#991B1B', fontSize: 12, lineHeight: 18 }}>
+              Your registration has been rejected. Please contact event organizers for additional information.
+            </Text>
+          </View>
+        )}
 
-        {/* Team Management Actions - Only available for leader when status is pending */}
+        {/* Team Leader Delete Team Action */}
         {eventData?.eventType === "team" &&
           teamData &&
-          teamData.status === "pending" &&
           isLeader && (
-            <View className="mb-6">
-              <Button
-                title="Delete Team"
+            <View style={{ marginBottom: 16, width: '100%' }}>
+              <TouchableOpacity
                 onPress={handleDeleteTeam}
-                variant="outline"
-                className="bg-transparent border-[#BA1415] border-2  flex-row items-center justify-center"
-              />
+                activeOpacity={0.8}
+                style={{
+                  borderWidth: 1,
+                  borderColor: 'rgba(239, 68, 68, 0.4)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  borderRadius: 14,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  width: '100%',
+                }}
+              >
+                <Trash2 size={15} color="#EF4444" style={{ marginRight: 6 }} />
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#EF4444', fontSize: 13 }}>
+                  Delete Team
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
 
-        {/* Individual Event Actions */}
+        {/* Individual Event Cancel Registration Action */}
         {eventData?.eventType === "individual" &&
           registration.status !== "rejected" && (
-            <View className="mb-6">
-              <Button
-                title="Cancel Registration"
+            <View style={{ marginBottom: 16, width: '100%' }}>
+              <TouchableOpacity
                 onPress={handleCancelRegistration}
-                variant="outline"
-                className="bg-transparent border-[#BA1415] border-2 flex-row items-center justify-center"
-              />
+                activeOpacity={0.8}
+                style={{
+                  borderWidth: 1,
+                  borderColor: 'rgba(239, 68, 68, 0.4)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  borderRadius: 14,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  width: '100%',
+                }}
+              >
+                <XCircle size={15} color="#EF4444" style={{ marginRight: 6 }} />
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#EF4444', fontSize: 13 }}>
+                  Cancel Registration
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
       </ScrollView>
+
       <TeamSubmissionModal
         visible={isSubmissionModalVisible}
         onClose={() => setIsSubmissionModalVisible(false)}
@@ -383,6 +590,7 @@ const MyEventDetailsScreen: React.FC = () => {
         teamData={teamData}
         onSubmitSuccess={() => {
           setIsSubmissionModalVisible(false);
+          refresh();
         }}
       />
     </View>

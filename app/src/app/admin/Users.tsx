@@ -314,10 +314,6 @@ const Users: React.FC = () => {
             </Text>
           </TouchableOpacity>
         </View>
-              Scan User QR Code
-            </Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Search Loading Indicator */}
         {searchLoading && (

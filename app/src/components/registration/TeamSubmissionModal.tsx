@@ -7,6 +7,7 @@ import { FirebaseEvent, TeamRegistrationData } from '@/types/models';
 import { showAlert } from '..';
 import CustomFieldsForm from './CustomFieldRenderer'
 import { useUserStore } from '@/state/userStore';
+import { confirmTeam } from '@/api/events';
 
 interface TeamSubmissionModalProps {
   visible: boolean;
@@ -45,14 +46,14 @@ const TeamSubmissionModal: React.FC<TeamSubmissionModalProps> = ({
   const handleFinalSubmit = async (formData: Record<string, any>) => {
     try {
       setIsLoading(true);
-
+      await confirmTeam(teamData.teamId);
       showModalAlert(
         'Success',
-        'Your team is already registered. Share the invite code if you still need members.'
+        'Team registration has been successfully confirmed!'
       );
       onSubmitSuccess();
     } catch (error: any) {
-      showModalAlert('Error', error.message || 'Failed to submit team');
+      showModalAlert('Error', error.message || 'Failed to complete team registration');
     } finally {
       setIsLoading(false);
     }

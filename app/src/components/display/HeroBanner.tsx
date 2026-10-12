@@ -36,30 +36,9 @@ interface HeroBannerProps {
 export const DEMO_BANNERS: BannerItem[] = [
   {
     id: 'b1',
-    title: 'Jamming Session',
-    description: 'Lorem Ipsum Dolor Sit Amet',
-    image: require('@/assets/story2/Copy_of_OWL02218_ofmovh.jpg'),
-    link: 'https://saturnalia.in',
-  },
-  {
-    id: 'b2',
-    title: 'Live Stage Blast',
-    description: 'Feel the rhythm and uncontainable energy',
-    image: require('@/assets/story2/Copy_of_DSC09217_cesaci.jpg'),
-    link: 'https://saturnalia.in',
-  },
-  {
-    id: 'b3',
-    title: 'Saturnalia Gala',
+    title: 'Saturnalia',
     description: 'Experience the magic under the grand lights',
-    image: require('@/assets/satwrap2.jpg'),
-    link: 'https://saturnalia.in',
-  },
-  {
-    id: 'b4',
-    title: 'Tech Arena 2026',
-    description: 'Witness innovation and robotic excellence',
-    image: require('@/assets/satwrap3.jpg'),
+    image: require('@/assets/story2/Copy_of_DSC09217_cesaci.jpg'),
     link: 'https://saturnalia.in',
   },
 ];
@@ -183,7 +162,7 @@ export default function HeroBanner({
           top: 0,
           left: 0,
           right: 0,
-          height: Math.max(insets.top + 90, 130),
+          height: Math.max(insets.top + 50, 130),
         }}
         pointerEvents="none"
       />
@@ -278,12 +257,13 @@ export default function HeroBanner({
       {/* Bottom Gradient Overlay */}
       <LinearGradient
         colors={colors.bottomGradient}
+        locations={[0, 0.25, 0.65, 0.88, 1]}
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          height: 70,
+          height: 150,
         }}
         pointerEvents="none"
       />

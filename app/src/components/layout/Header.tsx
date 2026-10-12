@@ -1,87 +1,91 @@
 // src/components/layout/Header.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { View, TouchableOpacity, Image } from 'react-native';
 import { Menu, Bell } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useUserStore } from '@/state/userStore';
-import AdminDrawer from './AdminDrawer';
+import { useThemeStore } from '@/state/themeStore';
+import { useAdminDrawerStore } from '@/state/adminDrawerStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HeaderType {
   userProfile?: any;
   setShowBottomNav?: (x: boolean) => void;
 }
 
-const Header: React.FC<HeaderType> = ({ userProfile: userProfileProp, setShowBottomNav }) => {
+const Header: React.FC<HeaderType> = ({ userProfile: userProfileProp }) => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+  const { openDrawer } = useAdminDrawerStore();
   const { userData } = useUserStore();
-  const [drawerVisible, setDrawerVisible] = useState(false);
 
-  // Use prop if passed, otherwise fall back to store (so Header works everywhere)
   const userProfile = userProfileProp ?? userData;
-
   const roles: string[] = Array.isArray(userProfile?.roles) ? userProfile.roles : [];
   const isAdmin = roles.some((r) => r !== 'user');
 
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const iconColor = isDark ? "#FFFFFF" : "#111827";
+
   return (
-    <>
-      <View
-        className="bg-[#2D4593] h-[90px] relative rounded-b-[2rem] overflow-hidden"
-        style={{ boxShadow: '0px 4px 25px #0C3572' } as any}
-      >
+    <View
+      style={{
+        paddingTop: insets.top + 6,
+        paddingBottom: 12,
+        paddingHorizontal: 20,
+        backgroundColor: bgColor,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: 1,
+        borderBottomColor: isDark ? '#2A2A30' : '#D5D5D5',
+      }}
+    >
+      {/* Left button: Hamburger (admin) or back */}
+      {isAdmin ? (
+        <TouchableOpacity
+          onPress={openDrawer}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          activeOpacity={0.7}
+        >
+          <Menu size={20} color="#41B8F0" />
+        </TouchableOpacity>
+      ) : (
+        <View style={{ width: 40, height: 40 }} />
+      )}
+
+      {/* Center Logo */}
+      <View style={{ height: 32, alignItems: 'center', justifyContent: 'center' }}>
         <Image
-          source={require('@/assets/mosaic.png')}
-          className="absolute"
-          style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+          source={require('@/assets/logo.png')}
+          style={{ height: 28, width: 120 }}
+          resizeMode="contain"
         />
-        <View className="flex-1 flex-row w-full h-full items-center justify-between px-8" pointerEvents="box-none">
-
-          {/* Drawer Menu Button — only for admins/non-user roles */}
-          {isAdmin ? (
-            <TouchableOpacity
-              onPress={() => setDrawerVisible(true)}
-              className="items-center justify-center w-12 h-12 bg-[#FFFFFF40] rounded-full"
-            >
-              <Menu size={22} color="#fff" />
-            </TouchableOpacity>
-          ) : (
-            <View className="w-12 h-12" />
-          )}
-
-          {/* Logo */}
-          <View
-            className="relative top-2 items-center justify-center"
-            style={{ width: 150, height: '100%', zIndex: 10 }}
-          >
-            <Svg height="150" width="200" style={{ position: 'absolute' }}>
-              <Defs>
-                <RadialGradient id="gradHeader" cx="50%" cy="50%" rx="50%" ry="50%" fx="50%" fy="50%">
-                  <Stop offset="0%" stopColor="#FFE272" stopOpacity="0.8" />
-                  <Stop offset="100%" stopColor="#FFE272" stopOpacity="0" />
-                </RadialGradient>
-              </Defs>
-              <Rect x="0" y="0" width="200" height="150" fill="url(#gradHeader)" />
-            </Svg>
-            <Image
-              source={require('@/assets/logo.png')}
-              style={{ width: 150, height: '100%', resizeMode: 'contain' }}
-            />
-          </View>
-
-          {/* Empty spacer to keep logo centered */}
-          <View className="w-12 h-12" />
-        </View>
       </View>
 
-      {/* Admin Drawer */}
-      {isAdmin && (
-        <AdminDrawer
-          visible={drawerVisible}
-          onClose={() => setDrawerVisible(false)}
-          userRoles={roles}
-        />
-      )}
-    </>
+      {/* Right button: Notifications */}
+      <TouchableOpacity
+        onPress={() => router.push('/notifications')}
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        activeOpacity={0.7}
+      >
+        <Bell size={20} color={iconColor} />
+      </TouchableOpacity>
+    </View>
   );
 };
 

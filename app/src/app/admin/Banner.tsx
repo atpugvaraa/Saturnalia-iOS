@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import {
   View,
   ScrollView,
@@ -6,313 +7,732 @@ import {
   Image,
   Linking,
   ActivityIndicator,
+  StatusBar,
+  Switch,
 } from "react-native";
-import { showAlert } from "@/components";
-import { useEffect, useState } from "react";
-import { Corousal } from "@/types/models";
+import { showAlert, Input } from "@/components";
+import * as ImagePicker from "expo-image-picker";
+import { ArrowLeft, Upload, Trash2, ExternalLink, ImagePlus, Eye, EyeOff } from "lucide-react-native";
 import {
-  createCorousal,
-  deleteCorousal,
-  getCorousal,
+  adminListBanners,
+  adminCreateBanner,
+  adminUpdateBanner,
+  adminDeleteBanner,
+  adminUploadMedia,
+  Banner as BannerModel,
 } from "@/api/admin";
-import { launchImageLibrary } from "react-native-image-picker";
-import ImageResizer from "react-native-image-resizer";
-import { Input } from "@/components";
-import { ArrowLeft, Upload, Trash2, ExternalLink, ImagePlus } from "lucide-react-native";
-import { uploadStoryMedia } from "@/api/admin";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useContentCacheStore } from "@/state/contentCacheStore";
 
-// this is the resolution of the prototype image we used, therefore, don't you fucking question the values
-const BANNER_IMAGE_RESOLUTION = [350, 166];
-
-function fixDomain(url: string) {
-  // replace https://saturnalia.ce83aab07d9a2dfff9ae6c6f9f6754d2.r2.cloudflarestorage.com with https://itsakarsh.tech/
-  return url.replace(
-    "https://saturnalia.ce83aab07d9a2dfff9ae6c6f9f6754d2.r2.cloudflarestorage.com",
-    "https://itsakarsh.tech"
-  );
-}
-
-export default function Banner() {
+export default function BannerManagement() {
   const navigation = useAdminNavigation();
-  const [data, setData] = useState<Corousal[]>([]);
-  const [createData, setCreateData] = useState<Partial<Corousal>>({});
-  const [creating, setCreating] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+
+  const [banners, setBanners] = useState<BannerModel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Form state
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [link, setLink] = useState("");
+  const [order, setOrder] = useState("0");
+  const [isActive, setIsActive] = useState(true);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [selectedRatio, setSelectedRatio] = useState<[number, number]>([4, 3]);
+
+  const RATIO_OPTIONS: { label: string; ratio: [number, number]; desc: string }[] = [
+    { label: "4:3", ratio: [4, 3], desc: "Standard" },
+    { label: "4:5", ratio: [4, 5], desc: "Tall Hero" },
+    { label: "3:2", ratio: [3, 2], desc: "Medium" },
+    { label: "16:9", ratio: [16, 9], desc: "Wide" },
+  ];
+
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
 
   const loadData = async () => {
     setLoading(true);
-    const res = await getCorousal();
-    console.log("Res", res);
-    setData(res);
-    setLoading(false);
+    try {
+      const res = await adminListBanners();
+      setBanners(res);
+    } catch (e: any) {
+      console.error("loadData banners error:", e);
+      showAlert("Error", e?.message || "Failed to load banners");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const handleDeleteBanner = async (item: Corousal) => {
+  const pickImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showAlert("Permission Required", "Please allow gallery access to upload banner images.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.85,
+        aspect: selectedRatio,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedImageUri(result.assets[0].uri);
+      }
+    } catch (err: any) {
+      console.error("pickImage error:", err);
+      showAlert("Error", "Failed to select image");
+    }
+  };
+
+  const handleCreateBanner = async () => {
+    if (!title.trim()) {
+      showAlert("Validation Error", "Please provide a banner title.");
+      return;
+    }
+    if (!selectedImageUri) {
+      showAlert("Validation Error", "Please pick or upload a banner image.");
+      return;
+    }
+    if (!link.trim()) {
+      showAlert("Validation Error", "Please enter a banner destination link.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // 1. Upload image to ImageKit
+      const uploaded = await adminUploadMedia(selectedImageUri, {
+        folder: "banners",
+      });
+
+      // 2. Create banner via API
+      await adminCreateBanner({
+        title: title.trim(),
+        description: description.trim(),
+        imageUrl: uploaded.url,
+        imageRef: uploaded.ref,
+        link: link.trim(),
+        order: parseInt(order, 10) || 0,
+        isActive: isActive,
+      });
+
+      // 3. Invalidate user session cache
+      useContentCacheStore.getState().invalidateBanners();
+
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setLink("");
+      setOrder("0");
+      setSelectedImageUri(null);
+      setIsActive(true);
+
+      showAlert("Success", "Banner created and published successfully!");
+      await loadData();
+    } catch (error: any) {
+      console.error("handleCreateBanner error:", error);
+      showAlert("Error", error.message || "Failed to create banner");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleToggleActive = async (banner: BannerModel) => {
+    try {
+      const updated = !banner.isActive;
+      await adminUpdateBanner(banner.id, { isActive: updated });
+      useContentCacheStore.getState().invalidateBanners();
+      setBanners((prev) =>
+        prev.map((b) => (b.id === banner.id ? { ...b, isActive: updated } : b))
+      );
+    } catch (err: any) {
+      showAlert("Error", err.message || "Failed to update banner status");
+    }
+  };
+
+  const handleDeleteBanner = (banner: BannerModel) => {
     showAlert(
       "Delete Banner",
-      "Are you sure you want to delete this banner?",
+      `Are you sure you want to delete "${banner.title}"?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setDeletingId(item.id);
-            await deleteCorousal(item.id);
-            setData(data.filter((d) => d.id !== item.id));
-            setDeletingId(null);
+            setDeletingId(banner.id);
+            try {
+              await adminDeleteBanner(banner.id);
+              useContentCacheStore.getState().invalidateBanners();
+              setBanners((prev) => prev.filter((b) => b.id !== banner.id));
+              showAlert("Success", "Banner deleted successfully");
+            } catch (err: any) {
+              showAlert("Error", err.message || "Failed to delete banner");
+            } finally {
+              setDeletingId(null);
+            }
           },
         },
       ]
     );
   };
 
-  const handleCreateBanner = async () => {
-    if (!createData.imageUrl) {
-      showAlert("Error", "Please upload an image");
-      return;
-    }
-    if (!createData.link) {
-      showAlert("Error", "Please enter a link");
-      return;
-    }
-
-    setCreating(true);
-    try {
-      const scaleUpFactor = 2;
-      const compressedImage = await ImageResizer.createResizedImage(
-        createData.imageUrl,
-        BANNER_IMAGE_RESOLUTION[0] * scaleUpFactor,
-        BANNER_IMAGE_RESOLUTION[1] * scaleUpFactor,
-        "PNG",
-        80
-      );
-      
-      // Upload using the story upload API
-      const uploadResult = await uploadStoryMedia(compressedImage.uri, 'image');
-      
-      if (!uploadResult.success || !uploadResult.url) {
-        throw new Error(uploadResult.error || 'Upload failed');
-      }
-
-      console.log("Creating banner with link:", createData.link, "and imageUrl:", uploadResult.url);
-      await createCorousal({
-        link: createData.link,
-        imageUrl: uploadResult.url,
-        corousalType: 0,
-        isPublic: true,
-        date: new Date().toISOString(),
-      });
-      await loadData();
-      setCreateData({});
-      showAlert("Success", "Banner created successfully!");
-    } catch (error) {
-      showAlert("Error", "Failed to create banner");
-      console.error(error);
-    } finally {
-      setCreating(false);
-    }
-  };
-
   return (
-    <View className="flex-1 bg-transparent">
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
       {/* Header */}
-      <View className="bg-[#EEB170] pt-4 rounded-b-2xl pb-6 px-6 flex-row items-center justify-between">
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
         <TouchableOpacity
-          onPress={() => navigation.navigate("Dashboard")}
-          className="mr-4"
+          onPress={() => navigation.goBack()}
+          style={{
+            padding: 8,
+            marginRight: 12,
+            borderRadius: 12,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
+          }}
           activeOpacity={0.7}
         >
-          <ArrowLeft size={28} color="#121212" />
+          <ArrowLeft size={20} color={textPrimary} />
         </TouchableOpacity>
-        <View className="flex-1">
-          <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#121212] text-2xl ">Banner Management</Text>
-          <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#121212] text-sm opacity-80">
-            Create and manage app banners
+        <View>
+          <Text
+            style={{
+              fontFamily: "Talina",
+              color: textPrimary,
+              fontSize: 22,
+            }}
+          >
+            Banner Management
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              color: textSecondary,
+              fontSize: 13,
+              marginTop: 2,
+            }}
+          >
+            Create and manage home screen hero banners
           </Text>
         </View>
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
-        {/* Create Banner Section */}
-        <View className="p-6">
-          <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-6 border border-[#A0B3D0]">
-            <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#EEB170] text-xl mb-4">
-              Create New Banner
-            </Text>
-
-            {/* Image Upload */}
-            <TouchableOpacity
-              className="bg-[#FFFFFF66] border-2 border-dashed border-[#EEB170] rounded-xl p-6 mb-4 items-center justify-center"
-              onPress={() => {
-                launchImageLibrary({ mediaType: "photo" }, (response) => {
-                  if (!response.assets || response.assets.length === 0) {
-                    return;
-                  }
-                  const asset = response.assets[0];
-                  setCreateData({
-                    ...createData,
-                    imageUrl: asset.uri,
-                  });
-                });
-              }}
-              activeOpacity={0.7}
-              style={{ minHeight: 150 }}
-            >
-              {createData.imageUrl ? (
-                <Image
-                  source={{ uri: createData.imageUrl }}
-                  className="w-full h-32 rounded-lg"
-                  resizeMode="cover"
-                />
-              ) : (
-                <>
-                  <ImagePlus size={48} color="#EEB170" />
-                  <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#0C3572] text-base mt-3">
-                    Tap to upload banner image
-                  </Text>
-                  <Text style={{ fontFamily: "Outfit_400Regular" }}  className="text-[#2175C0] text-sm mt-1">
-                    Recommended: 350x166px
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {/* Link Input */}
-            <Input
-              label="Banner Link"
-              value={createData.link || ""}
-              onChangeText={(value) => {
-                setCreateData({
-                  ...createData,
-                  link: value,
-                });
-              }}
-              placeholder="https://example.com"
-              className="mb-4"
-            />
-
-            {/* Create Button */}
-            <TouchableOpacity
-              className={`${
-                creating ? "bg-[#EEB170]/50" : "bg-[#EEB170]"
-              } py-4 rounded-xl flex-row items-center justify-center`}
-              disabled={creating}
-              onPress={handleCreateBanner}
-              activeOpacity={0.7}
-            >
-              {creating ? (
-                <>
-                  <ActivityIndicator color="#121212" />
-                  <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#121212]  text-base ml-2">
-                    Creating...
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Upload size={20} color="#121212" />
-                  <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#121212]  text-base ml-2">
-                    Create Banner
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Existing Banners */}
-          <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#EEB170] text-xl mb-4">
-            Active Banners ({data.length})
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Create Banner Form */}
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 24,
+            borderWidth: 1,
+            borderColor: cardBorder,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: "Poppins_600SemiBold",
+              color: textPrimary,
+              fontSize: 18,
+              marginBottom: 16,
+            }}
+          >
+            Create New Banner
           </Text>
 
-          {loading ? (
-            <View className="items-center justify-center py-12">
-              <ActivityIndicator size="large" color="#EEB170" />
-              <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] mt-4">Loading banners...</Text>
-            </View>
-          ) : data.length === 0 ? (
-            <View className="bg-[#FFFFFF66] rounded-2xl p-8 items-center border border-[#A0B3D0]">
-              <ImagePlus size={48} color="#555" />
-              <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-center mt-4">
-                No banners yet. Create your first banner above!
-              </Text>
-            </View>
-          ) : (
-            data.map((item, index) => (
-              <View
-                key={index}
-                className="bg-[#FFFFFF66] rounded-2xl overflow-hidden mb-4 border border-[#A0B3D0]"
-              >
-                {/* Banner Image */}
-                <TouchableOpacity
-                  onPress={() => {
-                    (async () => {
-                      if (!item.link) return;
-                      const supported = await Linking.canOpenURL(item.link);
-                      if (!supported) return;
-                      await Linking.openURL(item.link);
-                    })();
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Image
-                    className="w-full h-48"
-                    source={
-                      item.imageUrl != null
-                        ? { uri: fixDomain(item.imageUrl) }
-                        : require("@/assets/banner.png")
-                    }
-                    resizeMode="cover"
-                  />
-                  {item.link && (
-                    <View className="absolute top-3 right-3 bg-transparent/70 px-3 py-1.5 rounded-full flex-row items-center">
-                      <ExternalLink size={14} color="#EEB170" />
-                      <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#EEB170] text-xs ml-1">
-                        Link
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-                {/* Banner Actions */}
-                <View className="p-4">
-                  {item.link && (
-                    <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-sm mb-3" numberOfLines={1}>
-                      🔗 {item.link}
-                    </Text>
-                  )}
+          {/* Aspect Ratio Selector */}
+          <View style={{ marginBottom: 14 }}>
+            <Text
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: textSecondary,
+                fontSize: 13,
+                marginBottom: 8,
+              }}
+            >
+              Crop Aspect Ratio
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {RATIO_OPTIONS.map((opt) => {
+                const isSelected = selectedRatio[0] === opt.ratio[0] && selectedRatio[1] === opt.ratio[1];
+                return (
                   <TouchableOpacity
-                    className="bg-[#E84054] py-3 rounded-xl flex-row items-center justify-center"
-                    onPress={() => handleDeleteBanner(item)}
-                    disabled={deletingId === item.id}
+                    key={opt.label}
+                    onPress={() => setSelectedRatio(opt.ratio)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 8,
+                      paddingHorizontal: 4,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: isSelected ? "#A855F7" : cardBorder,
+                      backgroundColor: isSelected
+                        ? isDark
+                          ? "rgba(168, 85, 247, 0.16)"
+                          : "rgba(168, 85, 247, 0.12)"
+                        : isDark
+                        ? "rgba(255, 255, 255, 0.03)"
+                        : "rgba(0, 0, 0, 0.03)",
+                    }}
                     activeOpacity={0.7}
                   >
+                    <Text
+                      style={{
+                        fontFamily: isSelected ? "Poppins_600SemiBold" : "Poppins_500Medium",
+                        color: isSelected ? "#A855F7" : textPrimary,
+                        fontSize: 13,
+                      }}
+                    >
+                      {opt.label}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_400Regular",
+                        color: isSelected ? "#A855F7" : textSecondary,
+                        fontSize: 10,
+                        marginTop: 2,
+                      }}
+                    >
+                      {opt.desc}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Image Picker */}
+          <TouchableOpacity
+            style={{
+              borderWidth: 2,
+              borderStyle: "dashed",
+              borderColor: selectedImageUri ? "#FFBA00" : isDark ? "#3A3A42" : "#CBD5E1",
+              borderRadius: 16,
+              padding: selectedImageUri ? 8 : 16,
+              marginBottom: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 160,
+              backgroundColor: isDark ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.02)",
+            }}
+            onPress={pickImage}
+            activeOpacity={0.8}
+          >
+            {selectedImageUri ? (
+              <View style={{ width: "100%", alignItems: "center" }}>
+                <Image
+                  source={{ uri: selectedImageUri }}
+                  style={{
+                    width: "100%",
+                    aspectRatio: selectedRatio[0] / selectedRatio[1],
+                    maxHeight: 240,
+                    borderRadius: 12,
+                  }}
+                  resizeMode="cover"
+                />
+                <Text
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    color: "#A855F7",
+                    fontSize: 12,
+                    marginTop: 8,
+                  }}
+                >
+                  Tap to re-select or re-crop ({selectedRatio[0]}:{selectedRatio[1]})
+                </Text>
+              </View>
+            ) : (
+              <>
+                <ImagePlus size={36} color="#FFBA00" />
+                <Text
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    color: textPrimary,
+                    fontSize: 14,
+                    marginTop: 8,
+                  }}
+                >
+                  Tap to upload banner image
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Poppins_400Regular",
+                    color: textSecondary,
+                    fontSize: 12,
+                    marginTop: 2,
+                  }}
+                >
+                  Crop ratio: {selectedRatio[0]}:{selectedRatio[1]} (taller for hero banner)
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Title */}
+          <Input
+            label="Banner Title *"
+            value={title}
+            onChangeText={setTitle}
+            placeholder="e.g. Jamming Session or TechFest 2026"
+            style={{ marginBottom: 14 }}
+          />
+
+          {/* Description */}
+          <Input
+            label="Short Description"
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Catchy subtitle or date information"
+            style={{ marginBottom: 14 }}
+          />
+
+          {/* Destination Link */}
+          <Input
+            label="Destination Link *"
+            value={link}
+            onChangeText={setLink}
+            placeholder="https://saturnalia.in or /events/eventId"
+            style={{ marginBottom: 14 }}
+          />
+
+          {/* Order & Active Toggle */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 20,
+              gap: 16,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Input
+                label="Sort Order"
+                value={order}
+                onChangeText={setOrder}
+                keyboardType="numeric"
+                placeholder="0"
+              />
+            </View>
+
+            <View style={{ alignItems: "center", justifyContent: "center", marginTop: 10 }}>
+              <Text
+                style={{
+                  fontFamily: "Poppins_500Medium",
+                  color: textPrimary,
+                  fontSize: 13,
+                  marginBottom: 6,
+                }}
+              >
+                Is Active
+              </Text>
+              <Switch
+                value={isActive}
+                onValueChange={setIsActive}
+                trackColor={{ false: "#767577", true: "#FFBA00" }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={{
+              backgroundColor: "#FFBA00",
+              opacity: creating ? 0.7 : 1,
+              paddingVertical: 14,
+              borderRadius: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            disabled={creating}
+            onPress={handleCreateBanner}
+            activeOpacity={0.8}
+          >
+            {creating ? (
+              <>
+                <ActivityIndicator color="#000000" />
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: "#000000",
+                    fontSize: 15,
+                    marginLeft: 8,
+                  }}
+                >
+                  Creating Banner...
+                </Text>
+              </>
+            ) : (
+              <>
+                <Upload size={18} color="#000000" />
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: "#000000",
+                    fontSize: 15,
+                    marginLeft: 8,
+                  }}
+                >
+                  Create Banner
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Existing Banners */}
+        <Text
+          style={{
+            fontFamily: "Poppins_600SemiBold",
+            color: textPrimary,
+            fontSize: 18,
+            marginBottom: 16,
+          }}
+        >
+          All Banners ({banners.length})
+        </Text>
+
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: "center" }}>
+            <ActivityIndicator size="large" color="#FFBA00" />
+            <Text
+              style={{
+                fontFamily: "Poppins_400Regular",
+                color: textSecondary,
+                fontSize: 14,
+                marginTop: 12,
+              }}
+            >
+              Loading banners from server...
+            </Text>
+          </View>
+        ) : banners.length === 0 ? (
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 20,
+              padding: 32,
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: cardBorder,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: textSecondary,
+                fontSize: 15,
+                textAlign: "center",
+              }}
+            >
+              No banners created yet. Use the form above to add your first banner!
+            </Text>
+          </View>
+        ) : (
+          banners.map((item) => (
+            <View
+              key={item.id}
+              style={{
+                backgroundColor: cardBg,
+                borderRadius: 18,
+                overflow: "hidden",
+                marginBottom: 16,
+                borderWidth: 1,
+                borderColor: cardBorder,
+              }}
+            >
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={{ width: "100%", height: 160 }}
+                resizeMode="cover"
+              />
+
+              <View style={{ padding: 16 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      color: textPrimary,
+                      fontSize: 16,
+                      flex: 1,
+                      marginRight: 8,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {item.title}
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: item.isActive ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                      paddingHorizontal: 10,
+                      paddingVertical: 3,
+                      borderRadius: 12,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        color: item.isActive ? "#10B981" : "#EF4444",
+                        fontSize: 11,
+                      }}
+                    >
+                      {item.isActive ? "Active" : "Inactive"}
+                    </Text>
+                  </View>
+                </View>
+
+                {item.description ? (
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_400Regular",
+                      color: textSecondary,
+                      fontSize: 13,
+                      marginBottom: 8,
+                    }}
+                    numberOfLines={2}
+                  >
+                    {item.description}
+                  </Text>
+                ) : null}
+
+                {item.link ? (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(item.link)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <ExternalLink size={14} color="#A855F7" />
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_400Regular",
+                        color: "#A855F7",
+                        fontSize: 13,
+                        marginLeft: 6,
+                        flex: 1,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {item.link}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {/* Actions row */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderTopWidth: 1,
+                    borderTopColor: cardBorder,
+                    paddingTop: 12,
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => handleToggleActive(item)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.04)",
+                    }}
+                  >
+                    {item.isActive ? (
+                      <EyeOff size={16} color={textSecondary} />
+                    ) : (
+                      <Eye size={16} color="#10B981" />
+                    )}
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_500Medium",
+                        color: item.isActive ? textSecondary : "#10B981",
+                        fontSize: 12,
+                        marginLeft: 6,
+                      }}
+                    >
+                      {item.isActive ? "Deactivate" : "Activate"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => handleDeleteBanner(item)}
+                    disabled={deletingId === item.id}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                    }}
+                  >
                     {deletingId === item.id ? (
-                      <>
-                        <ActivityIndicator color="#fff" size="small" />
-                        <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#0C3572] ml-2">
-                          Deleting...
-                        </Text>
-                      </>
+                      <ActivityIndicator size="small" color="#EF4444" />
                     ) : (
                       <>
-                        <Trash2 size={18} color="#fff" />
-                        <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#0C3572] ml-2">
-                          Delete Banner
+                        <Trash2 size={16} color="#EF4444" />
+                        <Text
+                          style={{
+                            fontFamily: "Poppins_500Medium",
+                            color: "#EF4444",
+                            fontSize: 12,
+                            marginLeft: 6,
+                          }}
+                        >
+                          Delete
                         </Text>
                       </>
                     )}
                   </TouchableOpacity>
                 </View>
               </View>
-            ))
-          )}
-        </View>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );

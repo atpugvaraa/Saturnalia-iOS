@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { registerForEvent, unregisterForEvent, createEventTeam, joinEventTeam, leaveTeam, deleteTeam, removeTeamMember } from '@/api/events';
+import { registerForEvent, unregisterForEvent, createEventTeam, joinEventTeam, leaveTeam, deleteTeam, removeTeamMember, confirmTeam } from '@/api/events';
 
 export const useRegisterForEvent = () => {
   const queryClient = useQueryClient();
@@ -75,6 +75,17 @@ export const useRemoveTeamMember = () => {
   
   return useMutation({
     mutationFn: ({ teamRef, userId }: { teamRef: string; userId: string }) => removeTeamMember(teamRef, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+  });
+};
+
+export const useConfirmTeam = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (teamRef: string) => confirmTeam(teamRef),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
     },

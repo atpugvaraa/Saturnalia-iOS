@@ -1,20 +1,27 @@
 // src/screens/App/Profile/UserEventsScreen.tsx
-import React, { useState } from "react";
-import { Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useState, useCallback } from "react";
+import { Text, View, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUserStore } from "@/state/userStore";
-import Header from '@/components/layout/Header'
+import { useThemeStore } from "@/state/themeStore";
 import { useMyEvents } from '@/hooks/useMyEvents';
 
 const UserEventsScreen: React.FC = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
   const [activeFilter, setActiveFilter] = useState('all');
   const { userData: userProfile } = useUserStore();
-  const userId = userProfile?.userId || '';
 
   const { data: rows, loading, refresh } = useMyEvents();
+
+  const bgColor = isDark ? '#131316' : '#E0E0E0';
+  const cardBg = isDark ? '#1C1C20' : '#FFFFFF';
+  const cardBorder = isDark ? '#2A2A30' : '#D5D5D5';
+  const textColor = isDark ? '#FFFFFF' : '#111827';
+  const subTextColor = isDark ? '#A0A0A0' : '#6B7280';
 
   useFocusEffect(
     useCallback(() => {
@@ -37,37 +44,44 @@ const UserEventsScreen: React.FC = () => {
     };
   });
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case 'confirmed':
-        return 'bg-green-500/20 text-green-400';
+        return {
+          bg: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7',
+          color: '#22c55e',
+          label: 'Confirmed',
+        };
       case 'pending':
-        return 'bg-[#EEB170]/20 text-[#EEB170]';
+        return {
+          bg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+          color: '#f59e0b',
+          label: 'Pending',
+        };
       case 'awaited':
-        return 'bg-blue-500/20 text-blue-400';
+        return {
+          bg: isDark ? 'rgba(65, 184, 240, 0.15)' : '#E0F2FE',
+          color: '#41B8F0',
+          label: 'Awaited',
+        };
       case 'payment_pending':
-        return 'bg-orange-500/20 text-orange-400';
+        return {
+          bg: isDark ? 'rgba(249, 115, 22, 0.15)' : '#FFEDD5',
+          color: '#f97316',
+          label: 'Payment Due',
+        };
       case 'rejected':
-        return 'bg-red-500/20 text-red-400';
+        return {
+          bg: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+          color: '#ef4444',
+          label: 'Rejected',
+        };
       default:
-        return 'bg-gray-500/20 text-[#2175C0]';
-    }
-  };
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'music':
-        return 'musical-notes';
-      case 'arts':
-        return 'brush';
-      case 'gaming':
-        return 'game-controller';
-      case 'sports':
-        return 'fitness';
-      case 'tech':
-        return 'laptop';
-      default:
-        return 'calendar';
+        return {
+          bg: isDark ? '#26262B' : '#F3F4F6',
+          color: subTextColor,
+          label: status.charAt(0).toUpperCase() + status.slice(1),
+        };
     }
   };
 
@@ -76,18 +90,35 @@ const UserEventsScreen: React.FC = () => {
     return event.status === activeFilter;
   });
 
-  const FilterButton = ({ title, filterKey }: { title: string, filterKey: string }) => (
-    <TouchableOpacity
-      className={`px-8 py-2 border-2 rounded-2xl mr-3 ${activeFilter === filterKey ? 'border-[#F22F50]' : 'border-[#A0B3D0]'
-        }`}
-      onPress={() => setActiveFilter(filterKey)}
-    >
-      <Text style={{ fontFamily: 'Outfit_500Medium' }} className={`${activeFilter === filterKey ? 'text-[#F22F50]' : 'text-[#0C3572]'
-        }`}>
-        {title}
-      </Text>
-    </TouchableOpacity>
-  );
+  const availableStatuses = Array.from(new Set(events.map(e => e.status)));
+
+  const FilterButton = ({ title, filterKey }: { title: string, filterKey: string }) => {
+    const isSelected = activeFilter === filterKey;
+    return (
+      <TouchableOpacity
+        style={{
+          paddingHorizontal: 18,
+          paddingVertical: 8,
+          borderRadius: 20,
+          marginRight: 10,
+          borderWidth: 1.5,
+          borderColor: isSelected ? '#41B8F0' : cardBorder,
+          backgroundColor: isSelected ? (isDark ? 'rgba(65, 184, 240, 0.15)' : '#E0F2FE') : cardBg,
+        }}
+        onPress={() => setActiveFilter(filterKey)}
+      >
+        <Text
+          style={{
+            fontFamily: isSelected ? 'Poppins_600SemiBold' : 'Poppins_500Medium',
+            color: isSelected ? '#41B8F0' : subTextColor,
+            fontSize: 13,
+          }}
+        >
+          {title}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   const getStatusDisplayTitle = (status: string) => {
     switch (status) {
@@ -99,34 +130,65 @@ const UserEventsScreen: React.FC = () => {
     }
   };
 
-  const availableStatuses = Array.from(new Set(events.map(e => e.status)));
-
   if (loading) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center">
-        <ActivityIndicator size="large" color="#EEB170" />
-        <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572] mt-4">Loading your events...</Text>
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#41B8F0" />
+        <Text style={{ fontFamily: 'Poppins_500Medium', color: subTextColor, marginTop: 16 }}>
+          Loading your registered events...
+        </Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-transparent">
-      {/* Header */}
-      <Header />
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      <View className="flex-row items-center justify-between mb-4 px-6 mt-6">
-          <TouchableOpacity onPress={() => router.back()} className="mr-4">
-            <Ionicons name="arrow-back" size={24} color="#0C3572" />
-          </TouchableOpacity>
-          <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-2xl">My Events</Text>
-          <View className="w-12" />
+      {/* Top Header */}
+      <View
+        style={{
+          paddingTop: Math.max(insets.top + 8, 44),
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: bgColor,
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: cardBg,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 14,
+          }}
+        >
+          <Ionicons name="arrow-back" size={20} color={textColor} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{ fontFamily: "Talina", fontSize: 24, color: textColor, letterSpacing: 0.5 }}
+          >
+            MY EVENTS
+          </Text>
+          <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 13, color: '#41B8F0' }}>
+            Registered Competitions & Activities
+          </Text>
+        </View>
       </View>
 
-
-      {/* Filters */}
+      {/* Filters Bar */}
       {events.length > 0 && (
-        <View className="px-6 py-4">
+        <View style={{ paddingVertical: 14, paddingHorizontal: 20 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <FilterButton title="All" filterKey="all" />
             {availableStatuses.map(status => (
@@ -142,57 +204,76 @@ const UserEventsScreen: React.FC = () => {
 
       {/* Events List */}
       <ScrollView
-        className="flex-1 px-6"
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
       >
         {filteredEvents.length === 0 ? (
-          <View className="flex-1 justify-center items-center py-16">
-            <Ionicons name="calendar-outline" size={64} color="#6B7280" />
-            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-xl mt-4 mb-2">
-              {activeFilter === 'all' ? 'No Events Registered' : `No ${activeFilter} Events`}
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 64 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: cardBg, borderWidth: 1, borderColor: cardBorder, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <Ionicons name="calendar-outline" size={40} color={subTextColor} />
+            </View>
+            <Text style={{ fontFamily: 'Talina', color: textColor, fontSize: 20, marginBottom: 8, textAlign: 'center' }}>
+              {activeFilter === 'all' ? 'NO EVENTS REGISTERED' : `NO ${activeFilter.toUpperCase()} EVENTS`}
             </Text>
-            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-center mb-6 leading-6">
+            <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, textAlign: 'center', marginBottom: 24, lineHeight: 22, fontSize: 14 }}>
               {activeFilter === 'all'
-                ? "You haven't registered for any events yet.\nExplore and register for exciting events!"
-                : `No events with ${activeFilter} status found.`
-              }
+                ? "You haven't registered for any events yet.\nExplore competitions and activities now!"
+                : `No registrations found with ${activeFilter} status.`}
             </Text>
 
             {activeFilter === 'all' && (
               <TouchableOpacity 
-              onPress={() => router.push("/events/SearchEvents")}
-               className="bg-[#EEB170] rounded-xl px-6 py-3 flex-row items-center">
-                <Ionicons name="add" size={20} color="#000" />
-                <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-black font-semibold ml-2">Browse Events</Text>
+                onPress={() => router.push('/(tabs)/events')}
+                style={{ backgroundColor: '#41B8F0', borderRadius: 16, paddingHorizontal: 24, paddingVertical: 14, flexDirection: 'row', alignItems: 'center' }}
+              >
+                <Ionicons name="compass-outline" size={18} color="#FFFFFF" />
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#FFFFFF', fontSize: 15, marginLeft: 8 }}>
+                  Explore Events
+                </Text>
               </TouchableOpacity>
             )}
           </View>
         ) : (
           <View>
-            {filteredEvents.map((event) => (
-              <TouchableOpacity
-                key={event.eventId}
-                onPress={() => router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } })}
-                className="bg-white rounded-2xl p-4 mb-3 border border-[#A0B3D0]"
-              >
-                <View className="flex-row justify-between items-start">
-                  <View className="flex-1">
-                    <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg">
-                      {event.eventName}
-                    </Text>
-                    <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] mt-1">
-                      {event.eventCategory}
-                    </Text>
+            {filteredEvents.map((event) => {
+              const badge = getStatusBadge(event.status);
+              return (
+                <TouchableOpacity
+                  key={event.eventId}
+                  onPress={() => router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } })}
+                  style={{
+                    backgroundColor: cardBg,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                    borderRadius: 20,
+                    padding: 18,
+                    marginBottom: 14,
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                      <Text style={{ fontFamily: 'Poppins_600SemiBold', color: textColor, fontSize: 17, marginBottom: 4 }}>
+                        {event.eventName}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ backgroundColor: isDark ? 'rgba(65, 184, 240, 0.12)' : 'rgba(65, 184, 240, 0.1)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                          <Text style={{ fontFamily: 'Poppins_500Medium', color: '#41B8F0', fontSize: 11, textTransform: 'capitalize' }}>
+                            {event.eventCategory}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={{ backgroundColor: badge.bg, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+                      <Text style={{ fontFamily: 'Poppins_600SemiBold', color: badge.color, fontSize: 12 }}>
+                        {badge.label}
+                      </Text>
+                    </View>
                   </View>
-                  <View className={`px-3 py-1 rounded-full ${getStatusColor(event.status).split(' ')[0]}`}>
-                    <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className={`text-xs ${getStatusColor(event.status).split(' ')[1]}`}>
-                      {event.status === 'payment_pending' ? 'Payment Due' : event.status.charAt(0).toUpperCase() + event.status.slice(1)}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>

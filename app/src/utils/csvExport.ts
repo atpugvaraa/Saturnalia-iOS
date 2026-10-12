@@ -1,8 +1,8 @@
-// src/utils/csvExporter.ts
 import * as FileSystem from "expo-file-system"; 
 import { Platform } from "react-native";
 import { showAlert } from "../components";
 import * as Sharing from "expo-sharing";
+import { UserEventRegistration } from "@/api/admin";
 
 interface TeamRegistrationView {
   teamId: string;
@@ -102,7 +102,7 @@ export const generateTeamMembersCSV = (
       team.members.forEach((member) => {
         const isLeader = member.userId === team.leaderId;
         const customResponses = member.responses
-          ? member.responses.map((r) => `${r.label}: ${r.value}`).join("; ")
+          ? member.responses.map((r: any) => `${r.label}: ${r.value}`).join("; ")
           : "";
         const row = [
           escapeCSVValue(team.teamName),
@@ -124,4 +124,49 @@ export const generateTeamMembersCSV = (
   return csvRows.join("\n");
 };
 
-/* Removed API call */
+export const exportRegistrationsToCSV = async (
+  data: any[],
+  eventTitle: string,
+  isTeamEvent: boolean,
+  exportType: "summary" | "detailed" = "summary"
+) => {
+  try {
+    let csvContent = "";
+    if (isTeamEvent) {
+      if (exportType === "detailed") {
+        csvContent = generateTeamMembersCSV(data, eventTitle);
+      } else {
+        csvContent = generateTeamRegistrationsCSV(data, eventTitle);
+      }
+    } else {
+      const headers = ["Name", "Email", "Phone", "College", "Status", "Registration Date"];
+      const rows = data.map((reg: any) => [
+        escapeCSVValue(reg.user?.name || reg.user?.displayName || "Unknown"),
+        escapeCSVValue(reg.user?.email),
+        escapeCSVValue(reg.user?.phoneNumber),
+        escapeCSVValue(reg.user?.collegeName),
+        escapeCSVValue(reg.status || "confirmed"),
+        escapeCSVValue(formatDateForCSV(reg.registeredAt)),
+      ]);
+      csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    }
+
+    const filename = `${eventTitle.replace(/[^a-zA-Z0-9]/g, "_")}_registrations.csv`;
+    const fileUri = `${FileSystem.documentDirectory}${filename}`;
+    await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(fileUri, {
+        mimeType: "text/csv",
+        dialogTitle: "Export Registrations CSV",
+      });
+    } else {
+      showAlert("Export", `CSV saved to ${fileUri}`);
+    }
+  } catch (error) {
+    console.error("Error exporting CSV:", error);
+    showAlert("Export Failed", "Failed to export CSV");
+  }
+};

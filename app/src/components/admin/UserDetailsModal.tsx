@@ -27,6 +27,7 @@ import {
 } from "lucide-react-native";
 import { AdminUserProfile } from '@/types/adminTypes';
 import { UserProfile } from '@/types/models';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAlert } from "../index";
 import { PrivateRoleComponent } from "../auth/PrivateRoleComponent";
 import { adminGetUserRegistrations, adminUpdateUser, adminDeleteUser } from "@/api/admin";
@@ -78,6 +79,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
   onUserUpdate,
   onUserDelete,
 }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -837,7 +839,13 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
           </ScrollView>
 
           {/* Footer */}
-          <View className="px-6 py-4 border-t border-[#2175C0]/10 flex-row gap-3">
+          <View
+            className="px-6 border-t border-[#2175C0]/10 flex-row gap-3"
+            style={{
+              paddingTop: 16,
+              paddingBottom: Math.max(insets.bottom, 16),
+            }}
+          >
             <PrivateRoleComponent allowedRoles={['admin']}>
               <TouchableOpacity
                 onPress={handleDeleteUser}

@@ -9,8 +9,8 @@ export interface ThemeColors {
   cardBorder: string;
   text: string;
   textSecondary: string;
-  topGradient: [string, string, string];
-  bottomGradient: [string, string, string, string];
+  topGradient: [string, string, ...string[]];
+  bottomGradient: [string, string, ...string[]];
   dotActive: string;
   dotInactive: string;
   searchBg: string;
@@ -26,8 +26,14 @@ export const lightColors: ThemeColors = {
   cardBorder: '#D5D5D5',
   text: '#000000',
   textSecondary: '#555555',
-  topGradient: ['rgba(224, 224, 224, 0.98)', 'rgba(224, 224, 224, 0.55)', 'rgba(224, 224, 224, 0)'],
-  bottomGradient: ['rgba(224, 224, 224, 0)', 'rgba(224, 224, 224, 0.35)', 'rgba(224, 224, 224, 0.85)', '#E0E0E0'],
+  topGradient: ['rgba(224, 224, 224, 0.95)', 'rgba(224, 224, 224, 0.4)', 'rgba(224, 224, 224, 0)'],
+  bottomGradient: [
+    'rgba(224, 224, 224, 0)',
+    'rgba(224, 224, 224, 0.25)',
+    'rgba(224, 224, 224, 0.65)',
+    'rgba(224, 224, 224, 0.92)',
+    '#E0E0E0',
+  ],
   dotActive: '#000000',
   dotInactive: 'rgba(0, 0, 0, 0.3)',
   searchBg: '#FFFFFF',
@@ -43,8 +49,14 @@ export const darkColors: ThemeColors = {
   cardBorder: '#2A2A30',
   text: '#FFFFFF',
   textSecondary: '#A0A0A0',
-  topGradient: ['rgba(19, 19, 22, 0.98)', 'rgba(19, 19, 22, 0.55)', 'rgba(19, 19, 22, 0)'],
-  bottomGradient: ['rgba(19, 19, 22, 0)', 'rgba(19, 19, 22, 0.35)', 'rgba(19, 19, 22, 0.85)', '#131316'],
+  topGradient: ['rgba(0, 0, 0, 0.95)', 'rgba(0, 0, 0, 0.4)', 'rgba(0, 0, 0, 0)'],
+  bottomGradient: [
+    'rgba(0, 0, 0, 0)',
+    'rgba(0, 0, 0, 0.25)',
+    'rgba(0, 0, 0, 0.65)',
+    'rgba(0, 0, 0, 0.92)',
+    '#000000',
+  ],
   dotActive: '#FFFFFF',
   dotInactive: 'rgba(255, 255, 255, 0.35)',
   searchBg: '#1C1C20',

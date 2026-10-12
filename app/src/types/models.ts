@@ -151,17 +151,21 @@ export type Reward = {
 export type Reel = {
   id: string;
   videoUrl: string;
-
+  videoRef?: string;
+  thumbnailUrl?: string;
   title: string;
   description: string;
-  event: {
+  eventId?: string;
+  event?: {
     id: string;
     name: string;
     description: string;
     isRegistrationOpen: boolean;
   };
-  duration: number;
-  createdAt: any;
+  duration?: number;
+  order?: number;
+  createdAt?: any;
+  updatedAt?: any;
 };
 
 // Firebase Event model that matches the backend structure
@@ -187,6 +191,7 @@ export interface FirebaseEvent {
   images: string[];
   isFeatured: boolean;
   isPublic: boolean;
+  isLive?: boolean;
   links: string[];
   maxTeamSize?: number;
   minTeamSize?: number;

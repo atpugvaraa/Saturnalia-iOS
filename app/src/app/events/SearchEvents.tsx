@@ -1,148 +1,322 @@
 // src/screens/App/Home/SearchEventsScreen.tsx
 import React, { useState } from 'react';
-import { Text, View, TextInput, FlatList, TouchableOpacity, Image, ScrollView } from 'react-native';
-import { Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  Text,
+  View,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  StatusBar,
+  ActivityIndicator,
+} from 'react-native';
+import { ArrowLeft, Search, X, Calendar, Clock } from 'lucide-react-native';
 import { useEventsSearch, useEventsByCategory } from '@/hooks/useEvents';
 import { FirebaseEvent } from '@/types/models';
 import { getFormattedDate, getFormattedTime } from '@/utils/dateUtils';
-
 import { useRouter } from 'expo-router';
+import { useThemeStore } from '@/state/themeStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SearchEventsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+
   const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const categories = ['All', 'Technical', 'Cultural', 'Business', 'Informal'];
+
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
 
   // Use both search and category hooks
   const { events: searchEvents, loading: searchLoading } = useEventsSearch(searchText);
   const { events: categoryEvents, loading: categoryLoading } = useEventsByCategory(selectedCategory);
 
-  // Combine filters: if searching, filter by search; otherwise by category
   const filteredEvents = searchText.trim() ? searchEvents : categoryEvents;
   const loading = searchText.trim() ? searchLoading : categoryLoading;
 
   const handleSearch = (text: string) => {
     setSearchText(text);
-    // No manual filtering needed - the hook handles it automatically!
   };
 
   const renderEventItem = ({ item }: { item: FirebaseEvent }) => {
-    // const day = getEventDay(item.dateTime, item.startDateTime);
-    // const month = getEventMonth(item.dateTime, item.startDateTime)
-    // const formattedDate = getEventTime(item.dateTime, item.startDateTime);
     const date = getFormattedDate(item.dateTime, item.startDateTime);
-    // const time = getEventTime(item.dateTime, item.startDateTime);
+    const time = getFormattedTime(item.dateTime);
     const eventImage = item.coverImage ? { uri: item.coverImage } : require('@/assets/event.jpg');
 
     return (
       <TouchableOpacity
-        className="bg-[#0C3572] rounded-2xl flex-row mb-4 mx-4 p-3"
+        style={{
+          backgroundColor: cardBg,
+          borderRadius: 20,
+          flexDirection: 'row',
+          marginBottom: 14,
+          marginHorizontal: 20,
+          padding: 12,
+          borderWidth: 1,
+          borderColor: cardBorder,
+        }}
         onPress={() => router.push({ pathname: '/events/EventDetails', params: { eventData: JSON.stringify(item) } })}
+        activeOpacity={0.75}
       >
-
-
         {/* Event Image */}
-        <View className="w-[40%] h-32 overflow-hidden rounded-xl mr-3">
-          <Image source={eventImage} className="w-full h-full" resizeMode="cover"  />
+        <View style={{ width: 100, height: 100, overflow: 'hidden', borderRadius: 14, marginRight: 12 }}>
+          <Image source={eventImage} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
         </View>
 
         {/* Event Details */}
-        <View className="flex-1 justify-top gap-1">
-          {/* starting date and time  */}
-          <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-gray-400 text-sm">
-            {date}  -  {getFormattedTime(item.dateTime)}
-          </Text>
-          <Text
-            style={{ fontFamily: 'Outfit_700Bold' }}
-            className="text-white text-xl mb-1"
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {item.title}
-          </Text>
-          <Text style={{ fontFamily: 'Outfit_500Medium' }} className='text-white text-sm mb-1' numberOfLines={3} ellipsizeMode="tail">
-            {item.shortDescription}
-          </Text>
+        <View style={{ flex: 1, justifyContent: 'space-between', paddingVertical: 2 }}>
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <Calendar size={12} color="#41B8F0" />
+              <Text
+                style={{
+                  fontFamily: 'Poppins_400Regular',
+                  color: textSecondary,
+                  fontSize: 11,
+                  marginLeft: 4,
+                }}
+              >
+                {date} {time ? `• ${time}` : ''}
+              </Text>
+            </View>
+
+            <Text
+              style={{
+                fontFamily: 'Poppins_600SemiBold',
+                color: textPrimary,
+                fontSize: 15,
+                marginBottom: 2,
+              }}
+              numberOfLines={1}
+            >
+              {item.title}
+            </Text>
+
+            <Text
+              style={{
+                fontFamily: 'Poppins_400Regular',
+                color: textSecondary,
+                fontSize: 12,
+                lineHeight: 16,
+              }}
+              numberOfLines={2}
+            >
+              {item.shortDescription || item.description}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+            <View
+              style={{
+                backgroundColor: isDark ? 'rgba(65, 184, 240, 0.15)' : '#E0F2FE',
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 8,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: 'Poppins_500Medium',
+                  color: '#41B8F0',
+                  fontSize: 10,
+                }}
+              >
+                {item.category}
+              </Text>
+            </View>
+            {item.eventType && (
+              <View
+                style={{
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'Poppins_500Medium',
+                    color: textSecondary,
+                    fontSize: 10,
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {item.eventType}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View className="flex-1 bg-transparent">
-      {/* Header */}
-      <View className="bg-transparent px-4 pt-10 pb-4">
-        <View className="flex-row  flex justify-between items-center mb-4">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="p-2"
-          >
-            <Ionicons name="arrow-back" size={24} color="#0C3572" />
-          </TouchableOpacity>
-          <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-3xl">Events</Text>
-          <View className='bg-white h-12 w-14 invisible'>
-          </View>
-        </View>
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-        {/* Search Input */}
+      {/* Header */}
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: bgColor,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 14,
+          }}
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={22} color={textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: 'Talina',
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
+          >
+            Search Events
+          </Text>
+          <Text
+            style={{
+              fontFamily: 'Poppins_400Regular',
+              fontSize: 12,
+              color: '#41B8F0',
+              marginTop: 1,
+            }}
+          >
+            Discover competitions, cultural & technical events
+          </Text>
+        </View>
+      </View>
+
+      {/* Search Input Box */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
         <View
           style={{
-               boxShadow: '0px 4px 10px 0px rgba(0, 0, 0, 0.2)', 
-            }}
-        className="bg-white rounded-2xl px-5 py-2 flex-row items-center mb-4">
-          <Ionicons name="search" size={20} className='mb-1' color="#9CA3AF" />
+            backgroundColor: cardBg,
+            borderRadius: 16,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: cardBorder,
+          }}
+        >
+          <Search size={18} color="#41B8F0" />
           <TextInput
-            style={{ fontFamily: 'Outfit_500Medium' }}
-            className="text-black flex-1 ml-2 text-lg"
-            placeholder="Search events, categories, venues..."
-            placeholderTextColor="#9CA3AF"
+            style={{
+              fontFamily: 'Poppins_400Regular',
+              fontSize: 14,
+              color: textPrimary,
+              flex: 1,
+              marginLeft: 10,
+            }}
+            placeholder="Search by title, category, description..."
+            placeholderTextColor={textSecondary}
             value={searchText}
             onChangeText={handleSearch}
             autoFocus={true}
           />
           {searchText.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch('')}>
-              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            <TouchableOpacity onPress={() => handleSearch('')} activeOpacity={0.7}>
+              <X size={18} color={textSecondary} />
             </TouchableOpacity>
           )}
         </View>
+      </View>
 
-        {/* Category Filter - only show when not searching */}
-        {!searchText.trim() && (
+      {/* Category Pills (shown when not searching) */}
+      {!searchText.trim() && (
+        <View style={{ marginBottom: 14 }}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            className="mb-2"
+            contentContainerStyle={{ paddingHorizontal: 20 }}
           >
-            {categories.map(cat => {
+            {categories.map((cat) => {
               const selected = selectedCategory === cat;
               return (
-                <Pressable
+                <TouchableOpacity
                   key={cat}
                   onPress={() => setSelectedCategory(cat)}
-                  className={`${selected ? 'border-[#EEB170]' : 'border-[#0C3572]'} px-4 py-2 border-2 rounded-2xl mr-3`}
+                  style={{
+                    backgroundColor: selected ? '#41B8F0' : cardBg,
+                    borderWidth: 1,
+                    borderColor: selected ? '#41B8F0' : cardBorder,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    marginRight: 8,
+                  }}
+                  activeOpacity={0.75}
                 >
-                  <Text style={{ fontFamily: 'Outfit_500Medium' }} className={`${selected ? 'text-[#EEB170]' : 'text-[#0C3572]'} font-medium`}>{cat}</Text>
-                </Pressable>
+                  <Text
+                    style={{
+                      fontFamily: 'Poppins_600SemiBold',
+                      fontSize: 12,
+                      color: selected ? '#FFFFFF' : textPrimary,
+                    }}
+                  >
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
-        )}
-      </View>
+        </View>
+      )}
 
       {/* Results */}
-      <View className="flex-1">
+      <View style={{ flex: 1 }}>
         {loading ? (
-          <View className="flex-1 items-center justify-center">
-            <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] text-lg">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="large" color="#41B8F0" />
+            <Text
+              style={{
+                fontFamily: 'Poppins_400Regular',
+                color: textSecondary,
+                fontSize: 13,
+                marginTop: 12,
+              }}
+            >
               Loading events...
             </Text>
           </View>
         ) : filteredEvents.length > 0 ? (
           <>
-            <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] text-sm px-6 mb-4">
+            <Text
+              style={{
+                fontFamily: 'Poppins_500Medium',
+                color: textSecondary,
+                fontSize: 12,
+                paddingHorizontal: 20,
+                marginBottom: 10,
+              }}
+            >
               {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} found
             </Text>
             <FlatList
@@ -150,17 +324,33 @@ export default function SearchEventsScreen() {
               renderItem={renderEventItem}
               keyExtractor={(item) => item.eventId}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 100 }}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
             />
           </>
         ) : (
-          <View className="flex-1 items-center justify-center px-6">
-            <Ionicons name="search" size={64} color="#0C3572" />
-            <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572] text-lg text-center mt-4">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
+            <Search size={48} color={textSecondary} />
+            <Text
+              style={{
+                fontFamily: 'Poppins_600SemiBold',
+                color: textPrimary,
+                fontSize: 16,
+                textAlign: 'center',
+                marginTop: 14,
+              }}
+            >
               No events found matching "{searchText}"
             </Text>
-            <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] text-sm text-center mt-2">
-              Try searching for different keywords
+            <Text
+              style={{
+                fontFamily: 'Poppins_400Regular',
+                color: textSecondary,
+                fontSize: 12,
+                textAlign: 'center',
+                marginTop: 4,
+              }}
+            >
+              Try searching with different keywords or browse by category
             </Text>
           </View>
         )}

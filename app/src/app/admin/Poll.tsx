@@ -4,7 +4,7 @@ import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
-  Switch,
+  StatusBar,
 } from "react-native";
 import { showAlert } from "@/components";
 import { useEffect, useState } from "react";
@@ -24,29 +24,40 @@ import {
   PowerOff,
   MessageSquarePlus,
   ChevronDown,
-  Trash2, // Add this import
+  Trash2,
 } from "lucide-react-native";
-import { createUpdate, getUpdates, deleteUpdate } from "@/api/admin"; // Add getUpdates and deleteUpdate
+import { createUpdate, getUpdates, deleteUpdate } from "@/api/admin";
 import { subscribeToEvents } from "@/api/events";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function PollScreen() {
   const navigation = useAdminNavigation();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+
   const [data, setData] = useState<Poll[]>([]);
   const [createData, setCreateData] = useState<Partial<Poll>>({
     options: [""],
   });
   const [updateData, setUpdateData] = useState<Partial<Update>>({});
-  const [updates, setUpdates] = useState<Update[]>([]); // Add state for updates
+  const [updates, setUpdates] = useState<Update[]>([]);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null); // Add state for deleting
-  const [activeTab, setActiveTab] = useState("Polls");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"Polls" | "Updates">("Polls");
   const [events, setEvents] = useState<FirebaseEvent[]>([]);
   const [showEventDropdown, setShowEventDropdown] = useState(false);
   const [linkType, setLinkType] = useState<'none' | 'event' | 'external'>('none');
+
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
 
   useEffect(() => {
     setLoading(true);
@@ -59,7 +70,6 @@ export default function PollScreen() {
       setEvents(fetchedEvents);
     });
 
-    // Subscribe to updates
     const unsubscribeUpdates = getUpdates((fetchedUpdates) => {
       setUpdates(fetchedUpdates);
     });
@@ -67,7 +77,7 @@ export default function PollScreen() {
     return () => {
       unsubscribe();
       unsubscribeEvents();
-      unsubscribeUpdates(); // Cleanup
+      unsubscribeUpdates();
     };
   }, []);
 
@@ -98,17 +108,23 @@ export default function PollScreen() {
       createData.options.length < 2 ||
       createData.options.some((o) => o.trim() === "")
     ) {
-      showAlert("Error", "Please provide at least two valid options");
+      showAlert("Error", "Please enter at least two non-empty options");
       return;
     }
 
     setCreating(true);
     try {
+      const votes: { [key: string]: number } = {};
+      createData.options.forEach((option) => {
+        votes[option] = 0;
+      });
+
       await createPoll({
         question: createData.question,
-        options: createData.options.filter((o) => o.trim() !== ""),
+        options: createData.options,
+        votes: votes,
       });
-      // await loadData(); No longer needed due to real-time updates
+
       setCreateData({ options: [""] });
       showAlert("Success", "Poll created successfully!");
     } catch (error) {
@@ -121,31 +137,34 @@ export default function PollScreen() {
 
   const handleCreateUpdate = async () => {
     if (!updateData.title || !updateData.description) {
-      showAlert("Error", "Please enter a title and description");
+      showAlert("Error", "Please fill in all required fields (Title, Description)");
+      return;
+    }
+
+    if (linkType === 'external' && !updateData.link) {
+      showAlert("Error", "Please provide the external link URL");
+      return;
+    }
+
+    if (linkType === 'event' && !updateData.eventId) {
+      showAlert("Error", "Please select an event");
       return;
     }
 
     setUpdating(true);
     try {
-      const updatePayload: Omit<Update, "id" | "createdAt"> = {
+      await createUpdate({
         title: updateData.title,
         description: updateData.description,
-      };
+        linkType: linkType,
+        link: linkType === 'external' ? updateData.link : undefined,
+        eventId: linkType === 'event' ? updateData.eventId : undefined,
+        eventName: linkType === 'event' ? updateData.eventName : undefined,
+      });
 
-      // Only add link-related fields if they are provided
-      if (linkType === 'event' && updateData.eventId) {
-        updatePayload.linkType = 'event';
-        updatePayload.eventId = updateData.eventId;
-        updatePayload.eventName = updateData.eventName;
-      } else if (linkType === 'external' && updateData.link?.trim()) {
-        updatePayload.linkType = 'external';
-        updatePayload.link = updateData.link;
-      }
-
-      await createUpdate(updatePayload);
       setUpdateData({});
       setLinkType('none');
-      showAlert("Success", "Update created successfully!");
+      showAlert("Success", "Update broadcasted successfully!");
     } catch (error) {
       showAlert("Error", "Failed to create update");
       console.error(error);
@@ -154,32 +173,32 @@ export default function PollScreen() {
     }
   };
 
-  const handleDeleteUpdate = async (updateId: string, title: string) => {
-    // Show confirmation alert
+  const handleDeleteUpdate = async (id: string, title: string) => {
     showAlert(
       "Delete Update",
       `Are you sure you want to delete "${title}"?`,
       [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setDeletingId(updateId);
+            setDeletingId(id);
             try {
-              await deleteUpdate(updateId);
-              showAlert("Success", "Update deleted successfully!");
+              const success = await deleteUpdate(id);
+              if (success) {
+                showAlert("Success", "Update deleted successfully!");
+              } else {
+                showAlert("Error", "Failed to delete update");
+              }
             } catch (error) {
               showAlert("Error", "Failed to delete update");
               console.error(error);
             } finally {
               setDeletingId(null);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -191,8 +210,10 @@ export default function PollScreen() {
   };
 
   const addOption = () => {
-    const newOptions = [...(createData.options || []), ""];
-    setCreateData({ ...createData, options: newOptions });
+    setCreateData({
+      ...createData,
+      options: [...(createData.options || []), ""],
+    });
   };
 
   const removeOption = (index: number) => {
@@ -202,243 +223,397 @@ export default function PollScreen() {
   };
 
   return (
-    <View className="flex-1 bg-transparent">
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
       {/* Header */}
-      <View className="bg-[#EEB170] pt-4 rounded-b-2xl pb-6 px-6 flex-row items-center justify-between">
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
         <TouchableOpacity
           onPress={() => navigation.navigate("Dashboard")}
-          className="mr-4"
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
           activeOpacity={0.7}
         >
-          <ArrowLeft size={28} color="#121212" />
+          <ArrowLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <View className="flex-1">
-          <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#121212] text-2xl ">
-            Content Management
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
+          >
+            Polls & Broadcasts
           </Text>
-          <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#121212] text-sm opacity-80">
-            Create and manage polls and updates
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
+          >
+            Manage interactive community updates
           </Text>
         </View>
       </View>
 
-      <View className="flex-row mb-6">
-        <TouchableOpacity
-          onPress={() => setActiveTab("Polls")}
-          className={`flex-1 py-3 items-center justify-center border-b-2 ${
-            activeTab === "Polls" ? "border-[#EEB170]" : "border-transparent"
-          }`}
-        >
-          <Text
-
-            className={`text-lg ${
-              activeTab === "Polls" ? "text-[#EEB170]" : "text-[#2175C0]"
-            }`}
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-          >
-            Polls
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setActiveTab("Updates")}
-          className={`flex-1 py-3 items-center justify-center border-b-2 ${
-            activeTab === "Updates" ? "border-[#EEB170]" : "border-transparent"
-          }`}
-        >
-          <Text
-            className={`text-lg ${
-              activeTab === "Updates" ? "text-[#EEB170]" : "text-[#2175C0]"
-            }`}
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-          >
-            Updates
-          </Text>
-        </TouchableOpacity>
+      {/* Tabs */}
+      <View
+        style={{
+          flexDirection: "row",
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          paddingBottom: 4,
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+        }}
+      >
+        {(["Polls", "Updates"] as const).map((tab) => {
+          const isActive = activeTab === tab;
+          return (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                alignItems: "center",
+                borderBottomWidth: 2,
+                borderBottomColor: isActive ? "#41B8F0" : "transparent",
+              }}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  fontSize: 15,
+                  color: isActive ? "#41B8F0" : textSecondary,
+                }}
+              >
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 60 }}
+        showsVerticalScrollIndicator={false}
+      >
         {activeTab === "Polls" ? (
           <View>
-            {/* Create Poll Section */}
-            <View className="p-6">
-              <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-6 border border-[#A0B3D0]">
-                <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#EEB170] text-xl mb-4">
-                  Create New Poll
-                </Text>
-
-                <Input
-                  label="Poll Question"
-                  value={createData.question || ""}
-                  onChangeText={(value) => {
-                    setCreateData({
-                      ...createData,
-                      question: value,
-                    });
-                  }}
-                  placeholder="What's your favorite color?"
-                  className="mb-4 py-3"
-                />
-
-                {createData.options?.map((option, index) => (
-                  <View
-                    key={index}
-                    className="flex-row justify-center items-center mb-2"
-                  >
-                    <View className="flex-1 mr-2">
-                      <Input
-                        value={option}
-                        onChangeText={(text) => handleOptionChange(text, index)}
-                        placeholder={`Option ${index + 1}`}
-                        className="text-base px-4 py-3"
-                      />
-                    </View>
-                    <View className="flex-row justify-center mb-4 items-center">
-                      {createData.options && createData.options.length > 1 && (
-                        <TouchableOpacity
-                          onPress={() => removeOption(index)}
-                          className="p-3 rounded-full bg-[#FFFFFF66]"
-                        >
-                          <X size={18} color="#E84054" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                ))}
-
-                <TouchableOpacity
-                  className="flex-row items-center justify-center py-2 px-4 bg-[#FFFFFF66] rounded-lg my-4"
-                  onPress={addOption}
-                >
-                  <Plus size={16} color="#EEB170" />
-                  <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#EEB170] ml-2">Add Option</Text>
-                </TouchableOpacity>
-
-                {/* Create Button */}
-                <TouchableOpacity
-                  className={`${
-                    creating ? "bg-[#EEB170]/50" : "bg-[#EEB170]"
-                  } py-4 rounded-xl flex-row items-center justify-center`}
-                  disabled={creating}
-                  onPress={handleCreatePoll}
-                  activeOpacity={0.7}
-                >
-                  {creating ? (
-                    <>
-                      <ActivityIndicator color="#121212" />
-                      <Text className="text-[#121212] font-bold text-base ml-2">
-                        Creating...
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Upload size={20} color="#121212" />
-                      <Text className="text-[#121212] font-bold text-base ml-2">
-                        Create Poll
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* Existing Polls */}
-              <Text className="text-[#EEB170] text-xl font-bold mb-4">
-                Active Polls ({data.length})
+            {/* Create Poll Card */}
+            <View
+              style={{
+                backgroundColor: cardBg,
+                borderRadius: 20,
+                padding: 20,
+                marginBottom: 24,
+                borderWidth: 1,
+                borderColor: cardBorder,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  color: textPrimary,
+                  fontSize: 18,
+                  marginBottom: 16,
+                }}
+              >
+                Create New Poll
               </Text>
 
-              {loading ? (
-                <View className="items-center justify-center py-12">
-                  <ActivityIndicator size="large" color="#EEB170" />
-                  <Text className="text-[#2175C0] mt-4">Loading polls...</Text>
+              <Input
+                label="Poll Question"
+                value={createData.question || ""}
+                onChangeText={(value) => {
+                  setCreateData({
+                    ...createData,
+                    question: value,
+                  });
+                }}
+                placeholder="What's your favourite event?"
+                style={{ marginBottom: 14 }}
+              />
+
+              {createData.options?.map((option, index) => (
+                <View
+                  key={index}
+                  style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}
+                >
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Input
+                      value={option}
+                      onChangeText={(text) => handleOptionChange(text, index)}
+                      placeholder={`Option ${index + 1}`}
+                    />
+                  </View>
+                  {createData.options && createData.options.length > 1 && (
+                    <TouchableOpacity
+                      onPress={() => removeOption(index)}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: isDark ? "rgba(239, 68, 68, 0.15)" : "#FEE2E2",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <X size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
                 </View>
-              ) : data.length === 0 ? (
-                <View className="bg-[#FFFFFF66] rounded-2xl p-8 items-center border border-[#A0B3D0]">
-                  <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-center mt-4">
-                    No polls yet. Create your first poll above!
-                  </Text>
-                </View>
-              ) : (
-                data.map((item, index) => (
-                  <View
-                    key={index}
-                    className="bg-[#FFFFFF66] rounded-2xl overflow-hidden mb-4 border border-[#A0B3D0]"
-                  >
-                    <View className="p-4">
-                      <View className="flex-row justify-between items-start">
-                        <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#0C3572] text-lg mb-3 flex-1">
-                          {item.question}
-                        </Text>
-                        <View
-                          className={`px-2 py-1 rounded-full ${
-                            item.isActive ? "bg-green-500/20" : "bg-red-500/20"
-                          }`}
-                        >
-                          <Text
-                            style={{ fontFamily: "Outfit_600SemiBold" }}
-                            className={` text-xs ${
-                              item.isActive
-                                ? "text-green-400"
-                                : "text-red-400"
-                            }`}
-                          >
-                            {item.isActive ? "ACTIVE" : "INACTIVE"}
-                          </Text>
-                        </View>
-                      </View>
-                      {item.options.map((option, i) => (
-                        <View
-                          key={i}
-                          className="flex-row justify-between items-center py-2"
-                        >
-                          <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0]">{option}</Text>
-                          <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#0C3572]">
-                            {item.votes[option] || 0} votes
-                          </Text>
-                        </View>
-                      ))}
-                      <TouchableOpacity
-                        className={`${
-                          item.isActive ? "bg-[#E84054]" : "bg-green-500"
-                        } py-3 rounded-xl flex-row items-center justify-center mt-4`}
-                        onPress={() => handleToggleStatus(item)}
-                        disabled={togglingId === item.id}
-                        activeOpacity={0.7}
+              ))}
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: isDark ? "rgba(65, 184, 240, 0.1)" : "#E0F2FE",
+                  marginBottom: 16,
+                  marginTop: 4,
+                }}
+                onPress={addOption}
+                activeOpacity={0.7}
+              >
+                <Plus size={16} color="#41B8F0" />
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: "#41B8F0",
+                    marginLeft: 6,
+                    fontSize: 13,
+                  }}
+                >
+                  Add Option
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "#41B8F0",
+                  opacity: creating ? 0.7 : 1,
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                disabled={creating}
+                onPress={handleCreatePoll}
+                activeOpacity={0.8}
+              >
+                {creating ? (
+                  <>
+                    <ActivityIndicator color="#FFFFFF" />
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 8 }}>
+                      Creating...
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={18} color="#FFFFFF" />
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 8 }}>
+                      Create Poll
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Polls List */}
+            <Text
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: textPrimary,
+                fontSize: 18,
+                marginBottom: 14,
+              }}
+            >
+              Active Polls ({data.length})
+            </Text>
+
+            {loading ? (
+              <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                <ActivityIndicator size="large" color="#41B8F0" />
+                <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, marginTop: 12 }}>
+                  Loading polls...
+                </Text>
+              </View>
+            ) : data.length === 0 ? (
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 20,
+                  padding: 32,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
+                <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, textAlign: "center" }}>
+                  No polls yet. Create your first poll above!
+                </Text>
+              </View>
+            ) : (
+              data.map((item, index) => (
+                <View
+                  key={item.id || index}
+                  style={{
+                    backgroundColor: cardBg,
+                    borderRadius: 20,
+                    padding: 18,
+                    marginBottom: 14,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        color: textPrimary,
+                        fontSize: 16,
+                        flex: 1,
+                        marginRight: 8,
+                      }}
+                    >
+                      {item.question}
+                    </Text>
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 12,
+                        backgroundColor: item.isActive ? "#10B98120" : "#EF444420",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: "Poppins_600SemiBold",
+                          color: item.isActive ? "#10B981" : "#EF4444",
+                          fontSize: 10,
+                        }}
                       >
-                        {togglingId === item.id ? (
-                          <>
-                            <ActivityIndicator color="#fff" size="small" />
-                            <Text className="text-[#0C3572] font-semibold ml-2">
-                              {item.isActive
-                                ? "Deactivating..."
-                                : "Activating..."}
-                            </Text>
-                          </>
-                        ) : (
-                          <>
-                            {item.isActive ? (
-                              <PowerOff size={18} color="#fff" />
-                            ) : (
-                              <Power size={18} color="#fff" />
-                            )}
-                            <Text className="text-[#0C3572] font-semibold ml-2">
-                              {item.isActive
-                                ? "Deactivate Poll"
-                                : "Activate Poll"}
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
+                        {item.isActive ? "ACTIVE" : "INACTIVE"}
+                      </Text>
                     </View>
                   </View>
-                ))
-              )}
-            </View>
+
+                  {item.options.map((option, i) => (
+                    <View
+                      key={i}
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        paddingVertical: 6,
+                        borderBottomWidth: i < item.options.length - 1 ? 1 : 0,
+                        borderBottomColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
+                      }}
+                    >
+                      <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                        {option}
+                      </Text>
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 13 }}>
+                        {item.votes[option] || 0} votes
+                      </Text>
+                    </View>
+                  ))}
+
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 14,
+                      backgroundColor: item.isActive
+                        ? (isDark ? "rgba(239, 68, 68, 0.15)" : "#FEE2E2")
+                        : (isDark ? "rgba(16, 185, 129, 0.15)" : "#ECFDF5"),
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onPress={() => handleToggleStatus(item)}
+                    disabled={togglingId === item.id}
+                    activeOpacity={0.75}
+                  >
+                    {togglingId === item.id ? (
+                      <ActivityIndicator color={item.isActive ? "#EF4444" : "#10B981"} size="small" />
+                    ) : (
+                      <>
+                        {item.isActive ? (
+                          <PowerOff size={16} color="#EF4444" />
+                        ) : (
+                          <Power size={16} color="#10B981" />
+                        )}
+                        <Text
+                          style={{
+                            fontFamily: "Poppins_600SemiBold",
+                            color: item.isActive ? "#EF4444" : "#10B981",
+                            marginLeft: 6,
+                            fontSize: 13,
+                          }}
+                        >
+                          {item.isActive ? "Deactivate Poll" : "Activate Poll"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
           </View>
         ) : (
-          <View className="p-6">
-            {/* Create New Update Form */}
-            <View className="bg-[#FFFFFF66] rounded-2xl p-6 mb-6 border border-[#A0B3D0]">
-              <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#EEB170] text-xl mb-4">
-                Create New Update
+          <View>
+            {/* Create Update Form */}
+            <View
+              style={{
+                backgroundColor: cardBg,
+                borderRadius: 20,
+                padding: 20,
+                marginBottom: 24,
+                borderWidth: 1,
+                borderColor: cardBorder,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  color: textPrimary,
+                  fontSize: 18,
+                  marginBottom: 16,
+                }}
+              >
+                Create Broadcast Update
               </Text>
 
               <Input
@@ -451,7 +626,7 @@ export default function PollScreen() {
                   });
                 }}
                 placeholder="e.g., Event Schedule Change"
-                className="mb-4 py-3"
+                style={{ marginBottom: 14 }}
               />
 
               <Input
@@ -466,62 +641,46 @@ export default function PollScreen() {
                 placeholder="Describe the update in detail..."
                 multiline
                 numberOfLines={4}
-                className="mb-4 py-3 h-24"
+                style={{ marginBottom: 14 }}
               />
 
-              {/* Link Type Selection */}
-              <Text className="text-[#0C3572] text-sm mb-2 font-semibold">
+              {/* Action Button Link Type */}
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13, marginBottom: 8 }}>
                 Action Button (Optional)
               </Text>
-              <View className="flex-row mb-4 gap-2">
-                <TouchableOpacity
-                  onPress={() => setLinkType('none')}
-                  className={`flex-1 py-3 rounded-lg border-2 ${
-                    linkType === 'none'
-                      ? 'bg-[#EEB170] border-[#EEB170]'
-                      : 'bg-[#FFFFFF66] border-[#A0B3D0]'
-                  }`}
-                >
-                  <Text
-                    className={`text-center font-semibold ${
-                      linkType === 'none' ? 'text-black' : 'text-[#2175C0]'
-                    }`}
-                  >
-                    None
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setLinkType('external')}
-                  className={`flex-1 py-3 rounded-lg border-2 ${
-                    linkType === 'external'
-                      ? 'bg-[#EEB170] border-[#EEB170]'
-                      : 'bg-[#FFFFFF66] border-[#A0B3D0]'
-                  }`}
-                >
-                  <Text
-                    className={`text-center font-semibold ${
-                      linkType === 'external' ? 'text-black' : 'text-[#2175C0]'
-                    }`}
-                  >
-                    External Link
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setLinkType('event')}
-                  className={`flex-1 py-3 rounded-lg border-2 ${
-                    linkType === 'event'
-                      ? 'bg-[#EEB170] border-[#EEB170]'
-                      : 'bg-[#FFFFFF66] border-[#A0B3D0]'
-                  }`}
-                >
-                  <Text
-                    className={`text-center font-semibold ${
-                      linkType === 'event' ? 'text-black' : 'text-[#2175C0]'
-                    }`}
-                  >
-                    Event
-                  </Text>
-                </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+                {(["none", "external", "event"] as const).map((type) => {
+                  const isSelected = linkType === type;
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      onPress={() => setLinkType(type)}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        backgroundColor: isSelected
+                          ? (isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE")
+                          : cardBg,
+                        borderWidth: 1,
+                        borderColor: isSelected ? "#41B8F0" : cardBorder,
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: "Poppins_600SemiBold",
+                          color: isSelected ? "#41B8F0" : textSecondary,
+                          fontSize: 12,
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {type === "none" ? "None" : type === "external" ? "Link" : "Event"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {linkType === 'external' ? (
@@ -534,26 +693,50 @@ export default function PollScreen() {
                       link: value,
                     });
                   }}
-                  placeholder="https://example.com/event-details"
-                  className="mb-4 py-3"
+                  placeholder="https://example.com/info"
+                  style={{ marginBottom: 16 }}
                 />
               ) : linkType === 'event' ? (
-                <View className="mb-4">
-                  <Text className="text-[#0C3572] text-sm mb-2 font-semibold">
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13, marginBottom: 6 }}>
                     Select Event
                   </Text>
                   <TouchableOpacity
                     onPress={() => setShowEventDropdown(!showEventDropdown)}
-                    className="bg-[#FFFFFF66] rounded-lg px-4 py-3 flex-row justify-between items-center"
+                    style={{
+                      backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F3F4F6",
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: cardBorder,
+                    }}
                   >
-                    <Text className={updateData.eventName ? "text-[#0C3572]" : "text-[#2175C0]"}>
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_500Medium",
+                        color: updateData.eventName ? textPrimary : textSecondary,
+                      }}
+                    >
                       {updateData.eventName || "Choose an event"}
                     </Text>
-                    <ChevronDown size={20} color="#EEB170" />
+                    <ChevronDown size={18} color="#41B8F0" />
                   </TouchableOpacity>
-                  
+
                   {showEventDropdown && (
-                    <View className="bg-[#FFFFFF66] rounded-lg mt-2 max-h-60">
+                    <View
+                      style={{
+                        backgroundColor: cardBg,
+                        borderRadius: 12,
+                        marginTop: 6,
+                        maxHeight: 180,
+                        borderWidth: 1,
+                        borderColor: cardBorder,
+                      }}
+                    >
                       <ScrollView>
                         {events.map((event) => (
                           <TouchableOpacity
@@ -566,10 +749,17 @@ export default function PollScreen() {
                               });
                               setShowEventDropdown(false);
                             }}
-                            className="px-4 py-3 border-b border-[#3C3C3C]"
+                            style={{
+                              paddingHorizontal: 14,
+                              paddingVertical: 10,
+                              borderBottomWidth: 1,
+                              borderBottomColor: cardBorder,
+                            }}
                           >
-                            <Text className="text-[#0C3572]">{event.title}</Text>
-                            <Text className="text-[#2175C0] text-xs mt-1">
+                            <Text style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 13 }}>
+                              {event.title}
+                            </Text>
+                            <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}>
                               {event.category}
                             </Text>
                           </TouchableOpacity>
@@ -581,44 +771,68 @@ export default function PollScreen() {
               ) : null}
 
               <TouchableOpacity
-                className={`${
-                  updating ? "bg-[#EEB170]/50" : "bg-[#EEB170]"
-                } py-4 rounded-xl flex-row items-center justify-center`}
+                style={{
+                  backgroundColor: "#41B8F0",
+                  opacity: updating ? 0.7 : 1,
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
                 disabled={updating}
                 onPress={handleCreateUpdate}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
                 {updating ? (
                   <>
-                    <ActivityIndicator color="#121212" />
-                    <Text className="text-[#121212] font-bold text-base ml-2">
-                      Creating...
+                    <ActivityIndicator color="#FFFFFF" />
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 8 }}>
+                      Broadcasting...
                     </Text>
                   </>
                 ) : (
                   <>
-                    <MessageSquarePlus size={20} color="#121212" />
-                    <Text className="text-[#121212] font-bold text-base ml-2">
-                      Create Update
+                    <MessageSquarePlus size={18} color="#FFFFFF" />
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 8 }}>
+                      Broadcast Update
                     </Text>
                   </>
                 )}
               </TouchableOpacity>
             </View>
 
-            {/* Existing Updates */}
-            <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#EEB170] text-xl mb-4">
+            {/* Updates List */}
+            <Text
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: textPrimary,
+                fontSize: 18,
+                marginBottom: 14,
+              }}
+            >
               All Updates ({updates.length})
             </Text>
 
             {loading ? (
-              <View className="items-center justify-center py-12">
-                <ActivityIndicator size="large" color="#EEB170" />
-                <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] mt-4">Loading updates...</Text>
+              <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                <ActivityIndicator size="large" color="#41B8F0" />
+                <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, marginTop: 12 }}>
+                  Loading updates...
+                </Text>
               </View>
             ) : updates.length === 0 ? (
-              <View className="bg-[#FFFFFF66] rounded-2xl p-8 items-center border border-[#A0B3D0]">
-                <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-center mt-4">
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 20,
+                  padding: 32,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
+                <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, textAlign: "center" }}>
                   No updates yet. Create your first update above!
                 </Text>
               </View>
@@ -626,57 +840,98 @@ export default function PollScreen() {
               updates.map((update) => (
                 <View
                   key={update.id}
-                  className="bg-[#FFFFFF66] rounded-2xl p-5 mb-4 border border-[#A0B3D0]"
+                  style={{
+                    backgroundColor: cardBg,
+                    borderRadius: 20,
+                    padding: 18,
+                    marginBottom: 14,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                  }}
                 >
-                  <View className="flex-row justify-between items-start mb-2">
-                    <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#EEB170] text-lg flex-1 mr-2">
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        color: textPrimary,
+                        fontSize: 16,
+                        flex: 1,
+                        marginRight: 8,
+                      }}
+                    >
                       {update.title}
                     </Text>
                     <TouchableOpacity
                       onPress={() => handleDeleteUpdate(update.id, update.title)}
                       disabled={deletingId === update.id}
-                      className="bg-[#E84054]/20 p-2 rounded-lg"
+                      style={{
+                        backgroundColor: isDark ? "rgba(239, 68, 68, 0.15)" : "#FEE2E2",
+                        padding: 8,
+                        borderRadius: 10,
+                      }}
                       activeOpacity={0.7}
                     >
                       {deletingId === update.id ? (
-                        <ActivityIndicator size="small" color="#E84054" />
+                        <ActivityIndicator size="small" color="#EF4444" />
                       ) : (
-                        <Trash2 size={18} color="#E84054" />
+                        <Trash2 size={16} color="#EF4444" />
                       )}
                     </TouchableOpacity>
                   </View>
 
-                  <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-sm mb-3 leading-5">
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_400Regular",
+                      color: textSecondary,
+                      fontSize: 13,
+                      marginBottom: 10,
+                      lineHeight: 18,
+                    }}
+                  >
                     {update.description}
                   </Text>
 
-                  {/* Show action button info */}
                   {update.linkType === 'external' && update.link && (
-                    <View className="bg-[#FFFFFF66] px-3 py-2 rounded-lg flex-row items-center">
-                      <View className="bg-[#EEB170] px-2 py-1 rounded mr-2">
-                        <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-black text-xs">LINK</Text>
-                      </View>
-                      <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-xs flex-1" numberOfLines={1}>
+                    <View
+                      style={{
+                        backgroundColor: isDark ? "rgba(65, 184, 240, 0.1)" : "#E0F2FE",
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 6,
+                      }}
+                    >
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 11, marginRight: 6 }}>
+                        LINK:
+                      </Text>
+                      <Text style={{ fontFamily: "Poppins_400Regular", color: textPrimary, fontSize: 11, flex: 1 }} numberOfLines={1}>
                         {update.link}
                       </Text>
                     </View>
                   )}
 
                   {update.linkType === 'event' && update.eventName && (
-                    <View className="bg-[#FFFFFF66] px-3 py-2 rounded-lg flex-row items-center">
-                      <View className="bg-[#EEB170] px-2 py-1 rounded mr-2">
-                        <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-black text-xs">EVENT</Text>
-                      </View>
-                      <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-xs flex-1" numberOfLines={1}>
+                    <View
+                      style={{
+                        backgroundColor: isDark ? "rgba(65, 184, 240, 0.1)" : "#E0F2FE",
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 6,
+                      }}
+                    >
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 11, marginRight: 6 }}>
+                        EVENT:
+                      </Text>
+                      <Text style={{ fontFamily: "Poppins_400Regular", color: textPrimary, fontSize: 11, flex: 1 }} numberOfLines={1}>
                         {update.eventName}
                       </Text>
                     </View>
                   )}
-
-                  {/* Show creation date */}
-                  <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-gray-500 text-xs mt-3">
-                    Created: {update.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'}
-                  </Text>
                 </View>
               ))
             )}

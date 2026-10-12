@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Users, Info } from "lucide-react-native";
+import { useThemeStore } from "@/state/themeStore";
 
 interface TeamRegistrationView {
   teamId: string;
@@ -70,20 +71,33 @@ const formatDate = (dateString: string) => {
 };
 
 export default function TeamRegistrationCard({ team, onPress, onViewPayment }: TeamRegistrationCardProps) {
+  const { isDark } = useThemeStore();
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+
   const hasPaymentStatus = team.status === "confirmed" || team.paymentStatus === "completed";
 
   return (
-    <View className="bg-white rounded-2xl p-5 mb-4 border border-gray-100 shadow-sm" style={{ elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }}>
+    <View
+      style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+      className="rounded-2xl p-5 mb-4 shadow-sm"
+    >
       {/* Team Header */}
       <TouchableOpacity
         className="flex-row items-start justify-between"
         onPress={() => onPress(team)}
         activeOpacity={0.7}
       >
-        <View className="flex-1 gap-1 mr-3">
-          <Text style={{fontFamily:'Outfit_700Bold'}} className="text-[#0C3572] text-lg">{team.teamName}</Text>
-          <Text style={{fontFamily:'Outfit_400Regular'}} className="text-gray-500 text-sm">Team ID: {team.teamId}</Text>
-          <Text style={{fontFamily:'Outfit_400Regular'}} className="text-[#2175C0] text-xs">
+        <View className="flex-1 mr-3">
+          <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 16, marginBottom: 2 }}>
+            {team.teamName}
+          </Text>
+          <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, marginBottom: 4 }}>
+            Team ID: {team.teamId}
+          </Text>
+          <Text style={{ fontFamily: "Poppins_500Medium", color: "#41B8F0", fontSize: 12 }}>
             Tap to view members →
           </Text>
         </View>
@@ -94,10 +108,11 @@ export default function TeamRegistrationCard({ team, onPress, onViewPayment }: T
                 e.stopPropagation();
                 onViewPayment(team);
               }}
-              className=" bg-opacity-20 p-2 rounded-full"
+              style={{ backgroundColor: isDark ? "#2A2A30" : "#F3F4F6" }}
+              className="p-2 rounded-full"
               activeOpacity={0.7}
             >
-              <Info size={18} color="#0C3572" />
+              <Info size={16} color="#41B8F0" />
             </TouchableOpacity>
           )}
           <View
@@ -105,8 +120,7 @@ export default function TeamRegistrationCard({ team, onPress, onViewPayment }: T
             style={{ backgroundColor: getStatusColor(team.status) + "20" }}
           >
             <Text
-              className="text-xs"
-              style={{ color: getStatusColor(team.status),fontFamily: "Outfit_600SemiBold"}}
+              style={{ color: getStatusColor(team.status), fontFamily: "Poppins_600SemiBold", fontSize: 11 }}
             >
               {getStatusText(team.status)}
             </Text>

@@ -115,6 +115,11 @@ func main() {
 		} else {
 			log.Printf("cache warm: stories ready")
 		}
+		if err := st.EnsureAppDefaults(wctx); err != nil {
+			log.Printf("app config defaults init error: %v", err)
+		} else {
+			log.Printf("app config defaults initialized")
+		}
 	}()
 
 	stop := make(chan os.Signal, 1)

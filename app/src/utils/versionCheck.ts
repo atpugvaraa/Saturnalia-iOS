@@ -1,5 +1,13 @@
 // src/utils/versionCheck.ts
 import { Platform } from 'react-native';
+import {
+  getAppConfig,
+  getAppLinks,
+  getAppMaintenance,
+  getAppVersions,
+  AppLinks as ApiAppLinks,
+  AppConfigResponse,
+} from '@/api/appConfig';
 
 export interface VersionInfo {
   currentVersion: string;
@@ -10,13 +18,18 @@ export interface VersionInfo {
 
 export interface MaintenanceInfo {
   isUnderMaintenance: boolean;
-  platform: 'ios' | 'android';
+  platform: 'ios' | 'android' | 'web';
 }
 
 export interface AppLinks {
   appleStore: string;
   playStore: string;
 }
+
+const DEFAULT_LINKS: AppLinks = {
+  appleStore: 'https://apps.apple.com/app/saturnalia/id6738927814',
+  playStore: 'https://play.google.com/store/apps/details?id=org.thapar.saturnalia',
+};
 
 /**
  * Compares two version strings (semantic versioning)
@@ -26,8 +39,8 @@ export interface AppLinks {
  * -1 if v1 < v2
  */
 export function compareVersions(v1: string, v2: string): number {
-  const parts1 = v1.split('.').map(Number);
-  const parts2 = v2.split('.').map(Number);
+  const parts1 = (v1 || '0').split('.').map((p) => parseInt(p, 10) || 0);
+  const parts2 = (v2 || '0').split('.').map((p) => parseInt(p, 10) || 0);
 
   for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
     const part1 = parts1[i] || 0;
@@ -42,8 +55,8 @@ export function compareVersions(v1: string, v2: string): number {
 
 /**
  * Checks if the current app version meets the minimum required version
- * @param currentVersion - The current app version (from package.json or app.json)
- * @param minRequiredVersion - The minimum required version from Firebase
+ * @param currentVersion - The current app version
+ * @param minRequiredVersion - The minimum required version from backend
  * @returns true if update is required, false otherwise
  */
 export function isUpdateRequired(
@@ -54,88 +67,77 @@ export function isUpdateRequired(
 }
 
 /**
- * Fetches app store links from Firebase
- * Collection: app, Document: link
+ * Fetches app store links from backend API
  */
 export async function fetchAppLinks(): Promise<AppLinks> {
   try {
-    /* Removed Firebase API call */
-    /* Removed Firebase API call */
-    /* Removed Firebase API call */
-
-    if (linkDoc.exists()) {
-      const data = linkDoc.data();
-      return {
-        appleStore: data?.appleStore || 'https://apps.apple.com',
-        playStore: data?.playStore || 'https://play.google.com',
-      };
-    }
-
-    // Return defaults if document doesn't exist
+    const data = await getAppLinks();
     return {
-      appleStore: 'https://apps.apple.com',
-      playStore: 'https://play.google.com',
+      appleStore: data?.appleStore || DEFAULT_LINKS.appleStore,
+      playStore: data?.playStore || DEFAULT_LINKS.playStore,
     };
   } catch (error) {
-    console.error('Error fetching app links:', error);
-    return {
-      appleStore: 'https://apps.apple.com',
-      playStore: 'https://play.google.com',
-    };
+    console.warn('[Version Check] Failed to fetch app links, using defaults:', error);
+    return DEFAULT_LINKS;
   }
 }
 
 export async function getDeleteFlag(): Promise<boolean> {
-  // Firebase implementation removed — feature disabled
   return false;
 }
 
 /**
- * Checks if the app is under maintenance
- * Collection: app, Document: maintenance
+ * Checks if the current platform is under maintenance
  */
 export async function checkMaintenance(): Promise<MaintenanceInfo> {
-  // Firebase implementation removed — maintenance check disabled
-  return {
-    isUnderMaintenance: false,
-    platform: Platform.OS as 'ios' | 'android',
-  };
+  const currentPlatform = (Platform.OS as 'ios' | 'android' | 'web') || 'android';
+  try {
+    const data = (await getAppMaintenance()) as any;
+    let isUnderMaintenance = false;
+
+    if (currentPlatform === 'ios') {
+      isUnderMaintenance = !!(data?.ios ?? data?.iOS ?? data?.IOS);
+    } else if (currentPlatform === 'android') {
+      isUnderMaintenance = !!(data?.android ?? data?.Android);
+    } else {
+      isUnderMaintenance = !!(data?.web ?? data?.Web);
+    }
+
+    return {
+      isUnderMaintenance,
+      platform: currentPlatform,
+    };
+  } catch (error) {
+    console.warn('[Version Check] Failed to check maintenance status:', error);
+    return {
+      isUnderMaintenance: false,
+      platform: currentPlatform,
+    };
+  }
 }
 
 /**
- * Fetches required version info from Firebase
- * Collection: app, Document: versions
+ * Fetches required version info from backend
  */
 export async function fetchVersionInfo(
   currentVersion: string
 ): Promise<VersionInfo> {
+  const currentPlatform = Platform.OS;
   try {
+    const [versions, links] = await Promise.all([
+      getAppVersions(),
+      fetchAppLinks(),
+    ]);
 
-    /* Removed Firebase API call */
-    /* Removed Firebase API call */
+    const requiredVersion =
+      currentPlatform === 'ios'
+        ? versions?.ios || '1.0.0'
+        : versions?.android || '1.0.0';
 
-    // Fetch version requirements
-    /* Removed Firebase API call */
-
-    if (!versionsDoc.exists()) {
-      return {
-        currentVersion,
-        requiredVersion: '1.0.0',
-        updateRequired: false,
-      };
-    }
-
-    const versionData = versionsDoc.data();
-    const platform = Platform.OS as 'ios' | 'android';
-    const requiredVersion = versionData?.[platform] || '1.0.0';
-
-    // Fetch app links for update URL
-    const appLinks = await fetchAppLinks();
-    const updateUrl = platform === 'ios' ? appLinks.appleStore : appLinks.playStore;
+    const updateUrl =
+      currentPlatform === 'ios' ? links.appleStore : links.playStore;
 
     const updateRequired = isUpdateRequired(currentVersion, requiredVersion);
-
-
 
     return {
       currentVersion,
@@ -144,9 +146,7 @@ export async function fetchVersionInfo(
       updateUrl,
     };
   } catch (error) {
-    console.error('[Version Check] Version check failed:', error);
-
-    // Return safe defaults if Firebase call fails
+    console.warn('[Version Check] Failed to fetch version info:', error);
     return {
       currentVersion,
       requiredVersion: '1.0.0',
@@ -156,35 +156,57 @@ export async function fetchVersionInfo(
 }
 
 /**
- * Comprehensive app status check
- * Checks both maintenance status and version requirements
+ * Comprehensive app status check in one single network request
  */
 export async function checkAppStatus(currentVersion: string): Promise<{
   versionInfo: VersionInfo;
   maintenanceInfo: MaintenanceInfo;
   appLinks: AppLinks;
 }> {
+  const currentPlatform = (Platform.OS as 'ios' | 'android' | 'web') || 'android';
+
   try {
-  
+    const config: AppConfigResponse = await getAppConfig();
 
-    // Run all checks in parallel for better performance
-    const [versionInfo, maintenanceInfo, appLinks] = await Promise.all([
-      fetchVersionInfo(currentVersion),
-      checkMaintenance(),
-      fetchAppLinks(),
-    ]);
+    const links: AppLinks = {
+      appleStore: config.links?.appleStore || DEFAULT_LINKS.appleStore,
+      playStore: config.links?.playStore || DEFAULT_LINKS.playStore,
+    };
 
-  
+    let isUnderMaintenance = false;
+    const maint = (config.maintenance || {}) as any;
+    if (currentPlatform === 'ios') {
+      isUnderMaintenance = !!(maint.ios ?? maint.iOS ?? maint.IOS);
+    } else if (currentPlatform === 'android') {
+      isUnderMaintenance = !!(maint.android ?? maint.Android);
+    } else {
+      isUnderMaintenance = !!(maint.web ?? maint.Web);
+    }
+
+    const requiredVersion =
+      currentPlatform === 'ios'
+        ? config.versions?.ios || '1.0.0'
+        : config.versions?.android || '1.0.0';
+
+    const updateRequired = isUpdateRequired(currentVersion, requiredVersion);
+    const updateUrl = currentPlatform === 'ios' ? links.appleStore : links.playStore;
 
     return {
-      versionInfo,
-      maintenanceInfo,
-      appLinks,
+      versionInfo: {
+        currentVersion,
+        requiredVersion,
+        updateRequired,
+        updateUrl,
+      },
+      maintenanceInfo: {
+        isUnderMaintenance,
+        platform: currentPlatform,
+      },
+      appLinks: links,
     };
   } catch (error) {
-    console.error('[App Status Check] FAILED:', error);
+    console.warn('[Version Check] Combined app status check failed, using safe defaults:', error);
 
-    // Return safe defaults
     return {
       versionInfo: {
         currentVersion,
@@ -193,12 +215,9 @@ export async function checkAppStatus(currentVersion: string): Promise<{
       },
       maintenanceInfo: {
         isUnderMaintenance: false,
-        platform: Platform.OS as 'ios' | 'android',
+        platform: currentPlatform,
       },
-      appLinks: {
-        appleStore: 'https://apps.apple.com',
-        playStore: 'https://play.google.com',
-      },
+      appLinks: DEFAULT_LINKS,
     };
   }
 }

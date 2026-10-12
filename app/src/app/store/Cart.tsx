@@ -14,14 +14,86 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, showAlert } from "@/components";
 import { useStoreContext } from "@/state/StoreContext";
 import { useUserStore } from "@/state/userStore";
+import { useThemeStore } from "@/state/themeStore";
 import { initializeEasebuzzCheckout } from "react-native-easebuzz-sdk";
+
 // Memoized Cart Item Card Component for better performance
-/* Removed API call */
+interface CartItemCardProps {
+  item: any;
+  onRemove: (itemId: string, size?: string) => void;
+  isUpdating: boolean;
+}
+
+const CartItemCard: React.FC<CartItemCardProps> = ({ item, onRemove, isUpdating }) => {
+  const { isDark } = useThemeStore();
+  const cardBg = isDark ? '#1C1C20' : '#FFFFFF';
+  const cardBorder = isDark ? '#2A2A30' : '#D5D5D5';
+  const textColor = isDark ? '#FFFFFF' : '#111827';
+  const subTextColor = isDark ? '#A0A0A0' : '#6B7280';
+
+  return (
+    <View
+      style={{
+        backgroundColor: cardBg,
+        borderColor: cardBorder,
+        borderWidth: 1,
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}
+    >
+      {item.image ? (
+        <Image
+          source={{ uri: item.image }}
+          style={{ width: 68, height: 68, borderRadius: 14, backgroundColor: isDark ? '#26262B' : '#F3F4F6', marginRight: 14 }}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={{ width: 68, height: 68, borderRadius: 14, backgroundColor: isDark ? '#26262B' : '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+          <Ionicons name="shirt-outline" size={26} color="#41B8F0" />
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontFamily: 'Poppins_600SemiBold', color: textColor, fontSize: 15 }} numberOfLines={1}>
+          {item.name || item.itemName}
+        </Text>
+        {item.selectedSize ? (
+          <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, fontSize: 12, marginTop: 2 }}>
+            Size: <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#41B8F0' }}>{item.selectedSize}</Text> • Qty: {item.quantity}
+          </Text>
+        ) : (
+          <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, fontSize: 12, marginTop: 2 }}>
+            Qty: {item.quantity}
+          </Text>
+        )}
+        <Text style={{ fontFamily: 'Talina', color: textColor, fontSize: 18, marginTop: 4 }}>
+          ₹{item.price * item.quantity}
+        </Text>
+      </View>
+      <TouchableOpacity
+        onPress={() => onRemove(item.itemId, item.selectedSize)}
+        disabled={isUpdating}
+        style={{ padding: 10 }}
+      >
+        {isUpdating ? (
+          <ActivityIndicator size="small" color="#EF4444" />
+        ) : (
+          <Ionicons name="trash-outline" size={20} color="#EF4444" />
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 const CartScreen = () => {
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
   const router = useRouter();
   const [updatingItem, setUpdatingItem] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -269,13 +341,19 @@ const CartScreen = () => {
   // Memoize scroll view content style for better performance
   const scrollContentStyle = useMemo(() => ({ paddingBottom: 80 }), []);
 
+  const bgColor = isDark ? '#131316' : '#E0E0E0';
+  const cardBg = isDark ? '#1C1C20' : '#FFFFFF';
+  const cardBorder = isDark ? '#2A2A30' : '#D5D5D5';
+  const textColor = isDark ? '#FFFFFF' : '#111827';
+  const subTextColor = isDark ? '#A0A0A0' : '#6B7280';
+  const inputBg = isDark ? '#26262B' : '#F3F4F6';
+
   if (loading) {
     return (
-      <View className="flex-1 bg-transparent items-center justify-center">
-        <ActivityIndicator size="large" color="#FFBA00" />
+      <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#41B8F0" />
         <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-[#0C3572] mt-4"
+          style={{ fontFamily: "Poppins_500Medium", color: subTextColor, marginTop: 16 }}
         >
           Loading cart...
         </Text>
@@ -287,378 +365,349 @@ const CartScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-transparent"
+      style={{ flex: 1, backgroundColor: bgColor }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
-
-        <View className="flex-1 bg-transparent">
-          {/* Header */}
-
-          {isEmpty ? (
-        <View className="flex-1">
-          <View className="flex-row items-center justify-between px-6 pt-12 pb-4">
+      <View style={{ flex: 1, backgroundColor: bgColor }}>
+        {/* Top Header */}
+        <View
+          style={{
+            paddingTop: Math.max(insets.top + 8, 44),
+            paddingBottom: 14,
+            paddingHorizontal: 20,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: bgColor,
+            borderBottomWidth: 1,
+            borderBottomColor: cardBorder,
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 21,
+              backgroundColor: cardBg,
+              borderWidth: 1,
+              borderColor: cardBorder,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="arrow-back" size={20} color={textColor} />
+          </TouchableOpacity>
+          <Text
+            style={{ fontFamily: "Talina", fontSize: 22, color: textColor, letterSpacing: 0.5 }}
+          >
+            MY CART
+          </Text>
+          {!isEmpty ? (
             <TouchableOpacity
-              onPress={() => router.back()}
-              className="p-2"
+              onPress={handleClearCart}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 21,
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <Ionicons name="arrow-back" size={24} color="#0C3572" />
+              <Ionicons name="trash-outline" size={20} color="#EF4444" />
             </TouchableOpacity>
-            <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-xl"
-            >
-              My Cart
-            </Text>
-            {!isEmpty && (
-              <TouchableOpacity onPress={handleClearCart} className="p-2">
-                <Ionicons name="trash-outline" size={24} color="#EF4444" />
-              </TouchableOpacity>
-            )}
-            {isEmpty && <View className="w-10" />}
-          </View>
-          <View className="flex-1 items-center justify-center px-6">
-            <View className="bg-[#FFFFFF66] rounded-full p-8 mb-6">
-              <Ionicons name="cart-outline" size={64} color="#6B7280" />
+          ) : (
+            <View style={{ width: 42 }} />
+          )}
+        </View>
+
+        {isEmpty ? (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+            <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: cardBg, borderWidth: 1, borderColor: cardBorder, alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+              <Ionicons name="cart-outline" size={48} color={subTextColor} />
             </View>
             <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-2xl mb-2"
+              style={{ fontFamily: "Talina", fontSize: 24, color: textColor, marginBottom: 8 }}
             >
-              Your Cart is Empty
+              YOUR CART IS EMPTY
             </Text>
             <Text
-              style={{ fontFamily: "Outfit_400Regular" }}
-              className="text-[#2175C0] text-center mb-8 leading-6"
+              style={{ fontFamily: "Poppins_400Regular", color: subTextColor, textAlign: "center", marginBottom: 28, fontSize: 14 }}
             >
               Add items to your cart to see them here
             </Text>
             <TouchableOpacity
               onPress={() => router.back()}
-              className="bg-[#FFBA00] rounded-xl px-8 py-4 flex-row items-center"
+              style={{ backgroundColor: '#41B8F0', borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14, flexDirection: "row", alignItems: "center" }}
             >
-              <Ionicons name="storefront" size={20} color="#000" />
+              <Ionicons name="storefront-outline" size={20} color="#FFFFFF" />
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-black ml-2"
+                style={{ fontFamily: "Poppins_600SemiBold", color: '#FFFFFF', marginLeft: 8, fontSize: 15 }}
               >
                 Browse Store
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
-      ) : (
-        <>
-          {/* Header - Outside ScrollView */}
-          <View className="flex-row items-center justify-between px-6 pt-12 pb-4">
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="p-2"
+        ) : (
+          <>
+            {/* Cart Items List */}
+            <ScrollView
+              ref={scrollViewRef}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 160 }}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={refresh}
+                  tintColor="#41B8F0"
+                />
+              }
+              keyboardShouldPersistTaps="handled"
+              removeClippedSubviews={Platform.OS === 'android'}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
             >
-              <Ionicons name="arrow-back" size={24} color="#0C3572" />
-            </TouchableOpacity>
-            <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-xl"
-            >
-              My Cart
-            </Text>
-            <TouchableOpacity onPress={handleClearCart} className="p-2">
-              <Ionicons name="trash-outline" size={24} color="#EF4444" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Cart Items */}
-          <ScrollView
-            ref={scrollViewRef}
-            className="flex-1 px-6"
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={refresh}
-                tintColor="#FFBA00"
-              />
-            }
-            contentContainerStyle={scrollContentStyle}
-            keyboardShouldPersistTaps="handled"
-            removeClippedSubviews={Platform.OS === 'android'}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-          >
-            {/* Items Count */}
-            <View className="mb-4">
-              <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#0C3572] text-lg"
-              >
-                {cart.items.length} {cart.items.length === 1 ? "Item" : "Items"}{" "}
-                in Cart
-              </Text>
-            </View>
-
-            {cart.items.map((item) => (
-              <CartItemCard
-                key={`${item.itemId}-${item.selectedSize}`}
-                item={item}
-                onRemove={handleRemoveItem}
-                isUpdating={updatingItem === item.itemId}
-              />
-            ))}
-
-            <View className="bg-[#FFFFFF66] rounded-2xl p-4 mb-4 mt-4">
-              <View className="flex-row items-center justify-between mb-3">
+              {/* Items Count */}
+              <View style={{ marginBottom: 12 }}>
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#0C3572] text-base"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 16 }}
                 >
-                  Discounts & Savings
+                  {cart.items.length} {cart.items.length === 1 ? "Item" : "Items"} in Cart
                 </Text>
-                <Ionicons name="pricetag" size={20} color="#FFBA00" />
               </View>
 
-              {/* Coupon Input */}
-              {discountData && discountData.couponApplied ? (
-                <View className="bg-green-900/20 border border-green-600/30 rounded-xl p-3 flex-row items-center justify-between mb-4">
-                  <View className="flex-row items-center flex-1">
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color="#10B981"
+              {cart.items.map((item: any) => (
+                <CartItemCard
+                  key={`${item.itemId}-${item.selectedSize}`}
+                  item={item}
+                  onRemove={handleRemoveItem}
+                  isUpdating={updatingItem === item.itemId}
+                />
+              ))}
+
+              {/* Discounts & Promo Code */}
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                  padding: 18,
+                  marginVertical: 16,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                  <Text
+                    style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 16 }}
+                  >
+                    Discounts & Savings
+                  </Text>
+                  <Ionicons name="pricetag-outline" size={18} color="#41B8F0" />
+                </View>
+
+                {/* Coupon Input */}
+                {discountData && discountData.couponApplied ? (
+                  <View style={{ backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#DCFCE7', borderWidth: 1, borderColor: '#22c55e', borderRadius: 14, padding: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color="#22c55e"
+                      />
+                      <View style={{ marginLeft: 10, flex: 1 }}>
+                        <Text
+                          style={{ fontFamily: "Poppins_600SemiBold", color: '#22c55e', fontSize: 13 }}
+                        >
+                          Coupon Applied!
+                        </Text>
+                        <Text
+                          style={{ fontFamily: "Poppins_400Regular", color: textColor, fontSize: 11 }}
+                        >
+                          {discountData.couponMessage}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={handleRemoveCoupon}>
+                      <Ionicons name="close-circle" size={22} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ marginBottom: 14 }}>
+                    <TextInput
+                      style={{
+                        backgroundColor: inputBg,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: cardBorder,
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        color: textColor,
+                        fontFamily: "Poppins_500Medium",
+                        fontSize: 14,
+                      }}
+                      placeholder="ENTER COUPON CODE"
+                      placeholderTextColor={subTextColor}
+                      value={couponCode}
+                      onChangeText={(text) => setCouponCode(text.toUpperCase())}
+                      autoCapitalize="characters"
+                      editable={!calculatingDiscount}
                     />
-                    <View className="ml-3 flex-1">
+                  </View>
+                )}
+
+                {/* Coins Toggle */}
+                <TouchableOpacity
+                  onPress={() => {
+                    const nextUseCoinsState = !useCoins;
+                    setUseCoins(nextUseCoinsState);
+                    if (!nextUseCoinsState && discountData) {
+                      setDiscountData(null);
+                    }
+                  }}
+                  disabled={userCoins === 0 || calculatingDiscount}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                    <Ionicons
+                      name={useCoins ? "checkbox" : "square-outline"}
+                      size={22}
+                      color={useCoins ? "#41B8F0" : subTextColor}
+                    />
+                    <View style={{ marginLeft: 10, flex: 1 }}>
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-green-400"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 14 }}
                       >
-                        Coupon Applied!
+                        Use Saturnalia Coins
                       </Text>
                       <Text
-                        style={{ fontFamily: "Outfit_400Regular" }}
-                        className="text-green-300 text-xs"
+                        style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}
                       >
-                        {discountData.couponMessage}
+                        Available: {userCoins} coins (10 coins = ₹1)
                       </Text>
+                      {discountData && discountData.coinsUsed > 0 && (
+                        <Text
+                          style={{ fontFamily: "Poppins_500Medium", color: '#41B8F0', fontSize: 12, marginTop: 2 }}
+                        >
+                          Using: {discountData.coinsUsed} coins = -₹{discountData.coinsDiscount}
+                        </Text>
+                      )}
                     </View>
                   </View>
-                  <TouchableOpacity onPress={handleRemoveCoupon}>
-                    <Ionicons name="close-circle" size={24} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View className="mb-4">
-                  <TextInput
-                    className="bg-white rounded-xl px-4 py-3 text-[#0C3572]"
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    placeholder="Enter coupon code"
-                    placeholderTextColor="#6B7280"
-                    value={couponCode}
-                    onChangeText={(text) => setCouponCode(text.toUpperCase())}
-                    autoCapitalize="characters"
-                    editable={!calculatingDiscount}
-                  />
-                </View>
-              )}
-
-              {/* Coins Toggle */}
-              <TouchableOpacity
-                onPress={() => {
-                  const nextUseCoinsState = !useCoins;
-                  setUseCoins(nextUseCoinsState);
-
-                  // If the user is toggling coins OFF and a discount was already applied,
-                  // clear the discount data to give immediate visual feedback.
-                  if (!nextUseCoinsState && discountData) {
-                    setDiscountData(null);
-                  }
-                }}
-                disabled={userCoins === 0 || calculatingDiscount}
-                className="flex-row items-center justify-between"
-              >
-                <View className="flex-row items-center flex-1">
-                  <Ionicons
-                    name={useCoins ? "checkbox" : "square-outline"}
-                    size={24}
-                    color={useCoins ? "#FFBA00" : "#6B7280"}
-                  />
-                  <View className="ml-3 flex-1">
-                    <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className="text-[#0C3572]"
-                    >
-                      Use Saturnalia Coins
-                    </Text>
-                    <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#2175C0] text-xs"
-                    >
-                      Available: {userCoins} coins (10 coins = ₹1)
-                    </Text>
-                    {discountData && discountData.coinsUsed > 0 && (
-                      <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#FFBA00] text-sm mt-1"
-                      >
-                        Using: {discountData.coinsUsed} coins = ₹
-                        {discountData.coinsDiscount}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-                <Ionicons name="diamond" size={20} color="#FFBA00" />
-              </TouchableOpacity>
-              {userCoins === 0 && (
-                <Text
-                  style={{ fontFamily: "Outfit_400Regular" }}
-                  className="text-red-500 text-xs mt-2"
-                >
-                  You have no Saturnalia Coins to use.
-                </Text>
-              )}
-
-              {/* Divider and Apply Button */}
-              <View className="border-t border-[#A0B3D0] my-4" />
-              <Button
-                title="Apply Discounts"
-                variant="none" className="bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl" textClassName="text-[#0C3572]"
-                onPress={handleCalculateDiscount}
-                disabled={calculatingDiscount}
-              />
-            </View>
-            {/* Bottom Summary & Checkout */}
-            <View className="px-2 pb-8 pt-4 bg-white  border rounded-xl border-[#A0B3D0]">
-              {/* Summary */}
-              <View className="bg-[#FFFFFF66] rounded-2xl p-4 mb-4">
-                <View className="flex-row justify-between items-center mb-2">
+                  <Ionicons name="diamond-outline" size={18} color="#41B8F0" />
+                </TouchableOpacity>
+                {userCoins === 0 && (
                   <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#2175C0]"
+                    style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 11, marginTop: 6 }}
                   >
+                    You have no Saturnalia Coins to use.
+                  </Text>
+                )}
+
+                {/* Apply Button */}
+                <TouchableOpacity
+                  onPress={handleCalculateDiscount}
+                  disabled={calculatingDiscount}
+                  style={{
+                    backgroundColor: '#41B8F0',
+                    borderRadius: 14,
+                    paddingVertical: 12,
+                    alignItems: "center",
+                    marginTop: 16,
+                  }}
+                >
+                  {calculatingDiscount ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 14 }}>
+                      Apply Discounts
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Summary Card */}
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                  padding: 18,
+                  marginBottom: 16,
+                }}
+              >
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13 }}>
                     Subtotal
                   </Text>
-                  <Text
-                    style={{ fontFamily: "Outfit_600SemiBold" }}
-                    className="text-[#0C3572] text-lg"
-                  >
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15 }}>
                     ₹{cart.totalAmount}
                   </Text>
                 </View>
 
-                {/* Coupon Discount */}
                 {discountData && discountData.couponDiscount > 0 && (
-                  <View className="flex-row justify-between items-center mb-2">
-                    <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-green-400"
-                    >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <Text style={{ fontFamily: "Poppins_500Medium", color: '#22c55e', fontSize: 13 }}>
                       Coupon Discount
                     </Text>
-                    <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-green-400"
-                    >
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#22c55e', fontSize: 15 }}>
                       -₹{discountData.couponDiscount}
                     </Text>
                   </View>
                 )}
 
-                {/* Coins Discount */}
                 {discountData && discountData.coinsDiscount > 0 && (
-                  <View className="flex-row justify-between items-center mb-2">
-                    <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-[#FFBA00]"
-                    >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <Text style={{ fontFamily: "Poppins_500Medium", color: '#41B8F0', fontSize: 13 }}>
                       Coins Discount ({discountData.coinsUsed} coins)
                     </Text>
-                    <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-[#FFBA00]"
-                    >
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#41B8F0', fontSize: 15 }}>
                       -₹{discountData.coinsDiscount}
                     </Text>
                   </View>
                 )}
 
-                <View className="flex-row justify-between items-center mb-2">
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#2175C0]"
-                  >
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13 }}>
                     Total Items
                   </Text>
-                  <Text
-                    style={{ fontFamily: "Outfit_600SemiBold" }}
-                    className="text-[#0C3572]"
-                  >
-                    {cart.items.reduce((sum, item) => sum + item.quantity, 0)}
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15 }}>
+                    {cart.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}
                   </Text>
                 </View>
 
                 {/* Transaction Fees */}
-                {discountData ? (
-                  <View className="flex-row justify-between items-center mb-2">
-                    <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#0C3572]/70 text-sm"
-                    >
-                      Transaction Fees 
-                    </Text>
-                    <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#0C3572]/70 text-sm"
-                    >
-                      ₹{Math.ceil(discountData.finalAmount * 0.015)}
-                    </Text>
-                  </View>
-                ) : (
-                  <View className="flex-row justify-between items-center mb-2">
-                    <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#0C3572]/70 text-sm"
-                    >
-                      Transaction Fees (1.5%)
-                    </Text>
-                    <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#0C3572]/70 text-sm"
-                    >
-                      ₹{Math.ceil(cart.totalAmount * 0.015)}
-                    </Text>
-                  </View>
-                )}
-
-                <View className="border-t border-[#A0B3D0] my-2" />
-                <View className="flex-row justify-between items-center">
-                  <Text
-                    style={{ fontFamily: "Outfit_700Bold" }}
-                    className="text-[#0C3572] text-lg"
-                  >
-                    Total
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 13 }}>
+                    Transaction Fees
                   </Text>
-                  <View className="flex-row items-center">
-                    <View className="w-4 h-4 bg-[#FFBA00] rounded-full mr-2" />
-                    <Text
-                      style={{ fontFamily: "Outfit_700Bold" }}
-                      className="text-[#FFBA00] text-2xl"
-                    >
-                      ₹
-                      {discountData
-                        ? discountData.finalAmount +
-                          Math.ceil(discountData.finalAmount * 0.015)
-                        : cart.totalAmount +
-                          Math.ceil(cart.totalAmount * 0.015)}
-                    </Text>
-                  </View>
+                  <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13 }}>
+                    ₹{discountData
+                      ? Math.ceil(discountData.finalAmount * 0.015)
+                      : Math.ceil(cart.totalAmount * 0.015)}
+                  </Text>
                 </View>
 
-                {/* Savings Display */}
+                <View style={{ borderTopWidth: 1, borderTopColor: cardBorder, marginVertical: 10 }} />
+
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ fontFamily: "Talina", color: textColor, fontSize: 20 }}>
+                    TOTAL
+                  </Text>
+                  <Text style={{ fontFamily: "Talina", color: '#41B8F0', fontSize: 24 }}>
+                    ₹
+                    {discountData
+                      ? discountData.finalAmount + Math.ceil(discountData.finalAmount * 0.015)
+                      : cart.totalAmount + Math.ceil(cart.totalAmount * 0.015)}
+                  </Text>
+                </View>
+
                 {discountData && discountData.savings > 0 && (
-                  <View className="mt-3 bg-green-900/20 border border-green-600/30 rounded-lg p-2">
-                    <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className="text-green-400 text-center text-sm"
-                    >
+                  <View style={{ marginTop: 12, backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : '#DCFCE7', borderRadius: 12, padding: 8 }}>
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#22c55e', textAlign: "center", fontSize: 12 }}>
                       You're saving ₹{discountData.savings}!
                     </Text>
                   </View>
@@ -669,43 +718,58 @@ const CartScreen = () => {
               <TouchableOpacity
                 onPress={handleCheckout}
                 disabled={processingPayment || calculatingDiscount}
-                className={`bg-[#FFBA00] rounded-xl py-4 items-center ${
-                  processingPayment || calculatingDiscount ? "opacity-50" : ""
-                }`}
+                style={{
+                  backgroundColor: '#41B8F0',
+                  borderRadius: 16,
+                  paddingVertical: 16,
+                  alignItems: "center",
+                  opacity: processingPayment || calculatingDiscount ? 0.6 : 1,
+                  shadowColor: '#41B8F0',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 5,
+                }}
               >
                 {processingPayment || calculatingDiscount ? (
-                  <ActivityIndicator size="small" color="#000" />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text
-                    style={{ fontFamily: "Outfit_700Bold" }}
-                    className="text-black text-lg"
-                  >
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 16 }}>
                     Proceed to Checkout
                   </Text>
                 )}
               </TouchableOpacity>
-            </View>
-          </ScrollView>
+            </ScrollView>
 
-          {/* Scroll to Bottom Button */}
-          {showScrollButton && (
-            <TouchableOpacity
-              onPress={scrollToBottom}
-              className="absolute bottom-16 right-6 bg-[#FFBA00] rounded-full p-3 shadow-lg"
-              style={{
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3.84,
-                elevation: 5,
-              }}
-            >
-              <Ionicons name="chevron-down" size={24} color="#000" />
-            </TouchableOpacity>
-          )}
-        </>
-      )}
-        </View>
+            {/* Scroll to Bottom Button */}
+            {showScrollButton && (
+              <TouchableOpacity
+                onPress={scrollToBottom}
+                style={{
+                  position: 'absolute',
+                  bottom: 24,
+                  right: 20,
+                  backgroundColor: cardBg,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                  borderRadius: 24,
+                  width: 48,
+                  height: 48,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 4,
+                  elevation: 5,
+                }}
+              >
+                <Ionicons name="chevron-down" size={24} color={textColor} />
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </View>
     </KeyboardAvoidingView>
   );
 };

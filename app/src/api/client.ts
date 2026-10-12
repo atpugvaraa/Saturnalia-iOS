@@ -26,6 +26,11 @@ export async function apiFetch(
     Object.assign(headers, init.headers as Record<string, string>);
   }
 
+  // Allow FormData to set boundary automatically
+  if (init.body instanceof FormData || headers["Content-Type"] === "" || headers["Content-Type"] === "multipart/form-data") {
+    delete headers["Content-Type"];
+  }
+
   if (auth !== "none") {
     const token = await getIdTokenIfSignedIn();
     if (token) {

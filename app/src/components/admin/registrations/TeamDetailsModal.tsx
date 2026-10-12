@@ -7,10 +7,11 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
-import { X, Save, ChevronDown, Phone, School } from "lucide-react-native";
+import { X, Save, ChevronDown, Phone, School, Mail } from "lucide-react-native";
 import { showAlert } from "../../index";
 import { PrivateRoleComponent } from "../../auth/PrivateRoleComponent";
 import { UserEventRegistration } from "@/api/admin";
+import { useThemeStore } from "@/state/themeStore";
 
 interface TeamRegistrationView {
   teamId: string;
@@ -70,6 +71,13 @@ const getStatusText = (status: string) => {
   }
 };
 
+const STATUS_OPTIONS: Array<"confirmed" | "pending" | "payment_pending" | "rejected"> = [
+  "confirmed",
+  "pending",
+  "payment_pending",
+  "rejected",
+];
+
 export default function TeamDetailsModal({
   visible,
   team,
@@ -78,6 +86,13 @@ export default function TeamDetailsModal({
   onClose,
   onStatusUpdate,
 }: TeamDetailsModalProps) {
+  const { isDark } = useThemeStore();
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+  const innerBg = isDark ? "#26262B" : "#F3F4F6";
+
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [selectedNewStatus, setSelectedNewStatus] = useState<
     "confirmed" | "pending" | "payment_pending" | "rejected"
@@ -124,119 +139,143 @@ export default function TeamDetailsModal({
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <View className="flex-1 justify-end border-t-2 border-[#dddddd] bg-black/70">
-        <View className="bg-transparent rounded-t-3xl max-h-[80%] min-h-[200px]">
+      <View className="flex-1 justify-end bg-black/70">
+        <View
+          style={{ backgroundColor: cardBg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderColor: cardBorder, borderTopWidth: 1 }}
+          className="max-h-[85%] min-h-[200px]"
+        >
           {/* Success Banner */}
           {updateSuccess && (
-            <View className="bg-green-500/20 border-b border-green-500/30 p-4">
+            <View className="bg-green-500/20 border-b border-green-500/30 p-3.5">
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-green-400 text-center"
+                style={{ fontFamily: "Poppins_600SemiBold", color: "#10B981", textAlign: "center", fontSize: 13 }}
               >
                 ✓ {successMessage}
               </Text>
             </View>
           )}
 
-          <View className="flex-row items-center justify-between px-6 py-4 border-b border-gray-300">
-            <Text className="text-[#0C3572] text-xl font-bold">{team.teamName}</Text>
+          {/* Header */}
+          <View
+            style={{ borderBottomWidth: 1, borderBottomColor: cardBorder }}
+            className="flex-row items-center justify-between px-6 py-4"
+          >
+            <Text style={{ fontFamily: "Poppins_700Bold", color: textPrimary, fontSize: 18 }}>
+              {team.teamName}
+            </Text>
             <TouchableOpacity
               onPress={onClose}
-              className="p-1 rounded-full bg-white"
+              style={{ backgroundColor: isDark ? "#2A2A30" : "#F3F4F6" }}
+              className="p-2 rounded-full"
               activeOpacity={0.7}
             >
-              <X size={20} color="#0C3572" />
+              <X size={18} color={textPrimary} />
             </TouchableOpacity>
           </View>
 
-          <View className="p-6">
-            <View className="bg-white rounded-xl p-4 mb-3 border border-gray-200">
-                <Text className="text-gray-600 text-sm mb-1">Team Code</Text>
-                <Text className="text-black font-mono">{team.teamId}</Text>
+          <View className="p-6 pb-2">
+            <View
+              style={{ backgroundColor: innerBg, borderColor: cardBorder, borderWidth: 1 }}
+              className="rounded-xl p-4 mb-3"
+            >
+              <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 12, marginBottom: 2 }}>
+                Team Code
+              </Text>
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 14 }}>
+                {team.teamId}
+              </Text>
             </View>
 
-            <PrivateRoleComponent allowedRoles={["event_admin", "admin","outreach_admin"]}>
-            <View className="bg-white rounded-xl px-4 py-2 mb-0 border border-gray-200">
-              <Text className="text-gray-600 text-sm mb-3">Registration Status</Text>
-
-              <TouchableOpacity
-                className="bg-white border border-gray-200 shadow-sm rounded-xl p-3 mb-3 flex-row items-center justify-between"
-                style={{ elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 }}
-                onPress={() => setShowStatusDropdown(!showStatusDropdown)}
-                activeOpacity={0.7}
+            <PrivateRoleComponent allowedRoles={["event_admin", "admin", "outreach_admin"]}>
+              <View
+                style={{ backgroundColor: innerBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="rounded-xl p-4 mb-3"
               >
-                <View className="flex-row items-center flex-1">
-                  <View
-                    className="px-3 py-1 rounded-full"
-                    style={{
-                      backgroundColor: getStatusColor(selectedNewStatus) + "20",
-                    }}
-                  >
-                    <Text
-                      className="text-xs font-semibold"
-                      style={{ color: getStatusColor(selectedNewStatus) }}
-                    >
-                      {getStatusText(selectedNewStatus)}
-                    </Text>
-                  </View>
-                </View>
-                <ChevronDown size={20} color="#0C3572" />
-              </TouchableOpacity>
+                <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 12, marginBottom: 8 }}>
+                  Registration Status
+                </Text>
 
-              {showStatusDropdown && (
-                <View className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-3">
-                  {STATUS_OPTIONS.map((status, index) => (
-                    <TouchableOpacity
-                      key={status}
-                      className={`p-3 ${
-                        selectedNewStatus === status ? "bg-[#EEB170]/20" : "bg-white"
-                      } ${index < STATUS_OPTIONS.length - 1 ? "border-b border-gray-100" : ""}`}
-                      onPress={() => {
-                        setSelectedNewStatus(
-                          status as "confirmed" | "pending" | "payment_pending" | "rejected"
-                        );
-                        setShowStatusDropdown(false);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View
-                        className="px-3 py-1 rounded-full self-start"
-                        style={{
-                          backgroundColor: getStatusColor(status) + "20",
-                        }}
-                      >
-                        <Text
-                          className="text-xs font-semibold"
-                          style={{ color: getStatusColor(status) }}
-                        >
-                          {getStatusText(status)}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {selectedNewStatus !== team.status && (
                 <TouchableOpacity
-                  className={`bg-[#FFBA00] rounded-xl p-4 flex-row items-center justify-center ${
-                    isSavingStatus ? "opacity-50" : ""
-                  }`}
-                  onPress={handleSaveStatus}
-                  disabled={isSavingStatus}
+                  style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                  className="rounded-xl p-3 flex-row items-center justify-between"
+                  onPress={() => setShowStatusDropdown(!showStatusDropdown)}
                   activeOpacity={0.7}
                 >
-                  {isSavingStatus ? (
-                    <ActivityIndicator size="small" color="#121212" />
-                  ) : (
-                    <Save size={20} color="#121212" />
-                  )}
-                  <Text className="text-[#0C3572] font-semibold text-base ml-2">
-                    {isSavingStatus ? "Saving..." : "Save Status"}
-                  </Text>
+                  <View className="flex-row items-center flex-1">
+                    <View
+                      className="px-3 py-1 rounded-full"
+                      style={{
+                        backgroundColor: getStatusColor(selectedNewStatus) + "20",
+                      }}
+                    >
+                      <Text
+                        style={{ color: getStatusColor(selectedNewStatus), fontFamily: "Poppins_600SemiBold", fontSize: 11 }}
+                      >
+                        {getStatusText(selectedNewStatus)}
+                      </Text>
+                    </View>
+                  </View>
+                  <ChevronDown size={18} color={textSecondary} />
                 </TouchableOpacity>
-              )}
-            </View>
+
+                {showStatusDropdown && (
+                  <View
+                    style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                    className="rounded-xl overflow-hidden mt-2"
+                  >
+                    {STATUS_OPTIONS.map((status, index) => (
+                      <TouchableOpacity
+                        key={status}
+                        style={{
+                          backgroundColor: selectedNewStatus === status ? "rgba(65, 184, 240, 0.15)" : cardBg,
+                          borderBottomWidth: index < STATUS_OPTIONS.length - 1 ? 1 : 0,
+                          borderBottomColor: cardBorder,
+                        }}
+                        className="p-3"
+                        onPress={() => {
+                          setSelectedNewStatus(status);
+                          setShowStatusDropdown(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View
+                          className="px-3 py-1 rounded-full self-start"
+                          style={{
+                            backgroundColor: getStatusColor(status) + "20",
+                          }}
+                        >
+                          <Text
+                            style={{ color: getStatusColor(status), fontFamily: "Poppins_600SemiBold", fontSize: 11 }}
+                          >
+                            {getStatusText(status)}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {selectedNewStatus !== team.status && (
+                  <TouchableOpacity
+                    style={{ backgroundColor: "#41B8F0" }}
+                    className={`rounded-xl p-3.5 mt-3 flex-row items-center justify-center shadow-sm ${
+                      isSavingStatus ? "opacity-50" : ""
+                    }`}
+                    onPress={handleSaveStatus}
+                    disabled={isSavingStatus}
+                    activeOpacity={0.8}
+                  >
+                    {isSavingStatus ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Save size={18} color="#FFFFFF" />
+                    )}
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 14, marginLeft: 8 }}>
+                      {isSavingStatus ? "Saving..." : "Save Status"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </PrivateRoleComponent>
           </View>
 
@@ -246,53 +285,64 @@ export default function TeamDetailsModal({
             contentContainerStyle={{ paddingBottom: 40 }}
           >
             <View className="px-6 pb-6">
-              <Text className="text-[#0C3572] text-lg font-bold mb-4">Team Members</Text>
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 16, marginBottom: 12 }}>
+                Team Members
+              </Text>
 
               {loadingMembers ? (
                 <View className="items-center justify-center py-8">
-                  <ActivityIndicator size="large" color="#FFBA00" />
-                  <Text className="text-gray-500 mt-4">Loading team members...</Text>
+                  <ActivityIndicator size="large" color="#41B8F0" />
+                  <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, marginTop: 12 }}>Loading team members...</Text>
                 </View>
               ) : team.members && team.members.length > 0 ? (
                 team.members.map((member, index) => (
-                  <View key={index} className="bg-white border border-gray-200 rounded-xl p-5 mb-4">
+                  <View
+                    key={index}
+                    style={{ backgroundColor: innerBg, borderColor: cardBorder, borderWidth: 1 }}
+                    className="rounded-xl p-4 mb-3"
+                  >
                     <View className="flex-row items-start justify-between mb-3">
-                      <Text className="text-[#0C3572] text-lg font-bold flex-1">
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15 }} className="flex-1">
                         {member.user.name || (member.user as any).displayName || "Unknown User"}
                       </Text>
                       {member.userId === team.leaderId && (
-                        <View className="bg-[#FFBA00] px-3 py-1 rounded-full">
-                          <Text className="text-[#121212] text-xs font-bold">LEADER</Text>
+                        <View className="bg-[#41B8F0]/20 border border-[#41B8F0]/30 px-2.5 py-0.5 rounded-full">
+                          <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 10 }}>LEADER</Text>
                         </View>
                       )}
                     </View>
 
-                    <View className="space-y-3">
-                      <View className="flex-row items-center">
-                        <Phone size={16} color="#FFBA00" />
-                        <Text className="text-gray-300 text-base ml-3">
-                          {member.user.phoneNumber}
-                        </Text>
-                      </View>
+                    <View className="space-y-2">
+                      {member.user.phoneNumber && (
+                        <View className="flex-row items-center">
+                          <Phone size={14} color="#41B8F0" />
+                          <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13, marginLeft: 8 }}>
+                            {member.user.phoneNumber}
+                          </Text>
+                        </View>
+                      )}
 
-                      <View className="flex-row items-center">
-                        <Text className="text-[#FFBA00] text-base">📧</Text>
-                        <Text className="text-gray-300 text-base ml-3">
-                          {member.user.email}
-                        </Text>
-                      </View>
+                      {member.user.email && (
+                        <View className="flex-row items-center mt-1">
+                          <Mail size={14} color="#41B8F0" />
+                          <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13, marginLeft: 8 }}>
+                            {member.user.email}
+                          </Text>
+                        </View>
+                      )}
 
-                      <View className="flex-row items-center">
-                        <School size={16} color="#FFBA00" />
-                        <Text className="text-gray-300 text-base ml-3">
-                          {member.user.collegeName}
-                        </Text>
-                      </View>
+                      {member.user.collegeName && (
+                        <View className="flex-row items-center mt-1">
+                          <School size={14} color="#41B8F0" />
+                          <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13, marginLeft: 8 }}>
+                            {member.user.collegeName}
+                          </Text>
+                        </View>
+                      )}
 
                       {member.user.rollNumber && (
-                        <View className="flex-row items-center">
-                          <Text className="text-[#FFBA00] text-base">🎓</Text>
-                          <Text className="text-gray-300 text-base ml-3">
+                        <View className="flex-row items-center mt-1">
+                          <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 12, marginLeft: 22 }}>
                             Roll: {member.user.rollNumber}
                           </Text>
                         </View>
@@ -302,7 +352,7 @@ export default function TeamDetailsModal({
                 ))
               ) : (
                 <View className="items-center justify-center py-8">
-                  <Text className="text-gray-400">No members loaded</Text>
+                  <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary }}>No members loaded</Text>
                 </View>
               )}
             </View>

@@ -7,6 +7,7 @@ import {
   FlatList,
   RefreshControl,
   TextInput,
+  StatusBar,
 } from "react-native";
 import {
   ArrowLeft,
@@ -33,6 +34,8 @@ import {
   clearAccommodationCache,
 } from "@/api/admin";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type {
   AccommodationStats,
   UserAccommodation,
@@ -45,7 +48,6 @@ interface DayMapping {
 }
 
 const dayMappings: DayMapping[] = [
-  { date: 18, backendDay: "00", day: "Tuesday" },
   { date: 19, backendDay: "0", day: "Wednesday" },
   { date: 20, backendDay: "1", day: "Thursday" },
   { date: 21, backendDay: "2", day: "Friday" },
@@ -55,10 +57,13 @@ const dayMappings: DayMapping[] = [
 
 const Accommodation: React.FC = () => {
   const navigation = useAdminNavigation();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+
   const [selectedTab, setSelectedTab] = useState<"incoming" | "outgoing">(
     "incoming"
   );
-  const [selectedDate, setSelectedDate] = useState<string>("00");
+  const [selectedDate, setSelectedDate] = useState<string>("0");
   const [stats, setStats] = useState<AccommodationStats[]>([]);
   const [users, setUsers] = useState<UserAccommodation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,9 +74,14 @@ const Accommodation: React.FC = () => {
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [searchMode, setSearchMode] = useState<"normal" | "hostel">("normal");
 
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+
   useEffect(() => {
     loadStats();
-    console.log("Fetching accommodation stats");
   }, []);
 
   useEffect(() => {
@@ -90,126 +100,104 @@ const Accommodation: React.FC = () => {
   };
 
   const loadUsers = async (forceRefresh: boolean = false) => {
-    // Only show loading on initial load or force refresh
     if (forceRefresh || users.length === 0) {
       setLoading(true);
     } else {
-      // Show subtle cache loading indicator
       setLoadingFromCache(true);
     }
 
     try {
-      const data =
-        selectedTab === "incoming"
-          ? await fetchIncomingUsers(selectedDate, forceRefresh)
-          : await fetchOutgoingUsers(selectedDate, forceRefresh);
+      let data: UserAccommodation[];
+      if (selectedTab === "incoming") {
+        data = await fetchIncomingUsers(selectedDate, forceRefresh);
+      } else {
+        data = await fetchOutgoingUsers(selectedDate, forceRefresh);
+      }
       setUsers(data);
       setError(null);
     } catch (err) {
-      setError("Failed to load user data");
+      setError(`Failed to load ${selectedTab} users`);
       console.error(err);
     } finally {
       setLoading(false);
       setLoadingFromCache(false);
+      setRefreshing(false);
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // Clear cache and force refresh
     clearAccommodationCache();
     await Promise.all([loadStats(true), loadUsers(true)]);
-    setRefreshing(false);
   };
 
-  // Memoize stats lookup for better performance
-  const statsLookup = useMemo(() => {
-    return stats.reduce((acc, stat) => {
-      acc[stat.backendDay] = stat;
-      return acc;
-    }, {} as Record<string, AccommodationStats>);
-  }, [stats]);
-
-  const getStatsForDay = (backendDay: string) => {
-    return (
-      statsLookup[backendDay] || {
-        accommodationCount: 0,
-        foodCount: 0,
-        date: "",
-        backendDay,
-      }
-    );
-  };
-
-  // Filter users based on search query
   const filteredUsers = useMemo(() => {
     if (!searchQuery.trim()) {
       return users;
     }
 
-    const escapeRegExp = (s: string) =>
-      s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const query = searchQuery.toLowerCase().trim();
 
-    const raw = searchQuery.trim();
-    if (!raw) return users;
-
-    const lower = raw.toLowerCase();
-
-    // Hostel-specific search mode
     if (searchMode === "hostel") {
-      if (!raw) return users;
-
-      const hostelRegex = new RegExp(`^${escapeRegExp(raw)}`, "i");
-
       return users.filter((user) => {
-        const hostel = user.checkInStatus?.Hostel ?? "";
-        if (!hostel) return false;
-        const firstPart = hostel.split("-")[0] ?? "";
-        return hostelRegex.test(firstPart);
+        const hostel = user.checkInStatus?.Hostel?.toLowerCase() || "";
+        return hostel.includes(query);
       });
     }
 
-    // Normal search mode - search across all fields
-    const query = lower;
-    const queryDigits = query.replace(/\D/g, "");
-
     return users.filter((user) => {
-      const name = user.displayName?.toLowerCase() ?? "";
-      const college = user.collegeName?.toLowerCase() ?? "";
-      const email = user.email?.toLowerCase() ?? "";
-      const phone = (user.phoneNumber ?? "").replace(/\D/g, "");
-      const hostelFull = (user.checkInStatus?.Hostel ?? "").toLowerCase();
-
-      const phoneMatches =
-        queryDigits.length > 0 ? phone.includes(queryDigits) : false;
+      const name = user.displayName?.toLowerCase() || "";
+      const college = user.collegeName?.toLowerCase() || "";
+      const email = user.email?.toLowerCase() || "";
+      const phone = user.phoneNumber?.toLowerCase() || "";
+      const hostel = user.checkInStatus?.Hostel?.toLowerCase() || "";
 
       return (
         name.includes(query) ||
         college.includes(query) ||
         email.includes(query) ||
-        phoneMatches ||
-        hostelFull.includes(query)
+        phone.includes(query) ||
+        hostel.includes(query)
       );
     });
   }, [users, searchQuery, searchMode]);
 
   const renderDayCell = ({ item: day }: { item: DayMapping }) => {
-    const dayStats = getStatsForDay(day.backendDay);
     const isSelected = selectedDate === day.backendDay;
 
     return (
       <TouchableOpacity
-        className={`p-3 mx-2 mt-1 mb-0 rounded-xl min-w-[85px] items-center ${
-          isSelected ? "bg-[#EEB170]" : "bg-[#FFFFFF66]"
-        }`}
+        style={{
+          paddingVertical: 10,
+          paddingHorizontal: 14,
+          marginHorizontal: 4,
+          borderRadius: 14,
+          alignItems: "center",
+          backgroundColor: isSelected ? "#41B8F0" : cardBg,
+          borderWidth: 1,
+          borderColor: isSelected ? "#41B8F0" : cardBorder,
+        }}
         onPress={() => setSelectedDate(day.backendDay)}
         activeOpacity={0.7}
       >
         <Text
-          style={{ fontFamily: "Outfit_700Bold" }}
-          className={`text-base ${isSelected ? "text-black" : "text-[#0C3572]"}`}
+          style={{
+            fontFamily: "Poppins_600SemiBold",
+            fontSize: 13,
+            color: isSelected ? "#FFFFFF" : textPrimary,
+          }}
         >
           {`${day.date} Nov`}
+        </Text>
+        <Text
+          style={{
+            fontFamily: "Poppins_400Regular",
+            fontSize: 10,
+            color: isSelected ? "rgba(255, 255, 255, 0.85)" : textSecondary,
+            marginTop: 1,
+          }}
+        >
+          {day.day.slice(0, 3)}
         </Text>
       </TouchableOpacity>
     );
@@ -220,24 +208,40 @@ const Accommodation: React.FC = () => {
 
     return (
       <TouchableOpacity
-        className="bg-[#FFFFFF66] rounded-xl p-4 mx-4 mb-3"
+        style={{
+          backgroundColor: cardBg,
+          borderRadius: 18,
+          padding: 16,
+          marginHorizontal: 16,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: cardBorder,
+        }}
         onPress={() => setExpandedUserId(isExpanded ? null : user.userId)}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
       >
-        {/* Collapsed View - Name and Email */}
-        <View className="flex-row justify-between items-center">
-          <View className="flex-1">
+        {/* Collapsed View */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View style={{ flex: 1, marginRight: 8 }}>
             <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-base"
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: textPrimary,
+                fontSize: 15,
+              }}
             >
               {user.displayName}
             </Text>
-            <View className="flex-row items-center mt-1">
-              <Building size={12} color="#9CA3AF" />
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
+              <Building size={12} color="#41B8F0" />
               <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#2175C0] text-xs ml-2 flex-1"
+                style={{
+                  fontFamily: "Poppins_400Regular",
+                  color: textSecondary,
+                  fontSize: 12,
+                  marginLeft: 5,
+                  flex: 1,
+                }}
                 numberOfLines={1}
               >
                 {user.collegeName}
@@ -245,149 +249,122 @@ const Accommodation: React.FC = () => {
             </View>
           </View>
           {isExpanded ? (
-            <ChevronUp size={20} color="#EEB170" />
+            <ChevronUp size={20} color="#41B8F0" />
           ) : (
-            <ChevronDown size={20} color="#9CA3AF" />
+            <ChevronDown size={20} color={textSecondary} />
           )}
         </View>
 
-        {/* Expanded View - All Details */}
+        {/* Expanded View */}
         {isExpanded && (
-          <View className="mt-4 pt-4 border-t border-[#A0B3D0]">
-            {/* College and Contact Info */}
-            <View className="flex-col gap-2 mb-4">
-              <View className="flex-row items-center">
-                <Mail size={14} color="#9CA3AF" />
+          <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: cardBorder }}>
+            {/* Contact Details */}
+            <View style={{ gap: 6, marginBottom: 14 }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Mail size={13} color="#41B8F0" />
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-[#2175C0] text-sm ml-2 flex-1"
-                  numberOfLines={2}
+                  style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, marginLeft: 6, flex: 1 }}
+                  numberOfLines={1}
                 >
                   {user.email}
                 </Text>
               </View>
 
-              <View className="flex-row items-center">
-                <Phone size={14} color="#9CA3AF" />
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Phone size={13} color="#41B8F0" />
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-[#2175C0] text-sm ml-2"
+                  style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, marginLeft: 6 }}
                 >
                   {user.phoneNumber}
                 </Text>
               </View>
 
-              {user.checkInStatus.Hostel && (
-                <View className="flex-row items-center">
-                  <House size={14} color="#9CA3AF" />
+              {user.checkInStatus?.Hostel && (
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <House size={13} color="#41B8F0" />
                   <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#0C3572] text-sm ml-2"
+                    style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 12, marginLeft: 6 }}
                   >
-                    Hostel Alloted - {user.checkInStatus.Hostel}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Status Badges */}
-            <View className="flex-row gap-2 mb-4">
-              {user.isHostCollegeStudent && (
-                <View className="bg-blue-500/20 px-3 py-1.5 rounded-full flex-row items-center">
-                  <Building size={12} color="#3B82F6" />
-                  <Text
-                    style={{ fontFamily: "Outfit_600SemiBold" }}
-                    className="text-blue-400 text-xs ml-1"
-                  >
-                    Host College
-                  </Text>
-                </View>
-              )}
-              {user.accommodationNeeded && (
-                <View className="bg-green-500/20 px-3 py-1.5 rounded-full flex-row items-center">
-                  <Home size={12} color="#10B981" />
-                  <Text
-                    style={{ fontFamily: "Outfit_600SemiBold" }}
-                    className="text-green-400 text-xs ml-1"
-                  >
-                    Needs Stay
+                    Hostel Allotted: {user.checkInStatus.Hostel}
                   </Text>
                 </View>
               )}
             </View>
 
             {/* Status Row */}
-            <View className="flex-col gap-3 pt-3 border-t border-gray-700">
-              <View className="flex-row justify-between">
-                <View className="flex-row items-center">
-                  <Home size={14} color="#9CA3AF" />
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#2175C0] text-xs ml-1 mr-2"
-                  >
+            <View
+              style={{
+                backgroundColor: isDark ? "rgba(255, 255, 255, 0.04)" : "rgba(0, 0, 0, 0.03)",
+                borderRadius: 12,
+                padding: 12,
+                gap: 8,
+              }}
+            >
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Home size={13} color={textSecondary} />
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, marginLeft: 5, marginRight: 6 }}>
                     Stay:
                   </Text>
                   {user.accommodationStatus ? (
-                    <CheckCircle size={14} color="#10B981" />
+                    <CheckCircle size={13} color="#10B981" />
                   ) : (
-                    <XCircle size={14} color="#EF4444" />
+                    <XCircle size={13} color="#EF4444" />
                   )}
                   <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className={`text-xs ml-1 ${
-                      user.accommodationStatus ? "text-green-400" : "text-red-400"
-                    }`}
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      fontSize: 12,
+                      marginLeft: 4,
+                      color: user.accommodationStatus ? "#10B981" : "#EF4444",
+                    }}
                   >
                     {user.accommodationStatus ? "Booked" : "Not Booked"}
                   </Text>
                 </View>
 
-                <View className="flex-row items-center">
-                  <Utensils size={14} color="#9CA3AF" />
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#2175C0] text-xs ml-1 mr-2"
-                  >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Utensils size={13} color={textSecondary} />
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, marginLeft: 5, marginRight: 6 }}>
                     Food:
                   </Text>
                   {user.foodStatus ? (
-                    <CheckCircle size={14} color="#10B981" />
+                    <CheckCircle size={13} color="#10B981" />
                   ) : (
-                    <XCircle size={14} color="#EF4444" />
+                    <XCircle size={13} color="#EF4444" />
                   )}
                   <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className={`text-xs ml-1 ${
-                      user.foodStatus ? "text-green-400" : "text-red-400"
-                    }`}
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      fontSize: 12,
+                      marginLeft: 4,
+                      color: user.foodStatus ? "#10B981" : "#EF4444",
+                    }}
                   >
                     {user.foodStatus ? "Booked" : "Not Booked"}
                   </Text>
                 </View>
               </View>
 
-              <View className="flex-row items-center">
-                <Clock size={14} color="#9CA3AF" />
-                <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-[#2175C0] text-xs ml-1 mr-2"
-                >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Clock size={13} color={textSecondary} />
+                <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, marginLeft: 5, marginRight: 6 }}>
                   Check-in:
                 </Text>
-                {user.checkInStatus.accommodation ? (
-                  <CheckCircle size={14} color="#10B981" />
+                {user.checkInStatus?.accommodation ? (
+                  <CheckCircle size={13} color="#10B981" />
                 ) : (
-                  <Clock size={14} color="#F59E0B" />
+                  <Clock size={13} color="#F59E0B" />
                 )}
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className={`text-xs ml-1 ${
-                    user.checkInStatus.accommodation
-                      ? "text-green-400"
-                      : "text-yellow-400"
-                  }`}
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    fontSize: 12,
+                    marginLeft: 4,
+                    color: user.checkInStatus?.accommodation ? "#10B981" : "#F59E0B",
+                  }}
                 >
-                  {user.checkInStatus.accommodation ? "Done" : "Pending"}
+                  {user.checkInStatus?.accommodation ? "Completed" : "Pending"}
                 </Text>
               </View>
             </View>
@@ -398,90 +375,135 @@ const Accommodation: React.FC = () => {
   };
 
   return (
-    <View className="flex-1 bg-transparent">
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
       {/* Header */}
-      <View className="bg-[#EEB170] pt-4 rounded-b-2xl pb-6 px-6 flex-row items-center justify-between">
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
         <TouchableOpacity
           onPress={() => navigation.navigate("Dashboard")}
-          className="mr-4"
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
           activeOpacity={0.7}
         >
-          <ArrowLeft size={28} color="#121212" />
+          <ArrowLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <View className="flex-1">
+        <View style={{ flex: 1 }}>
           <Text
-            style={{ fontFamily: "Outfit_700Bold" }}
-            className="text-[#121212] text-2xl"
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
           >
             Accommodation
           </Text>
           <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-[#121212] text-sm opacity-80"
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
           >
             {filteredUsers.length > 0
               ? `${filteredUsers.length} ${selectedTab} users for ${
-                  dayMappings.find((d) => d.backendDay === selectedDate)?.day ||
-                  "selected day"
+                  dayMappings.find((d) => d.backendDay === selectedDate)?.day || "selected day"
                 }`
-              : "Track arrivals and departures"}
+              : "Track hostel arrivals and departures"}
           </Text>
         </View>
       </View>
 
       {/* Calendar Strip */}
-      <View className="bg-transparent pb-2 pt-4">
+      <View style={{ paddingVertical: 12 }}>
         <FlatList
           horizontal
           data={dayMappings}
           renderItem={renderDayCell}
           keyExtractor={(day) => day.backendDay}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
         />
       </View>
 
       {/* Tab Buttons */}
-      <View className="flex-row p-4 bg-transparent">
+      <View style={{ flexDirection: "row", paddingHorizontal: 16, marginBottom: 12, gap: 10 }}>
         <TouchableOpacity
-          className={`flex-1 py-3 rounded-xl mx-1 items-center ${
-            selectedTab === "incoming" ? "bg-[#EEB170]" : "bg-[#FFFFFF66]"
-          }`}
+          style={{
+            flex: 1,
+            paddingVertical: 12,
+            borderRadius: 14,
+            alignItems: "center",
+            backgroundColor: selectedTab === "incoming" ? "#41B8F0" : cardBg,
+            borderWidth: 1,
+            borderColor: selectedTab === "incoming" ? "#41B8F0" : cardBorder,
+          }}
           onPress={() => setSelectedTab("incoming")}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
         >
-          <View className="flex-row items-center">
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
             <ArrowDown
               size={16}
-              color={selectedTab === "incoming" ? "#121212" : "#9CA3AF"}
+              color={selectedTab === "incoming" ? "#FFFFFF" : textSecondary}
             />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className={`text-base ml-2 ${
-                selectedTab === "incoming" ? "text-black" : "text-[#2175C0]"
-              }`}
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                fontSize: 14,
+                marginLeft: 6,
+                color: selectedTab === "incoming" ? "#FFFFFF" : textPrimary,
+              }}
             >
               Incoming
             </Text>
           </View>
         </TouchableOpacity>
+
         <TouchableOpacity
-          className={`flex-1 py-3 rounded-xl mx-1 items-center ${
-            selectedTab === "outgoing" ? "bg-[#EEB170]" : "bg-[#FFFFFF66]"
-          }`}
+          style={{
+            flex: 1,
+            paddingVertical: 12,
+            borderRadius: 14,
+            alignItems: "center",
+            backgroundColor: selectedTab === "outgoing" ? "#41B8F0" : cardBg,
+            borderWidth: 1,
+            borderColor: selectedTab === "outgoing" ? "#41B8F0" : cardBorder,
+          }}
           onPress={() => setSelectedTab("outgoing")}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
         >
-          <View className="flex-row items-center">
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
             <ArrowUp
               size={16}
-              color={selectedTab === "outgoing" ? "#121212" : "#9CA3AF"}
+              color={selectedTab === "outgoing" ? "#FFFFFF" : textSecondary}
             />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className={`text-base ml-2 ${
-                selectedTab === "outgoing" ? "text-black" : "text-[#2175C0]"
-              }`}
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                fontSize: 14,
+                marginLeft: 6,
+                color: selectedTab === "outgoing" ? "#FFFFFF" : textPrimary,
+              }}
             >
               Outgoing
             </Text>
@@ -489,128 +511,114 @@ const Accommodation: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
-      <View className="px-4 pb-3 bg-transparent">
-         <View className="flex-row mb-3 gap-2">
+      {/* Search Mode Toggle & Input */}
+      <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
           <TouchableOpacity
-            className={`flex-1 py-2.5 rounded-lg items-center ${
-              searchMode === "normal" ? "bg-[#EEB170]" : "bg-[#FFFFFF66]"
-            }`}
+            style={{
+              flex: 1,
+              paddingVertical: 8,
+              borderRadius: 10,
+              alignItems: "center",
+              backgroundColor: searchMode === "normal"
+                ? (isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE")
+                : cardBg,
+              borderWidth: 1,
+              borderColor: searchMode === "normal" ? "#41B8F0" : cardBorder,
+            }}
             onPress={() => setSearchMode("normal")}
             activeOpacity={0.7}
           >
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className={`text-sm ${
-                searchMode === "normal" ? "text-black" : "text-[#2175C0]"
-              }`}
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                fontSize: 12,
+                color: searchMode === "normal" ? "#41B8F0" : textSecondary,
+              }}
             >
               Normal Search
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className={`flex-1 py-2.5 rounded-lg items-center flex-row justify-center ${
-              searchMode === "hostel" ? "bg-[#EEB170]" : "bg-[#FFFFFF66]"
-            }`}
+            style={{
+              flex: 1,
+              paddingVertical: 8,
+              borderRadius: 10,
+              alignItems: "center",
+              flexDirection: "row",
+              justifyContent: "center",
+              backgroundColor: searchMode === "hostel"
+                ? (isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE")
+                : cardBg,
+              borderWidth: 1,
+              borderColor: searchMode === "hostel" ? "#41B8F0" : cardBorder,
+            }}
             onPress={() => setSearchMode("hostel")}
             activeOpacity={0.7}
           >
             <House
-              size={14}
-              color={searchMode === "hostel" ? "#121212" : "#9CA3AF"}
+              size={13}
+              color={searchMode === "hostel" ? "#41B8F0" : textSecondary}
             />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className={`text-sm ml-1.5 ${
-                searchMode === "hostel" ? "text-black" : "text-[#2175C0]"
-              }`}
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                fontSize: 12,
+                marginLeft: 6,
+                color: searchMode === "hostel" ? "#41B8F0" : textSecondary,
+              }}
             >
               Hostel Search
             </Text>
           </TouchableOpacity>
         </View>
 
-        <View className="flex-row items-center bg-[#FFFFFF66] rounded-xl px-4 py-1">
-          <Search size={20} color="#9CA3AF" />
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: cardBg,
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderWidth: 1,
+            borderColor: cardBorder,
+          }}
+        >
+          <Search size={18} color="#41B8F0" />
           <TextInput
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="flex-1 text-[#0C3572] text-base ml-3"
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 13,
+              color: textPrimary,
+              flex: 1,
+              marginLeft: 10,
+            }}
             placeholder={
               searchMode === "hostel"
-                ? "Search by hostel (e.g., M, F, D)..."
-                : "Search by name, college, email, phone..."
+                ? "Search by hostel letter (e.g., M, F, D)..."
+                : "Search by name, college, email..."
             }
-            placeholderTextColor="#6B7280"
+            placeholderTextColor={textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery("")}
-              activeOpacity={0.7}
-              className="ml-2"
-            >
-              <X size={20} color="#9CA3AF" />
+            <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
+              <X size={18} color={textSecondary} />
             </TouchableOpacity>
           )}
         </View>
-        {searchQuery.length > 0 && (
-          <Text
-            style={{ fontFamily: "Outfit_400Regular" }}
-            className="text-[#2175C0] text-xs mt-2 ml-1"
-          >
-            {filteredUsers.length === 0
-              ? "No results found"
-              : `Found ${filteredUsers.length} result${
-                  filteredUsers.length === 1 ? "" : "s"
-                }`}
-          </Text>
-        )}
       </View>
-
-      {/* Error Message */}
-      {error && (
-        <View className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 mx-4 mb-4">
-          <View className="flex-row items-center justify-center">
-            <XCircle size={20} color="#EF4444" />
-            <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-red-400 text-center ml-2"
-            >
-              {error}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={onRefresh}
-            className="mt-2 bg-red-500 py-2 px-4 rounded-lg"
-          >
-            <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-center"
-            >
-              Retry
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Users List */}
       {loading ? (
-        <View className="flex-1 justify-center items-center py-20">
-          <ActivityIndicator size="large" color="#EEB170" />
-          <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-[#2175C0] mt-4 text-center"
-          >
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 40 }}>
+          <ActivityIndicator size="large" color="#41B8F0" />
+          <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, marginTop: 12 }}>
             Loading {selectedTab} users...
-          </Text>
-          <Text
-            style={{ fontFamily: "Outfit_400Regular" }}
-            className="text-gray-500 text-sm text-center mt-2"
-          >
-            Please wait while we fetch the data
           </Text>
         </View>
       ) : (
@@ -622,47 +630,28 @@ const Accommodation: React.FC = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={["#EEB170"]}
-              tintColor="#EEB170"
+              colors={["#41B8F0"]}
+              tintColor="#41B8F0"
             />
           }
           ListEmptyComponent={() => (
-            <View
-              className="items-center justify-center py-20"
-              style={{ minHeight: 300 }}
-            >
+            <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 50, paddingHorizontal: 30 }}>
               {selectedTab === "incoming" ? (
-                <ArrowDown size={48} color="#6B7280" />
+                <ArrowDown size={42} color={textSecondary} />
               ) : (
-                <ArrowUp size={48} color="#6B7280" />
+                <ArrowUp size={42} color={textSecondary} />
               )}
-              <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#2175C0] text-xl mt-4 text-center"
-              >
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 16, marginTop: 14, textAlign: "center" }}>
                 No {selectedTab} users found
               </Text>
-              <Text
-                style={{ fontFamily: "Outfit_400Regular" }}
-                className="text-gray-500 text-center mt-2 px-8"
-              >
+              <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, textAlign: "center", marginTop: 4 }}>
                 {selectedTab === "incoming"
                   ? "No users starting accommodation on this day"
                   : "No users ending accommodation on this day"}
               </Text>
-
-              <View className="mt-6 bg-[#FFFFFF66] rounded-xl p-4 mx-8">
-                <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-[#2175C0] text-center text-sm"
-                >
-                  💡 Tip: Try selecting a different date or check the other tab
-                  for user activity
-                </Text>
-              </View>
             </View>
           )}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
           showsVerticalScrollIndicator={false}
         />
       )}

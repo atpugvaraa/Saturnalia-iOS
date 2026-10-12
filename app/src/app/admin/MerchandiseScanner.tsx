@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  StatusBar,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
@@ -20,8 +21,9 @@ import {
 } from "@/api/admin";
 import { getStoreItems, StoreItem } from "@/api/admin";
 import { Ionicons } from "@expo/vector-icons";
-import Header from "@/components/layout/Header";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface MerchandiseScannerProps {
   navigation: any;
@@ -39,6 +41,14 @@ export default function MerchandiseScanner({
   setShowBottomNav,
 }: { setShowBottomNav?: (show: boolean) => void }) {
   const navigation = useAdminNavigation();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+  const bgColor = isDark ? "#131316" : "#E0E0E0";
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+
   const [permission, requestPermission] = useCameraPermissions();
   const [loading, setLoading] = useState(true);
   const [showScanner, setShowScanner] = useState(false);
@@ -102,16 +112,16 @@ export default function MerchandiseScanner({
       const storeItems = itemsResult.data;
 
       // Map items with their orders
-      const itemsWithOrders: ItemWithOrders[] = storeItems.map((item) => {
-        const itemOrders = orders.filter((order) =>
-          order.items.some((orderItem) => orderItem.itemId === item.id)
+      const itemsWithOrders: ItemWithOrders[] = storeItems.map((item: any) => {
+        const itemOrders = orders.filter((order: any) =>
+          order.items?.some((orderItem: any) => orderItem.itemId === item.id)
         );
 
         const deliveredCount = itemOrders.filter(
-          (o) => o.status === "delivered"
+          (o: any) => o.status === "delivered"
         ).length;
         const pendingCount = itemOrders.filter(
-          (o) => o.status === "confirmed"
+          (o: any) => o.status === "confirmed"
         ).length;
 
         return {
@@ -124,9 +134,9 @@ export default function MerchandiseScanner({
       });
 
       // Find zombie orders (orders with items not in store catalog)
-      const allItemIds = new Set(storeItems.map((item) => item.id));
-      const orphanOrders = orders.filter((order) =>
-        order.items.some((item) => !allItemIds.has(item.itemId))
+      const allItemIds = new Set(storeItems.map((item: any) => item.id));
+      const orphanOrders = orders.filter((order: any) =>
+        order.items?.some((item: any) => !allItemIds.has(item.itemId))
       );
 
       setItems(itemsWithOrders);
@@ -269,8 +279,8 @@ export default function MerchandiseScanner({
   if (showScanner) {
     if (!permission) {
       return (
-        <View className="flex-1 bg-transparent items-center justify-center">
-          <Text className="text-[#0C3572] text-lg">
+        <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 16 }}>
             Requesting camera permission...
           </Text>
         </View>
@@ -279,17 +289,23 @@ export default function MerchandiseScanner({
 
     if (!permission.granted) {
       return (
-        <View className="flex-1 bg-transparent items-center justify-center px-6">
-          <Package size={64} color="#EEB170" />
-          <Text className="text-[#0C3572] text-lg text-center mt-4 mb-6">
+        <View style={{ flex: 1, backgroundColor: bgColor, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "rgba(65, 184, 240, 0.15)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <Package size={44} color="#41B8F0" />
+          </View>
+          <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 18, textAlign: "center", marginBottom: 8 }}>
+            Camera Access Required
+          </Text>
+          <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 14, textAlign: "center", marginBottom: 24 }}>
             Camera permission is required to scan order QR codes
           </Text>
           <TouchableOpacity
-            className="bg-[#EEB170] px-6 py-3 rounded-xl"
+            style={{ backgroundColor: "#41B8F0" }}
+            className="px-6 py-3.5 rounded-xl"
             onPress={requestPermission}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
-            <Text className="text-[#121212] font-bold text-lg">
+            <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 16 }}>
               Grant Permission
             </Text>
           </TouchableOpacity>
@@ -311,10 +327,9 @@ export default function MerchandiseScanner({
           />
         ) : (
           <View className="flex-1 bg-black items-center justify-center">
-            <ActivityIndicator size="large" color="#EEB170" />
+            <ActivityIndicator size="large" color="#41B8F0" />
             <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#0C3572] text-base mt-4"
+              style={{ fontFamily: "Poppins_500Medium", color: "#FFFFFF", marginTop: 16 }}
             >
               Initializing camera...
             </Text>
@@ -329,10 +344,10 @@ export default function MerchandiseScanner({
                 className="rounded-2xl bg-transparent"
                 style={{ width: 250, height: 250 }}
               >
-                <View className="absolute -top-1 -left-1 w-8 h-8 border-l-4 border-t-4 border-[#EEB170] rounded-tl-lg" />
-                <View className="absolute -top-1 -right-1 w-8 h-8 border-r-4 border-t-4 border-[#EEB170] rounded-tr-lg" />
-                <View className="absolute -bottom-1 -left-1 w-8 h-8 border-l-4 border-b-4 border-[#EEB170] rounded-bl-lg" />
-                <View className="absolute -bottom-1 -right-1 w-8 h-8 border-r-4 border-b-4 border-[#EEB170] rounded-br-lg" />
+                <View className="absolute -top-1 -left-1 w-8 h-8 border-l-4 border-t-4 border-[#41B8F0] rounded-tl-lg" />
+                <View className="absolute -top-1 -right-1 w-8 h-8 border-r-4 border-t-4 border-[#41B8F0] rounded-tr-lg" />
+                <View className="absolute -bottom-1 -left-1 w-8 h-8 border-l-4 border-b-4 border-[#41B8F0] rounded-bl-lg" />
+                <View className="absolute -bottom-1 -right-1 w-8 h-8 border-r-4 border-b-4 border-[#41B8F0] rounded-br-lg" />
               </View>
             </View>
           </View>
@@ -349,7 +364,7 @@ export default function MerchandiseScanner({
             </TouchableOpacity>
 
             <View className="flex-1 items-center" pointerEvents="none">
-              <Text className="text-[#0C3572] text-xl font-bold text-center">
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 18 }}>
                 Scan Order QR Code
               </Text>
             </View>
@@ -362,7 +377,7 @@ export default function MerchandiseScanner({
             pointerEvents="none"
           >
             <View className="bg-black/70 rounded-xl px-4 py-3">
-              <Text className="text-[#0C3572] text-center font-semibold text-base">
+              <Text style={{ fontFamily: "Poppins_500Medium", color: "#FFFFFF", textAlign: "center", fontSize: 14 }}>
                 {scanned
                   ? "Processing order..."
                   : "Point camera at order QR code"}
@@ -376,26 +391,67 @@ export default function MerchandiseScanner({
 
   // Dashboard View
   return (
-    <View className="flex-1 bg-transparent">
-      <Header />
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      <View className="flex-row items-center justify-between mb-4 px-6 mt-6">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
-          <Ionicons name="arrow-back" size={24} color="#ffffff" />
-        </TouchableOpacity>
-        <Text
-          style={{ fontFamily: "Outfit_700Bold" }}
-          className="text-[#0C3572] text-2xl"
+      {/* Header */}
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          backgroundColor: bgColor,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
+          activeOpacity={0.7}
         >
-          Merchandise Dashboard
-        </Text>
-        <View className="w-6" />
+          <ArrowLeft size={22} color={textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
+          >
+            Merchandise Dashboard
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
+          >
+            Track store items and order fulfilment
+          </Text>
+        </View>
       </View>
 
       {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#EEB170" />
-          <Text className="text-[#0C3572] mt-4">Loading merchandise data...</Text>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color="#41B8F0" />
+          <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, marginTop: 12 }}>
+            Loading merchandise data...
+          </Text>
         </View>
       ) : (
         <>
@@ -407,21 +463,20 @@ export default function MerchandiseScanner({
             {/* Item Filter Dropdown */}
             <View className="mb-4">
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#0C3572] text-sm mb-2"
+                style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13, marginBottom: 8 }}
               >
                 Filter by Item
               </Text>
               <TouchableOpacity
-                className="bg-[#FFFFFF66] rounded-xl p-4 flex-row items-center justify-between"
+                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="rounded-xl p-4 flex-row items-center justify-between"
                 onPress={() => setShowFilterDropdown(!showFilterDropdown)}
                 activeOpacity={0.7}
               >
                 <View className="flex-row items-center flex-1">
-                  <Package size={20} color="#EEB170" />
+                  <Package size={20} color="#41B8F0" />
                   <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#0C3572] text-base ml-3 flex-1"
+                    style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 15, marginLeft: 12, flex: 1 }}
                     numberOfLines={1}
                   >
                     {selectedFilterItemId
@@ -433,15 +488,19 @@ export default function MerchandiseScanner({
                 <Ionicons
                   name={showFilterDropdown ? "chevron-up" : "chevron-down"}
                   size={20}
-                  color="#6B7280"
+                  color={textSecondary}
                 />
               </TouchableOpacity>
 
               {/* Dropdown Menu */}
               {showFilterDropdown && (
-                <View className="bg-[#FFFFFF66] rounded-xl mt-2 overflow-hidden border border-[#3C3C3C]">
+                <View
+                  style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                  className="rounded-xl mt-2 overflow-hidden shadow-sm"
+                >
                   <TouchableOpacity
-                    className="p-4 border-b border-[#3C3C3C]"
+                    style={{ borderBottomWidth: 1, borderBottomColor: cardBorder }}
+                    className="p-4"
                     onPress={() => {
                       setSelectedFilterItemId(null);
                       setShowFilterDropdown(false);
@@ -452,17 +511,16 @@ export default function MerchandiseScanner({
                       <View
                         className={`w-5 h-5 rounded-full border-2 mr-3 items-center justify-center ${
                           selectedFilterItemId === null
-                            ? "border-[#EEB170] bg-[#EEB170]"
+                            ? "border-[#41B8F0] bg-[#41B8F0]"
                             : "border-gray-500"
                         }`}
                       >
                         {selectedFilterItemId === null && (
-                          <View className="w-2 h-2 rounded-full bg-black" />
+                          <View className="w-2 h-2 rounded-full bg-white" />
                         )}
                       </View>
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#0C3572] text-base"
+                        style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 15 }}
                       >
                         All Items
                       </Text>
@@ -473,7 +531,8 @@ export default function MerchandiseScanner({
                     {items.map((item) => (
                       <TouchableOpacity
                         key={item.id}
-                        className="p-4 border-b border-[#3C3C3C] last:border-b-0"
+                        style={{ borderBottomWidth: 1, borderBottomColor: cardBorder }}
+                        className="p-4"
                         onPress={() => {
                           setSelectedFilterItemId(item.id);
                           setShowFilterDropdown(false);
@@ -484,29 +543,27 @@ export default function MerchandiseScanner({
                           <View
                             className={`w-5 h-5 rounded-full border-2 mr-3 items-center justify-center ${
                               selectedFilterItemId === item.id
-                                ? "border-[#EEB170] bg-[#EEB170]"
+                                ? "border-[#41B8F0] bg-[#41B8F0]"
                                 : "border-gray-500"
                             }`}
                           >
                             {selectedFilterItemId === item.id && (
-                              <View className="w-2 h-2 rounded-full bg-black" />
+                              <View className="w-2 h-2 rounded-full bg-white" />
                             )}
                           </View>
                           <Image
-                            source={{ uri: item.images[0] }}
+                            source={{ uri: item.images?.[0] || "" }}
                             className="w-10 h-10 rounded-lg mr-3"
                           />
                           <View className="flex-1">
                             <Text
-                              style={{ fontFamily: "Outfit_500Medium" }}
-                              className="text-[#0C3572] text-base"
+                              style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 15 }}
                               numberOfLines={1}
                             >
                               {item.name}
                             </Text>
                             <Text
-                              style={{ fontFamily: "Outfit_400Regular" }}
-                              className="text-[#2175C0] text-xs"
+                              style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12 }}
                             >
                               {item.totalOrders} orders • {item.pendingCount}{" "}
                               pending
@@ -515,7 +572,7 @@ export default function MerchandiseScanner({
                           {!item.isActive && (
                             <View className="bg-red-500/20 px-2 py-1 rounded-full">
                               <Text
-                                style={{ fontFamily: "Outfit_600SemiBold" }}
+                                style={{ fontFamily: "Poppins_600SemiBold" }}
                                 className="text-red-400 text-xs"
                               >
                                 Inactive
@@ -530,32 +587,38 @@ export default function MerchandiseScanner({
               )}
             </View>
 
-            <Button
-            onPress={() => setShowScanner(true)}
-            className="mb-6 bg-[#EEB170] rounded-xl py-4 items-center"
+            <TouchableOpacity
+              onPress={() => setShowScanner(true)}
+              style={{ backgroundColor: "#41B8F0" }}
+              className="mb-6 rounded-xl py-4 flex-row items-center justify-center shadow-sm"
+              activeOpacity={0.8}
             >
-            <Scan size={32} color="#000" />
-              <Text className="text-black text-lg font-semibold ml-4">Scan QR Code</Text>
-            </Button>
+              <Scan size={24} color="#FFFFFF" />
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 16, marginLeft: 10 }}>
+                Scan QR Code
+              </Text>
+            </TouchableOpacity>
 
             {/* Stats Summary */}
-            <View className="bg-[#FFFFFF66] rounded-2xl p-5 mb-6">
+            <View
+              style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+              className="rounded-2xl p-5 mb-6"
+            >
               <View className="flex-row items-center justify-between mb-4">
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#0C3572] text-lg"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 16 }}
                 >
                   {selectedFilterItemId ? "Item Overview" : "Overview"}
                 </Text>
                 {selectedFilterItemId && (
                   <TouchableOpacity
                     onPress={() => setSelectedFilterItemId(null)}
-                    className="bg-[#1A1A1A] px-3 py-1 rounded-lg"
+                    style={{ backgroundColor: isDark ? "#2A2A30" : "#E5E7EB" }}
+                    className="px-3 py-1 rounded-lg"
                     activeOpacity={0.7}
                   >
                     <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-[#EEB170] text-xs"
+                      style={{ fontFamily: "Poppins_500Medium", color: "#41B8F0", fontSize: 12 }}
                     >
                       Clear Filter
                     </Text>
@@ -565,54 +628,45 @@ export default function MerchandiseScanner({
               <View className="flex-row justify-between">
                 <View className="items-center">
                   <Text
-                    style={{ fontFamily: "Outfit_700Bold" }}
-                    className="text-[#EEB170] text-2xl"
+                    style={{ fontFamily: "Poppins_700Bold", color: "#41B8F0", fontSize: 24 }}
                   >
                     {filteredData.totalOrders}
                   </Text>
                   <Text
-                    style={{ fontFamily: "Outfit_400Regular" }}
-                    className="text-[#2175C0] text-sm"
+                    style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}
                   >
                     Total Orders
                   </Text>
                 </View>
                 <View className="items-center">
                   <Text
-                    style={{ fontFamily: "Outfit_700Bold" }}
-                    className="text-blue-400 text-2xl"
+                    style={{ fontFamily: "Poppins_700Bold", color: "#3B82F6", fontSize: 24 }}
                   >
                     {filteredData.deliveredCount}
                   </Text>
                   <Text
-                    style={{ fontFamily: "Outfit_400Regular" }}
-                    className="text-[#2175C0] text-sm"
+                    style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}
                   >
                     Delivered
                   </Text>
                 </View>
                 <View className="items-center">
                   <Text
-                    style={{ fontFamily: "Outfit_700Bold" }}
-                    className="text-green-400 text-2xl"
+                    style={{ fontFamily: "Poppins_700Bold", color: "#10B981", fontSize: 24 }}
                   >
                     {filteredData.pendingCount}
                   </Text>
                   <Text
-                    style={{ fontFamily: "Outfit_400Regular" }}
-                    className="text-[#2175C0] text-sm"
+                    style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}
                   >
                     Pending
                   </Text>
                 </View>
               </View>
-            </View>
-
-            {/* Items List */}
+            </View>            {/* Items List */}
             {!selectedFilterItemId && (
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#0C3572] text-lg mb-4"
+                style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 16, marginBottom: 12 }}
               >
                 Merchandise Items
               </Text>
@@ -620,8 +674,7 @@ export default function MerchandiseScanner({
 
             {selectedFilterItemId && filteredData.items.length > 0 && (
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#0C3572] text-lg mb-4"
+                style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 16, marginBottom: 12 }}
               >
                 Orders for {filteredData.items[0].name}
               </Text>
@@ -630,7 +683,8 @@ export default function MerchandiseScanner({
             {!selectedFilterItemId && filteredData.items.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                className="bg-[#FFFFFF66] rounded-2xl p-4 mb-4"
+                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                className="rounded-2xl p-4 mb-4"
                 onPress={() => {
                   setSelectedItem(item);
                   setShowItemModal(true);
@@ -640,13 +694,13 @@ export default function MerchandiseScanner({
                 <View className="flex-row items-start">
                   <View className="relative">
                     <Image
-                      source={{ uri: item.images[0] }}
+                      source={{ uri: item.images?.[0] || "" }}
                       className="w-20 h-20 rounded-xl"
                     />
                     {!item.isActive && (
                       <View className="absolute inset-0 bg-black/70 rounded-xl items-center justify-center">
                         <Text
-                          style={{ fontFamily: "Outfit_600SemiBold" }}
+                          style={{ fontFamily: "Poppins_600SemiBold" }}
                           className="text-red-400 text-xs"
                         >
                           INACTIVE
@@ -657,15 +711,15 @@ export default function MerchandiseScanner({
                   <View className="flex-1 ml-4">
                     <View className="flex-row items-center mb-1">
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-[#0C3572] text-base flex-1"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15 }}
+                        className="flex-1"
                       >
                         {item.name}
                       </Text>
                       {!item.isActive && (
-                        <View className="bg-red-500/20 px-2 py-1 rounded-full">
+                        <View className="bg-red-500/20 px-2 py-0.5 rounded-full">
                           <Text
-                            style={{ fontFamily: "Outfit_600SemiBold" }}
+                            style={{ fontFamily: "Poppins_600SemiBold" }}
                             className="text-red-400 text-xs"
                           >
                             Inactive
@@ -674,8 +728,7 @@ export default function MerchandiseScanner({
                       )}
                     </View>
                     <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#2175C0] text-sm mb-2"
+                      style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13, marginBottom: 8 }}
                       numberOfLines={2}
                     >
                       {item.description}
@@ -683,23 +736,21 @@ export default function MerchandiseScanner({
                     <View className="flex-row items-center gap-3">
                       <View className="flex-row items-center">
                         <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-[#EEB170] text-sm"
+                          style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 13 }}
                         >
                           {item.totalOrders} orders
                         </Text>
                       </View>
                       <View className="flex-row items-center">
                         <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-green-400 text-sm"
+                          style={{ fontFamily: "Poppins_500Medium", color: "#10B981", fontSize: 13 }}
                         >
                           {item.pendingCount} pending
                         </Text>
                       </View>
                     </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+                  <Ionicons name="chevron-forward" size={20} color={textSecondary} />
                 </View>
               </TouchableOpacity>
             ))}
@@ -711,7 +762,8 @@ export default function MerchandiseScanner({
                   filteredData.items[0].orders.map((order) => (
                     <TouchableOpacity
                       key={order.orderId}
-                      className="bg-[#FFFFFF66] rounded-2xl p-4 mb-4"
+                      style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                      className="rounded-2xl p-4 mb-4"
                       onPress={() => {
                         setOrderData(order);
                         setShowOrderModal(true);
@@ -721,20 +773,17 @@ export default function MerchandiseScanner({
                       <View className="flex-row justify-between items-start mb-3">
                         <View className="flex-1">
                           <Text
-                            style={{ fontFamily: "Outfit_600SemiBold" }}
-                            className="text-[#0C3572] text-base mb-1"
+                            style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15, marginBottom: 2 }}
                           >
                             Order #{order.orderId.slice(-8).toUpperCase()}
                           </Text>
                           <Text
-                            style={{ fontFamily: "Outfit_400Regular" }}
-                            className="text-[#2175C0] text-sm mb-2"
+                            style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13, marginBottom: 4 }}
                           >
                             {order.userName || "Unknown User"}
                           </Text>
                           <Text
-                            style={{ fontFamily: "Outfit_400Regular" }}
-                            className="text-gray-500 text-xs"
+                            style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                           >
                             {new Date(order.orderDate).toLocaleDateString(
                               "en-US",
@@ -757,10 +806,8 @@ export default function MerchandiseScanner({
                             .join(" ")}`}
                         >
                           <Text
-                            style={{ fontFamily: "Outfit_500Medium" }}
-                            className={`text-sm ${
-                              getStatusColor(order.status).split(" ")[1]
-                            }`}
+                            style={{ fontFamily: "Poppins_600SemiBold", fontSize: 12 }}
+                            className={getStatusColor(order.status).split(" ")[1]}
                           >
                             {order.status.charAt(0).toUpperCase() +
                               order.status.slice(1)}
@@ -768,43 +815,42 @@ export default function MerchandiseScanner({
                         </View>
                       </View>
 
-                      <View className="border-t border-gray-700 pt-3">
+                      <View style={{ borderTopWidth: 1, borderTopColor: cardBorder, paddingTop: 10 }}>
                         <View className="flex-row justify-between items-center">
                           <View className="flex-row items-center gap-3">
                             <Text
-                              style={{ fontFamily: "Outfit_500Medium" }}
-                              className="text-[#2175C0] text-sm"
+                              style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 13 }}
                             >
                               {order.items.length} item(s)
                             </Text>
                             <Text
-                              style={{ fontFamily: "Outfit_500Medium" }}
-                              className="text-[#2175C0] text-sm"
+                              style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 13 }}
                             >
                               •
                             </Text>
                             <Text
-                              style={{ fontFamily: "Outfit_600SemiBold" }}
-                              className="text-[#EEB170] text-sm"
+                              style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 14 }}
                             >
                               ₹{order.finalAmount}
                             </Text>
                           </View>
                           <Ionicons
                             name="chevron-forward"
-                            size={20}
-                            color="#6B7280"
+                            size={18}
+                            color={textSecondary}
                           />
                         </View>
                       </View>
                     </TouchableOpacity>
                   ))
                 ) : (
-                  <View className="bg-[#FFFFFF66] rounded-2xl p-6 items-center">
-                    <Package size={40} color="#6B7280" />
+                  <View
+                    style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                    className="rounded-2xl p-6 items-center"
+                  >
+                    <Package size={40} color={textSecondary} />
                     <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-[#2175C0] text-center mt-3"
+                      style={{ fontFamily: "Poppins_500Medium", color: textSecondary, textAlign: "center", marginTop: 12 }}
                     >
                       No orders found for this item
                     </Text>
@@ -817,25 +863,25 @@ export default function MerchandiseScanner({
             {filteredData.showUnknownOrders && unknownOrders.length > 0 && (
               <>
                 <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#0C3572] text-lg mb-4 mt-2"
+                  style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 16, marginBottom: 12, marginTop: 8 }}
                 >
                   Zombie Orders
                 </Text>
-                <View className="bg-[#FFFFFF66] rounded-2xl p-4 mb-4">
+                <View
+                  style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                  className="rounded-2xl p-4 mb-4"
+                >
                   <View className="flex-row items-center justify-between mb-3">
                     <View className="flex-row items-center">
-                      <Ionicons name="alert-circle" size={24} color="#F59E0B" />
+                      <Ionicons name="alert-circle" size={22} color="#F59E0B" />
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-[#0C3572] text-base ml-2"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 14, marginLeft: 8 }}
                       >
                         Orders with deleted items
                       </Text>
                     </View>
                     <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-[#EEB170]"
+                      style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 13 }}
                     >
                       {unknownOrders.length} orders
                     </Text>
@@ -843,7 +889,8 @@ export default function MerchandiseScanner({
                   {unknownOrders.map((order) => (
                     <TouchableOpacity
                       key={order.orderId}
-                      className="bg-[#1A1A1A] rounded-xl p-3 mb-2"
+                      style={{ backgroundColor: isDark ? "#2A2A30" : "#F3F4F6", borderColor: cardBorder, borderWidth: 1 }}
+                      className="rounded-xl p-3 mb-2"
                       onPress={() => {
                         setOrderData(order);
                         setShowOrderModal(true);
@@ -853,20 +900,18 @@ export default function MerchandiseScanner({
                       <View className="flex-row justify-between items-center">
                         <View className="flex-1">
                           <Text
-                            style={{ fontFamily: "Outfit_500Medium" }}
-                            className="text-[#0C3572] text-sm mb-1"
+                            style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13, marginBottom: 2 }}
                           >
                             Order #{order.orderId.slice(-8).toUpperCase()}
                           </Text>
                           <Text
-                            style={{ fontFamily: "Outfit_400Regular" }}
-                            className="text-[#2175C0] text-xs mb-1"
+                            style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, marginBottom: 4 }}
                           >
                             {order.userName || "Unknown User"}
                           </Text>
                           <View className="flex-row items-center gap-2">
                             <View
-                              className={`px-2 py-1 rounded-full ${getStatusColor(
+                              className={`px-2 py-0.5 rounded-full ${getStatusColor(
                                 order.status
                               )
                                 .split(" ")
@@ -874,17 +919,14 @@ export default function MerchandiseScanner({
                                 .join(" ")}`}
                             >
                               <Text
-                                style={{ fontFamily: "Outfit_500Medium" }}
-                                className={`text-xs ${
-                                  getStatusColor(order.status).split(" ")[1]
-                                }`}
+                                style={{ fontFamily: "Poppins_500Medium", fontSize: 11 }}
+                                className={getStatusColor(order.status).split(" ")[1]}
                               >
                                 {order.status}
                               </Text>
                             </View>
                             <Text
-                              style={{ fontFamily: "Outfit_400Regular" }}
-                              className="text-gray-500 text-xs"
+                              style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                             >
                               {order.items.length} item(s)
                             </Text>
@@ -892,8 +934,8 @@ export default function MerchandiseScanner({
                         </View>
                         <Ionicons
                           name="chevron-forward"
-                          size={20}
-                          color="#6B7280"
+                          size={18}
+                          color={textSecondary}
                         />
                       </View>
                     </TouchableOpacity>
@@ -912,70 +954,68 @@ export default function MerchandiseScanner({
         animationType="slide"
         onRequestClose={() => setShowItemModal(false)}
       >
-        <View className="flex-1 bg-black/50 justify-center items-center px-6">
-          <View className="bg-[#FFFFFF66] rounded-2xl p-6 w-full max-w-md border border-[#A0B3D0] max-h-[85%]">
+        <View className="flex-1 bg-black/60 justify-center items-center px-6">
+          <View
+            style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+            className="rounded-2xl p-6 w-full max-w-md max-h-[85%] shadow-lg"
+          >
             <ScrollView showsVerticalScrollIndicator={false}>
               {selectedItem && (
                 <>
                   <View className="items-center mb-6">
                     <Image
-                      source={{ uri: selectedItem.images[0] }}
+                      source={{ uri: selectedItem.images?.[0] || "" }}
                       className="w-32 h-32 rounded-2xl mb-4"
                     />
                     <Text
-                      style={{ fontFamily: "Outfit_700Bold" }}
-                      className="text-[#0C3572] text-2xl text-center mb-2"
+                      style={{ fontFamily: "Poppins_700Bold", color: textPrimary, fontSize: 20, textAlign: "center", marginBottom: 6 }}
                     >
                       {selectedItem.name}
                     </Text>
                     <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#2175C0] text-sm text-center"
+                      style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13, textAlign: "center" }}
                     >
                       {selectedItem.description}
                     </Text>
                   </View>
 
                   {/* Stats */}
-                  <View className="bg-[#FFFFFF66] rounded-xl p-4 mb-4">
+                  <View
+                    style={{ backgroundColor: isDark ? "#26262B" : "#F3F4F6", borderColor: cardBorder, borderWidth: 1 }}
+                    className="rounded-xl p-4 mb-4"
+                  >
                     <View className="flex-row justify-between items-center mb-3">
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#2175C0]"
+                        style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 13 }}
                       >
                         Total Orders
                       </Text>
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-[#EEB170] text-lg"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 16 }}
                       >
                         {selectedItem.totalOrders}
                       </Text>
                     </View>
                     <View className="flex-row justify-between items-center mb-3">
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#2175C0]"
+                        style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 13 }}
                       >
                         Delivered
                       </Text>
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-blue-400 text-lg"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: "#3B82F6", fontSize: 16 }}
                       >
                         {selectedItem.deliveredCount}
                       </Text>
                     </View>
                     <View className="flex-row justify-between items-center">
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#2175C0]"
+                        style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 13 }}
                       >
                         Pending Delivery
                       </Text>
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-green-400 text-lg"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: "#10B981", fontSize: 16 }}
                       >
                         {selectedItem.pendingCount}
                       </Text>
@@ -986,15 +1026,15 @@ export default function MerchandiseScanner({
                   {selectedItem.orders.length > 0 && (
                     <>
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-[#0C3572] text-base mb-3"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15, marginBottom: 10 }}
                       >
                         Recent Orders
                       </Text>
                       {selectedItem.orders.slice(0, 5).map((order) => (
                         <TouchableOpacity
                           key={order.orderId}
-                          className="bg-[#FFFFFF66] rounded-xl p-3 mb-2"
+                          style={{ backgroundColor: isDark ? "#26262B" : "#F3F4F6", borderColor: cardBorder, borderWidth: 1 }}
+                          className="rounded-xl p-3 mb-2"
                           onPress={() => {
                             setOrderData(order);
                             setShowItemModal(false);
@@ -1004,14 +1044,13 @@ export default function MerchandiseScanner({
                         >
                           <View className="flex-row justify-between items-center mb-1">
                             <Text
-                              style={{ fontFamily: "Outfit_500Medium" }}
-                              className="text-[#0C3572] text-sm"
+                              style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13 }}
                             >
                               #{order.orderId.slice(-8).toUpperCase()}
                             </Text>
                             <View className="flex-row items-center gap-2">
                               <View
-                                className={`px-2 py-1 rounded-full ${getStatusColor(
+                                className={`px-2 py-0.5 rounded-full ${getStatusColor(
                                   order.status
                                 )
                                   .split(" ")
@@ -1019,10 +1058,8 @@ export default function MerchandiseScanner({
                                   .join(" ")}`}
                               >
                                 <Text
-                                  style={{ fontFamily: "Outfit_500Medium" }}
-                                  className={`text-xs ${
-                                    getStatusColor(order.status).split(" ")[1]
-                                  }`}
+                                  style={{ fontFamily: "Poppins_500Medium", fontSize: 11 }}
+                                  className={getStatusColor(order.status).split(" ")[1]}
                                 >
                                   {order.status}
                                 </Text>
@@ -1030,13 +1067,12 @@ export default function MerchandiseScanner({
                               <Ionicons
                                 name="chevron-forward"
                                 size={16}
-                                color="#6B7280"
+                                color={textSecondary}
                               />
                             </View>
                           </View>
                           <Text
-                            style={{ fontFamily: "Outfit_400Regular" }}
-                            className="text-[#2175C0] text-xs"
+                            style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                           >
                             {order.userName || "Unknown"} •{" "}
                             {new Date(order.orderDate).toLocaleDateString()}
@@ -1047,13 +1083,13 @@ export default function MerchandiseScanner({
                   )}
 
                   <TouchableOpacity
-                    className="bg-[#EEB170] rounded-xl py-4 items-center mt-4"
+                    style={{ backgroundColor: isDark ? "#2A2A30" : "#E5E7EB" }}
+                    className="rounded-xl py-3.5 items-center mt-4"
                     onPress={() => setShowItemModal(false)}
                     activeOpacity={0.7}
                   >
                     <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className="text-[#121212] text-base"
+                      style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15 }}
                     >
                       Close
                     </Text>
@@ -1072,15 +1108,17 @@ export default function MerchandiseScanner({
         animationType="slide"
         onRequestClose={() => setShowOrderModal(false)}
       >
-        <View className="flex-1 bg-black/50 justify-center items-center px-6">
-          <View className="bg-[#FFFFFF66] rounded-2xl p-6 w-full max-w-md border border-[#A0B3D0] max-h-[85%]">
+        <View className="flex-1 bg-black/60 justify-center items-center px-6">
+          <View
+            style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+            className="rounded-2xl p-6 w-full max-w-md max-h-[85%] shadow-lg"
+          >
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Success Banner */}
               {updateSuccess && (
                 <View className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mb-4">
                   <Text
-                    style={{ fontFamily: "Outfit_600SemiBold" }}
-                    className="text-green-400 text-center text-sm"
+                    style={{ fontFamily: "Poppins_600SemiBold", color: "#10B981", textAlign: "center", fontSize: 13 }}
                   >
                     ✓ {successMessage}
                   </Text>
@@ -1090,22 +1128,22 @@ export default function MerchandiseScanner({
               {orderData && (
                 <>
                   <View className="items-center mb-6">
-                    <Package size={40} color="#EEB170" />
+                    <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(65, 184, 240, 0.15)", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                      <Package size={28} color="#41B8F0" />
+                    </View>
                     <Text
-                      style={{ fontFamily: "Outfit_700Bold" }}
-                      className="text-[#0C3572] text-2xl mt-3 mb-2"
+                      style={{ fontFamily: "Poppins_700Bold", color: textPrimary, fontSize: 20, marginBottom: 4 }}
                     >
                       Order #{orderData.orderId.slice(-8).toUpperCase()}
                     </Text>
                     <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#2175C0] text-xs mb-3"
+                      style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11, marginBottom: 10 }}
                       selectable={true}
                     >
                       {orderData.orderId}
                     </Text>
                     <View
-                      className={`px-4 py-2 rounded-full border ${getStatusColor(
+                      className={`px-4 py-1.5 rounded-full border ${getStatusColor(
                         orderData.status
                       )
                         .split(" ")
@@ -1113,10 +1151,8 @@ export default function MerchandiseScanner({
                         .join(" ")}`}
                     >
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className={`text-base ${
-                          getStatusColor(orderData.status).split(" ")[1]
-                        }`}
+                        style={{ fontFamily: "Poppins_600SemiBold", fontSize: 13 }}
+                        className={getStatusColor(orderData.status).split(" ")[1]}
                       >
                         {orderData.status.charAt(0).toUpperCase() +
                           orderData.status.slice(1)}
@@ -1124,33 +1160,33 @@ export default function MerchandiseScanner({
                     </View>
                   </View>
 
-                  <View className="bg-[#FFFFFF66] rounded-xl p-4 mb-4">
-                    <Text className="text-[#2175C0] text-sm mb-3">
+                  <View
+                    style={{ backgroundColor: isDark ? "#26262B" : "#F3F4F6", borderColor: cardBorder, borderWidth: 1 }}
+                    className="rounded-xl p-4 mb-4"
+                  >
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: textSecondary, fontSize: 12, marginBottom: 10 }}>
                       Customer Details
                     </Text>
                     <View className="flex-row items-center mb-2">
-                      <Ionicons name="person" size={16} color="#6B7280" />
+                      <Ionicons name="person" size={15} color={textSecondary} />
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#0C3572] text-sm ml-2"
+                        style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 13, marginLeft: 8 }}
                       >
                         {orderData.userName || "N/A"}
                       </Text>
                     </View>
                     <View className="flex-row items-center mb-2">
-                      <Ionicons name="mail" size={16} color="#6B7280" />
+                      <Ionicons name="mail" size={15} color={textSecondary} />
                       <Text
-                        style={{ fontFamily: "Outfit_400Regular" }}
-                        className="text-[#2175C0] text-xs ml-2"
+                        style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 12, marginLeft: 8 }}
                       >
                         {orderData.email || "N/A"}
                       </Text>
                     </View>
                     <View className="flex-row items-center">
-                      <Ionicons name="finger-print" size={16} color="#6B7280" />
+                      <Ionicons name="finger-print" size={15} color={textSecondary} />
                       <Text
-                        style={{ fontFamily: "Outfit_400Regular" }}
-                        className="text-[#2175C0] text-xs ml-2"
+                        style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11, marginLeft: 8 }}
                         selectable={true}
                       >
                         User ID: {orderData.userId}
@@ -1158,22 +1194,23 @@ export default function MerchandiseScanner({
                     </View>
                   </View>
 
-                  <View className="bg-[#FFFFFF66] rounded-xl p-4 mb-4">
-                    <Text className="text-[#2175C0] text-sm mb-3">
+                  <View
+                    style={{ backgroundColor: isDark ? "#26262B" : "#F3F4F6", borderColor: cardBorder, borderWidth: 1 }}
+                    className="rounded-xl p-4 mb-4"
+                  >
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: textSecondary, fontSize: 12, marginBottom: 10 }}>
                       Order Timeline
                     </Text>
                     <View className="flex-row items-start mb-2">
-                      <Ionicons name="calendar" size={16} color="#6B7280" />
+                      <Ionicons name="calendar" size={15} color={textSecondary} />
                       <View className="flex-1 ml-2">
                         <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-[#0C3572] text-xs mb-1"
+                          style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 12, marginBottom: 2 }}
                         >
                           Order Date
                         </Text>
                         <Text
-                          style={{ fontFamily: "Outfit_400Regular" }}
-                          className="text-[#2175C0] text-xs"
+                          style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                         >
                           {new Date(orderData.orderDate).toLocaleDateString(
                             "en-US",
@@ -1189,17 +1226,15 @@ export default function MerchandiseScanner({
                       </View>
                     </View>
                     <View className="flex-row items-start mb-2">
-                      <Ionicons name="time" size={16} color="#6B7280" />
+                      <Ionicons name="time" size={15} color={textSecondary} />
                       <View className="flex-1 ml-2">
                         <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-[#0C3572] text-xs mb-1"
+                          style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 12, marginBottom: 2 }}
                         >
                           Created At
                         </Text>
                         <Text
-                          style={{ fontFamily: "Outfit_400Regular" }}
-                          className="text-[#2175C0] text-xs"
+                          style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                         >
                           {new Date(orderData.createdAt).toLocaleDateString(
                             "en-US",
@@ -1215,17 +1250,15 @@ export default function MerchandiseScanner({
                       </View>
                     </View>
                     <View className="flex-row items-start">
-                      <Ionicons name="sync" size={16} color="#6B7280" />
+                      <Ionicons name="sync" size={15} color={textSecondary} />
                       <View className="flex-1 ml-2">
                         <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-[#0C3572] text-xs mb-1"
+                          style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 12, marginBottom: 2 }}
                         >
                           Last Updated
                         </Text>
                         <Text
-                          style={{ fontFamily: "Outfit_400Regular" }}
-                          className="text-[#2175C0] text-xs"
+                          style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                         >
                           {new Date(orderData.updatedAt).toLocaleDateString(
                             "en-US",
@@ -1242,12 +1275,14 @@ export default function MerchandiseScanner({
                     </View>
                   </View>
 
-                  <View className="bg-[#FFFFFF66] rounded-xl p-4 mb-4">
-                    <Text className="text-[#2175C0] text-sm mb-3">
+                  <View
+                    style={{ backgroundColor: isDark ? "#26262B" : "#F3F4F6", borderColor: cardBorder, borderWidth: 1 }}
+                    className="rounded-xl p-4 mb-4"
+                  >
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: textSecondary, fontSize: 12, marginBottom: 10 }}>
                       Order Items ({orderData.items.length})
                     </Text>
-                    {orderData.items.map((item, index) => {
-                      // Check if item exists in store catalog
+                    {orderData.items.map((item: any, index: number) => {
                       const itemExistsInStore = items.some(
                         (storeItem) => storeItem.id === item.itemId
                       );
@@ -1255,23 +1290,23 @@ export default function MerchandiseScanner({
                       return (
                         <View
                           key={`${item.itemId}-${index}`}
-                          className={`${
-                            index < orderData.items.length - 1
-                              ? "mb-3 pb-3 border-b border-gray-700"
-                              : ""
-                          }`}
+                          style={{
+                            marginBottom: index < orderData.items.length - 1 ? 12 : 0,
+                            paddingBottom: index < orderData.items.length - 1 ? 12 : 0,
+                            borderBottomWidth: index < orderData.items.length - 1 ? 1 : 0,
+                            borderBottomColor: cardBorder,
+                          }}
                         >
                           {!itemExistsInStore && (
                             <View className="bg-red-500/20 border border-red-500/30 rounded-lg p-2 mb-2">
                               <View className="flex-row items-center">
                                 <Ionicons
                                   name="alert-circle"
-                                  size={16}
+                                  size={15}
                                   color="#EF4444"
                                 />
                                 <Text
-                                  style={{ fontFamily: "Outfit_500Medium" }}
-                                  className="text-red-400 text-xs ml-2"
+                                  style={{ fontFamily: "Poppins_500Medium", color: "#EF4444", fontSize: 11, marginLeft: 6 }}
                                 >
                                   This item no longer exists in catalog
                                 </Text>
@@ -1288,7 +1323,7 @@ export default function MerchandiseScanner({
                                 <View className="absolute inset-0 bg-black/60 rounded-lg items-center justify-center">
                                   <Ionicons
                                     name="close-circle"
-                                    size={24}
+                                    size={22}
                                     color="#EF4444"
                                   />
                                 </View>
@@ -1296,94 +1331,88 @@ export default function MerchandiseScanner({
                             </View>
                             <View className="flex-1 ml-3">
                               <Text
-                                style={{ fontFamily: "Outfit_500Medium" }}
-                                className="text-[#0C3572] text-sm"
+                                style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13 }}
                                 numberOfLines={1}
                               >
                                 {item.name}
                               </Text>
                               <Text
-                                style={{ fontFamily: "Outfit_400Regular" }}
-                                className="text-[#2175C0] text-xs"
+                                style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                               >
                                 Item ID: {item.itemId.slice(0, 8)}...
                               </Text>
                             </View>
                             <Text
-                              style={{ fontFamily: "Outfit_600SemiBold" }}
-                              className="text-[#EEB170] text-sm"
+                              style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 14 }}
                             >
                               ₹{item.totalPrice}
                             </Text>
                           </View>
-                        <View className="ml-1 flex-row flex-wrap gap-2">
-                          {item.selectedSize && (
-                            <View className="bg-[#1A1A1A] px-2 py-1 rounded-md">
+                          <View className="ml-1 flex-row flex-wrap gap-2">
+                            {item.selectedSize && (
+                              <View style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }} className="px-2 py-0.5 rounded-md">
+                                <Text
+                                  style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
+                                >
+                                  Size:{" "}
+                                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary }}>
+                                    {item.selectedSize}
+                                  </Text>
+                                </Text>
+                              </View>
+                            )}
+                            <View style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }} className="px-2 py-0.5 rounded-md">
                               <Text
-                                style={{ fontFamily: "Outfit_400Regular" }}
-                                className="text-[#2175C0] text-xs"
+                                style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                               >
-                                Size:{" "}
-                                <Text className="text-[#0C3572]">
-                                  {item.selectedSize}
+                                Qty:{" "}
+                                <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary }}>
+                                  {item.quantity}
                                 </Text>
                               </Text>
                             </View>
-                          )}
-                          <View className="bg-[#1A1A1A] px-2 py-1 rounded-md">
-                            <Text
-                              style={{ fontFamily: "Outfit_400Regular" }}
-                              className="text-[#2175C0] text-xs"
-                            >
-                              Qty:{" "}
-                              <Text className="text-[#0C3572]">
-                                {item.quantity}
-                              </Text>
-                            </Text>
-                          </View>
-                          <View className="bg-[#1A1A1A] px-2 py-1 rounded-md">
-                            <Text
-                              style={{ fontFamily: "Outfit_400Regular" }}
-                              className="text-[#2175C0] text-xs"
-                            >
-                              Base:{" "}
-                              <Text className="text-[#0C3572]">₹{item.price}</Text>
-                            </Text>
-                          </View>
-                          {item.sizePrice > 0 && (
-                            <View className="bg-[#1A1A1A] px-2 py-1 rounded-md">
+                            <View style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }} className="px-2 py-0.5 rounded-md">
                               <Text
-                                style={{ fontFamily: "Outfit_400Regular" }}
-                                className="text-[#2175C0] text-xs"
+                                style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
                               >
-                                Size Price:{" "}
-                                <Text className="text-[#0C3572]">
-                                  ₹{item.sizePrice}
-                                </Text>
+                                Base:{" "}
+                                <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary }}>₹{item.price}</Text>
                               </Text>
                             </View>
-                          )}
-                        </View>
+                            {item.sizePrice > 0 && (
+                              <View style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }} className="px-2 py-0.5 rounded-md">
+                                <Text
+                                  style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11 }}
+                                >
+                                  Size Price:{" "}
+                                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary }}>
+                                    ₹{item.sizePrice}
+                                  </Text>
+                                </Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
                       );
                     })}
                   </View>
 
-                  <View className="bg-[#FFFFFF66] rounded-xl p-4 mb-4">
-                    <Text className="text-[#2175C0] text-sm mb-3">
+                  <View
+                    style={{ backgroundColor: isDark ? "#26262B" : "#F3F4F6", borderColor: cardBorder, borderWidth: 1 }}
+                    className="rounded-xl p-4 mb-4"
+                  >
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: textSecondary, fontSize: 12, marginBottom: 10 }}>
                       Payment Details
                     </Text>
 
                     <View className="flex-row justify-between items-center mb-2">
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#2175C0] text-sm"
+                        style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 13 }}
                       >
                         Subtotal
                       </Text>
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#0C3572] text-sm"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13 }}
                       >
                         ₹{orderData.totalAmount}
                       </Text>
@@ -1392,30 +1421,26 @@ export default function MerchandiseScanner({
                     {orderData.transactionFees > 0 && (
                       <View className="flex-row justify-between items-center mb-2">
                         <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-[#2175C0] text-sm"
+                          style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 13 }}
                         >
                           Transaction Fees
                         </Text>
                         <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-[#0C3572] text-sm"
+                          style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 13 }}
                         >
                           ₹{orderData.transactionFees}
                         </Text>
                       </View>
                     )}
 
-                    <View className="flex-row justify-between items-center pt-2 mb-3 border-t border-gray-700">
+                    <View style={{ borderTopWidth: 1, borderTopColor: cardBorder, paddingTop: 8, marginBottom: 12 }} className="flex-row justify-between items-center">
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-[#0C3572] text-base"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 14 }}
                       >
                         Total Amount
                       </Text>
                       <Text
-                        style={{ fontFamily: "Outfit_700Bold" }}
-                        className="text-[#EEB170] text-lg"
+                        style={{ fontFamily: "Poppins_700Bold", color: "#41B8F0", fontSize: 17 }}
                       >
                         ₹{orderData.finalAmount}
                       </Text>
@@ -1440,18 +1465,17 @@ export default function MerchandiseScanner({
                         }
                       />
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#0C3572] text-sm ml-2"
+                        style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 13, marginLeft: 8 }}
                       >
                         Payment:
                         <Text
-                          style={{ fontFamily: "Outfit_600SemiBold" }}
+                          style={{ fontFamily: "Poppins_600SemiBold" }}
                           className={
                             orderData.paymentStatus === "completed"
-                              ? "text-green-400"
+                              ? "text-green-500"
                               : orderData.paymentStatus === "pending"
-                              ? "text-yellow-400"
-                              : "text-red-400"
+                              ? "text-yellow-500"
+                              : "text-red-500"
                           }
                         >
                           {" "}
@@ -1464,14 +1488,14 @@ export default function MerchandiseScanner({
 
                   {orderData.status === "confirmed" && (
                     <TouchableOpacity
-                      className="bg-green-600 rounded-xl py-4 items-center mb-3"
+                      style={{ backgroundColor: "#41B8F0" }}
+                      className="rounded-xl py-4 items-center mb-3 shadow-sm"
                       onPress={handleMarkAsDelivered}
                       disabled={updatingStatus}
-                      activeOpacity={0.7}
+                      activeOpacity={0.8}
                     >
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-[#0C3572] text-base"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 15 }}
                       >
                         {updatingStatus
                           ? "Marking as Delivered..."
@@ -1481,22 +1505,20 @@ export default function MerchandiseScanner({
                   )}
 
                   {orderData.status === "delivered" && (
-                    <View className="bg-blue-500/20 border border-blue-500 rounded-xl p-4 mb-3">
+                    <View className="bg-blue-500/20 border border-blue-500/40 rounded-xl p-3.5 mb-3">
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className="text-blue-400 text-center"
+                        style={{ fontFamily: "Poppins_600SemiBold", color: "#3B82F6", textAlign: "center", fontSize: 13 }}
                       >
-                        This order has been delivered
+                        ✓ This order has been delivered
                       </Text>
                     </View>
                   )}
 
                   {orderData.status !== "confirmed" &&
                     orderData.status !== "delivered" && (
-                      <View className="bg-yellow-500/20 border border-yellow-500 rounded-xl p-4 mb-3">
+                      <View className="bg-yellow-500/20 border border-yellow-500/40 rounded-xl p-3.5 mb-3">
                         <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-yellow-400 text-center text-sm"
+                          style={{ fontFamily: "Poppins_500Medium", color: "#F59E0B", textAlign: "center", fontSize: 13 }}
                         >
                           Order status: {orderData.status}
                           {"\n"}
@@ -1506,14 +1528,14 @@ export default function MerchandiseScanner({
                     )}
 
                   <TouchableOpacity
-                    className="bg-[#FFFFFF66] rounded-xl py-4 items-center"
+                    style={{ backgroundColor: isDark ? "#2A2A30" : "#E5E7EB" }}
+                    className="rounded-xl py-3.5 items-center"
                     onPress={() => setShowOrderModal(false)}
                     activeOpacity={0.7}
                     disabled={updatingStatus}
                   >
                     <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className="text-[#0C3572] text-base"
+                      style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 15 }}
                     >
                       Close
                     </Text>
@@ -1523,9 +1545,9 @@ export default function MerchandiseScanner({
             </ScrollView>
 
             {updatingStatus && (
-              <View className="absolute inset-0 bg-black/50 rounded-2xl items-center justify-center">
-                <ActivityIndicator size="large" color="#EEB170" />
-                <Text className="text-[#0C3572] text-sm mt-2">Updating...</Text>
+              <View className="absolute inset-0 bg-black/60 rounded-2xl items-center justify-center">
+                <ActivityIndicator size="large" color="#41B8F0" />
+                <Text style={{ fontFamily: "Poppins_500Medium", color: "#FFFFFF", marginTop: 12 }}>Updating...</Text>
               </View>
             )}
           </View>

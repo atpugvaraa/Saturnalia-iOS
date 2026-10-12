@@ -1,12 +1,18 @@
 // src/components/system/ConnectivityWrapper.tsx
-import React, { useEffect, useState } from 'react';
-import { AppState, AppStateStatus, View, DeviceEventEmitter } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  AppState,
+  AppStateStatus,
+  View,
+  ActivityIndicator,
+  StatusBar,
+} from 'react-native';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import NoInternetScreen from '../../screens/System/NoInternetScreen';
 import UpdateRequiredScreen from '../../screens/System/UpdateRequiredScreen';
 import MaintenanceScreen from '../../screens/System/MaintenanceScreen';
 import { checkAppStatus, VersionInfo, MaintenanceInfo } from '@/utils/versionCheck';
-import NetInfo from '@react-native-community/netinfo';
+import { useThemeStore } from '@/state/themeStore';
 
 interface ConnectivityWrapperProps {
   children: React.ReactNode;
@@ -21,32 +27,60 @@ export default function ConnectivityWrapper({
   enableVersionCheck = true,
   enableMaintenanceCheck = true,
 }: ConnectivityWrapperProps) {
+  // 1. ALL HOOKS CALLED AT TOP LEVEL BEFORE ANY RETURN
   const networkStatus = useNetworkStatus();
+  const { isDark } = useThemeStore();
+
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [maintenanceInfo, setMaintenanceInfo] = useState<MaintenanceInfo | null>(null);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const [isInitialCheck, setIsInitialCheck] = useState(true);
   const [lastCheckTime, setLastCheckTime] = useState<number>(Date.now());
 
-  // Check app status on mount and set up periodic checks
+  const checkStatus = useCallback(async () => {
+    try {
+      // Timeout guard of 3.5 seconds so app never hangs indefinitely on boot
+      const timeoutPromise = new Promise<{ timeout: true }>((resolve) =>
+        setTimeout(() => resolve({ timeout: true }), 3500)
+      );
+      const statusPromise = checkAppStatus(currentVersion);
+
+      const result = await Promise.race([statusPromise, timeoutPromise]);
+
+      if ('timeout' in result) {
+        console.warn('[ConnectivityWrapper] Status check timed out after 3.5s');
+      } else {
+        if (enableVersionCheck) {
+          setVersionInfo(result.versionInfo);
+        }
+        if (enableMaintenanceCheck) {
+          setMaintenanceInfo(result.maintenanceInfo);
+        }
+        setLastCheckTime(Date.now());
+      }
+    } catch (error) {
+      console.error('[ConnectivityWrapper] Status check failed:', error);
+    } finally {
+      setIsInitialCheck(false);
+    }
+  }, [currentVersion, enableVersionCheck, enableMaintenanceCheck]);
+
+  // Initial check on mount + periodic check every 30 minutes
   useEffect(() => {
     if (enableVersionCheck || enableMaintenanceCheck) {
-      // Initial check
       checkStatus();
 
-      // Set up periodic check every 30 minutes (1800000 ms)
       const intervalId = setInterval(() => {
-        console.log('Running periodic app status check (30 min interval)');
+        console.log('[ConnectivityWrapper] Running periodic app status check (30 min)');
         checkStatus();
-      }, 30 * 60 * 1000); // 30 minutes
+      }, 30 * 60 * 1000);
 
-      // Cleanup interval on unmount
       return () => {
         clearInterval(intervalId);
       };
     } else {
-      setIsCheckingStatus(false);
+      setIsInitialCheck(false);
     }
-  }, [enableVersionCheck, enableMaintenanceCheck]);
+  }, [checkStatus, enableVersionCheck, enableMaintenanceCheck]);
 
   // Check when app comes to foreground (if 5+ minutes since last check)
   useEffect(() => {
@@ -55,71 +89,68 @@ export default function ConnectivityWrapper({
         const timeSinceLastCheck = Date.now() - lastCheckTime;
         const fiveMinutes = 5 * 60 * 1000;
 
-        // Only check if it's been more than 5 minutes since last check
         if (timeSinceLastCheck > fiveMinutes) {
-          console.log('App foregrounded, checking status (5+ min since last check)');
+          console.log('[ConnectivityWrapper] App foregrounded, re-checking status');
           checkStatus();
         }
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-
     return () => {
       subscription.remove();
     };
-  }, [lastCheckTime, enableVersionCheck, enableMaintenanceCheck]);
+  }, [checkStatus, lastCheckTime]);
 
-  const checkStatus = async () => {
+  const handleRetryConnection = async () => {
     try {
-      setIsCheckingStatus(true);
-
-      // Fetch all app status info from Firebase
-      const status = await checkAppStatus(currentVersion);
-
-      if (enableVersionCheck) {
-        setVersionInfo(status.versionInfo);
+      const state = await networkStatus.refresh();
+      console.log('[ConnectivityWrapper] Network state refreshed:', state);
+      if (state.isConnected && state.isInternetReachable !== false) {
+        await checkStatus();
       }
-
-      if (enableMaintenanceCheck) {
-        setMaintenanceInfo(status.maintenanceInfo);
-      }
-
-      // Update last check time
-      setLastCheckTime(Date.now());
     } catch (error) {
-      console.error('App status check failed:', error);
-    } finally {
-      setIsCheckingStatus(false);
+      console.error('[ConnectivityWrapper] Failed to refresh network state:', error);
     }
   };
 
-  const handleRetryConnection = async () => {
-    // Force a network state refresh
-    const state = await NetInfo.refresh();
-    console.log('Network state refreshed:', state);
-  };
-
   const handleRetryStatus = async () => {
-    // Retry checking app status (maintenance/version)
     await checkStatus();
   };
 
-  // Priority 1: Show maintenance screen (highest priority - blocking)
-  if (
-    enableMaintenanceCheck &&
-    maintenanceInfo?.isUnderMaintenance &&
-    !isCheckingStatus
-  ) {
+  const isOffline =
+    networkStatus.isOffline ||
+    networkStatus.isConnected === false ||
+    networkStatus.isInternetReachable === false;
+
+  const bgColor = isDark ? '#131316' : '#F8FAFC';
+
+  // 2. CONDITIONAL RENDERING (NO HOOKS BELOW THIS POINT)
+
+  // Initial check on app load: show minimal themed loader so maintenance/update is verified before rendering app
+  if (isInitialCheck) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: bgColor,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <ActivityIndicator size="large" color="#41B8F0" />
+      </View>
+    );
+  }
+
+  // Priority 1: Show maintenance screen (blocking)
+  if (enableMaintenanceCheck && maintenanceInfo?.isUnderMaintenance) {
     return <MaintenanceScreen onRetry={handleRetryStatus} />;
   }
 
   // Priority 2: Show update required screen (blocking)
-  if (
-    enableVersionCheck &&
-    versionInfo?.updateRequired &&
-    !isCheckingStatus
-  ) {
+  if (enableVersionCheck && versionInfo?.updateRequired) {
     return (
       <UpdateRequiredScreen
         currentVersion={currentVersion}
@@ -130,30 +161,23 @@ export default function ConnectivityWrapper({
     );
   }
 
-  const [allowOfflinePayment, setAllowOfflinePayment] = useState(false);
-
-  // Listen to SatPayOfflineScreen mount state to handle offline overlay
-  useEffect(() => {
-    const sub = DeviceEventEmitter.addListener('SatPayOfflineScreenMounted', (isMounted: boolean) => {
-      setAllowOfflinePayment(isMounted);
-    });
-    return () => sub.remove();
-  }, []);
-
-  // If internet comes back, we don't necessarily reset allowOfflinePayment because
-  // the user might still be on the SatPayOfflineScreen. It will reset automatically
-  // when the screen unmounts via the event above.
-
-  // Priority 3: Show no internet screen (overlay)
+  // Priority 3: Show normal app with offline overlay if disconnected
   return (
     <View style={{ flex: 1 }}>
       {children}
-      {!networkStatus.isConnected && !allowOfflinePayment && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
-          <NoInternetScreen 
-            onRetry={handleRetryConnection} 
-            onPayOffline={() => setAllowOfflinePayment(true)}
-          />
+      {isOffline && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 99999,
+            elevation: 99999,
+          }}
+        >
+          <NoInternetScreen onRetry={handleRetryConnection} />
         </View>
       )}
     </View>
