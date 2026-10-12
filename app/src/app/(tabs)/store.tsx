@@ -1,180 +1,499 @@
-// src/screens/App/Store/StoreScreen.tsx
-import React from "react";
-import { Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import Header from '@/components/layout/Header';
+import React, { useState, useMemo } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  Dimensions,
+  StatusBar,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import Svg, { Path } from 'react-native-svg';
+import { useThemeStore } from '@/state/themeStore';
+import { useAdminDrawerStore } from '@/state/adminDrawerStore';
 
-// ─── Temporarily hidden — Store coming soon ────────────────────────────────
-// import { useState } from "react";
-// import {
-//   ScrollView,
-//   TouchableOpacity,
-//   Image,
-//   FlatList,
-//   ActivityIndicator,
-//   RefreshControl,
-// } from "react-native";
-// import { showAlert } from "../../components";
-// import { useStoreContext } from '@/state/StoreContext';
-// import { useUserStore } from '@/state/userStore';
-// import { useRouter } from "expo-router";
-// ──────────────────────────────────────────────────────────────────────────────
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CENTER_CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.58, 226);
+const CENTER_CARD_HEIGHT = 285;
+const SIDE_CARD_HEIGHT = 230; // Shorter height than center card
+const SIDE_OVERFLOW = 42; // Extends out of the screen
+const SIDE_GAP = 14;
+const SIDE_CARD_WIDTH = Math.max((SCREEN_WIDTH - CENTER_CARD_WIDTH - (SIDE_GAP * 2)) / 2 + SIDE_OVERFLOW, 85);
 
-const StoreScreen = () => {
-  // const router = useRouter();
-  // const [activeFilter, setActiveFilter] = useState("all");
-  // const { userData: userProfile } = useUserStore();
-  // const { storeItems, cart, loading, refreshing, refresh, getCartItemCount } =
-  //   useStoreContext();
+interface StoreProduct {
+  id: string;
+  name: string;
+  price: number;
+  priceText: string;
+  description: string;
+}
 
-  // const getCategoryIcon = (category: string) => {
-  //   switch (category.toLowerCase()) {
-  //     case "clothing":  return "shirt";
-  //     case "accessories": return "watch";
-  //     case "merchandise": return "gift";
-  //     case "food":      return "restaurant";
-  //     default:          return "pricetag";
-  //   }
-  // };
+const DEFAULT_PRODUCTS: StoreProduct[] = [
+  {
+    id: 'prod-hoodie',
+    name: 'Hoodie',
+    price: 800,
+    priceText: 'Rs. 800',
+    description: 'Hoodie Curated in a way that you wear to feel the vibes of Saturnalia',
+  },
+  {
+    id: 'prod-idcard-1',
+    name: 'ID Card',
+    price: 150,
+    priceText: 'Rs. 150',
+    description: 'ID Card Curated in a way that you wear to feel the vibes of Saturnalia',
+  },
+  {
+    id: 'prod-idcard-2',
+    name: 'ID Card',
+    price: 150,
+    priceText: 'Rs. 150',
+    description: 'ID Card Curated in a way that you wear to feel the vibes of Saturnalia',
+  },
+  {
+    id: 'prod-tee',
+    name: 'Saturnalia Tee',
+    price: 499,
+    priceText: 'Rs. 499',
+    description: 'Classic Fest T-Shirt curated in a way that you wear to feel the vibes of Saturnalia',
+  },
+];
 
-  // const filteredItems = storeItems.filter((item) => {
-  //   if (activeFilter === "all") return item.isActive;
-  //   return item.category === activeFilter && item.isActive;
-  // });
+/**
+ * Geometric Jaali / Lattice pattern overlay matching the reference mockup
+ */
+const JaaliOverlay: React.FC<{
+  color?: string;
+  cardWidth?: number;
+  cardHeight?: number;
+}> = ({
+  color = 'rgba(0, 0, 0, 0.22)',
+  cardWidth = 220,
+  cardHeight = 280,
+}) => {
+  const tileW = 34;
+  const tileH = 46;
+  const cols = Math.ceil(cardWidth / tileW) + 2;
+  const rows = Math.ceil(cardHeight / tileH) + 2;
 
-  // const categories = [
-  //   "all",
-  //   ...Array.from(new Set(storeItems.map((item) => item.category))),
-  // ];
-
-  // const FilterButton = ({ title, filterKey }: { title: string; filterKey: string }) => (
-  //   <TouchableOpacity
-  //     className={`px-6 py-2 border-2 rounded-2xl mr-3 ${activeFilter === filterKey ? "border-[#FFBA00]" : "border-[#A0B3D0]"}`}
-  //     onPress={() => setActiveFilter(filterKey)}
-  //   >
-  //     <Text
-  //       style={{ fontFamily: "Outfit_500Medium" }}
-  //       className={`${activeFilter === filterKey ? "text-[#FFBA00]" : "text-[#0C3572]"}`}
-  //     >
-  //       {title.charAt(0).toUpperCase() + title.slice(1)}
-  //     </Text>
-  //   </TouchableOpacity>
-  // );
-
-  // if (loading) {
-  //   return (
-  //     <View className="flex-1 bg-transparent items-center justify-center">
-  //       <ActivityIndicator size="large" color="#FFBA00" />
-  //       <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#0C3572] mt-4">
-  //         Loading store...
-  //       </Text>
-  //     </View>
-  //   );
-  // }
+  const paths: React.ReactNode[] = [];
+  for (let r = -1; r < rows; r++) {
+    for (let c = -1; c < cols; c++) {
+      const offsetX = c * tileW + (r % 2 === 0 ? 0 : tileW / 2);
+      const offsetY = r * tileH;
+      paths.push(
+        <Path
+          key={`${r}-${c}`}
+          d={`M ${offsetX + 17},${offsetY} C ${offsetX + 17},${offsetY + 11.5} ${offsetX + 34},${offsetY + 11.5} ${offsetX + 34},${offsetY + 23} C ${offsetX + 34},${offsetY + 34.5} ${offsetX + 17},${offsetY + 34.5} ${offsetX + 17},${offsetY + 46} C ${offsetX + 17},${offsetY + 34.5} ${offsetX},${offsetY + 34.5} ${offsetX},${offsetY + 23} C ${offsetX},${offsetY + 11.5} ${offsetX + 17},${offsetY + 11.5} ${offsetX + 17},${offsetY} Z`}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.2"
+        />
+      );
+    }
+  }
 
   return (
-    <View className="flex-1 bg-transparent">
-      <Header />
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: 'hidden',
+      }}
+      pointerEvents="none"
+    >
+      <Svg width="100%" height="100%">
+        {paths}
+      </Svg>
+    </View>
+  );
+};
 
-      {/* Coming Soon */}
-      <View className="flex-1 items-center justify-center px-8">
-        <Ionicons name="storefront-outline" size={72} color="#FFBA00" />
-        <Text
-          style={{ fontFamily: "Outfit_700Bold" }}
-          className="text-[#121212] text-3xl mt-6 mb-3"
-        >
-          Coming Soon
-        </Text>
-        <Text
-          style={{ fontFamily: "Outfit_400Regular" }}
-          className="text-[#2175C0] text-base text-center"
-        >
-          {"\n"}Check back soon for exclusive merch & rewards!
-        </Text>
-      </View>
+const StoreScreen: React.FC = () => {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
+  const { openDrawer } = useAdminDrawerStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
-      {/* ── Commented out store body ──────────────────────────────────────── */}
-      {/* <View className="flex-row items-center justify-between px-6 mt-6 mb-6">
-        <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#121212] text-2xl">
-          Store
-        </Text>
-        <View className="flex-row items-center h-12">
-          <TouchableOpacity
-            className="bg-[#FFBA00] rounded-xl p-3 relative"
-            onPress={() => router.push("/store/Cart")}
-          >
-            <Ionicons name="cart" size={24} color="#000" />
-            {cart && cart.items.length > 0 && (
-              <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
-                <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#0C3572] text-xs">
-                  {getCartItemCount()}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <View className="flex-row items-center ml-4 px-4 bg-[#FFFFFF66] h-full rounded-xl">
-            <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-[#FFBA00]">
-              {userProfile?.coins || 0}
-            </Text>
-            <Image source={require("@/assets/Crown.png")} className="w-6 h-6 ml-1 mb-2" />
-          </View>
+  const toggleBookmark = (id: string) => {
+    setBookmarkedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) return DEFAULT_PRODUCTS;
+    const q = searchQuery.toLowerCase().trim();
+    return DEFAULT_PRODUCTS.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: isDark ? '#131316' : '#E0E0E0' }}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+
+      {/* Top Header: Search Pill + Profile Avatar Button */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 16,
+          paddingTop: Math.max(insets.top + 8, 16),
+          paddingBottom: 10,
+          gap: 12,
+        }}
+      >
+        {/* Hamburger Menu */}
+        <TouchableOpacity
+          onPress={openDrawer}
+          activeOpacity={0.75}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: isDark ? 0.25 : 0.06,
+            shadowRadius: 4,
+            elevation: 2,
+          }}
+        >
+          <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+        </TouchableOpacity>
+
+        {/* Search Item Pill */}
+        <View
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+            borderWidth: isDark ? 0 : 1,
+            borderColor: '#CCCCCC',
+            borderRadius: 9999,
+            paddingHorizontal: 16,
+            height: 46,
+            gap: 10,
+          }}
+        >
+          <Ionicons name="search" size={18} color={isDark ? '#8E8E93' : '#666666'} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search Item"
+            placeholderTextColor={isDark ? '#8E8E93' : '#666666'}
+            style={{
+              flex: 1,
+              color: isDark ? '#FFFFFF' : '#000000',
+              fontFamily: 'Poppins_500Medium',
+              fontSize: 14,
+              padding: 0,
+            }}
+          />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color={isDark ? '#8E8E93' : '#666666'} />
+            </TouchableOpacity>
+          ) : null}
         </View>
+
+        {/* Profile Avatar Button */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => router.push('/profile')}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            borderWidth: 2,
+            borderColor: '#38BDF8',
+            backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+          }}
+        >
+          <Ionicons name="person" size={26} color={isDark ? '#9CA3AF' : '#0C3572'} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#FFBA00" />}
+        contentContainerStyle={{
+          paddingBottom: 110,
+        }}
       >
-        <View className="bg-transparent min-h-screen px-6">
-          <TouchableOpacity
-            className="bg-[#157D66] rounded-2xl flex-row items-center justify-between w-full py-4 px-6 mb-6"
-            onPress={() => router.push("/Leaderboard")}
+        {/* Hero Section: The SAT Store Banner with store1 & store2 graphics */}
+        <View
+          style={{
+            position: 'relative',
+            paddingVertical: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 115,
+            marginBottom: 10,
+          }}
+        >
+          {/* Left: Dome & Peacock illustration (store1.png) */}
+          <Image
+            source={require('@/assets/store1.png')}
+            style={{
+              position: 'absolute',
+              left: 4,
+              bottom: 4,
+              width: 72,
+              height: 98,
+            }}
+            resizeMode="contain"
+          />
+
+          {/* Right: Bougainvillea floral vine (store2.png) */}
+          <Image
+            source={require('@/assets/store2.png')}
+            style={{
+              position: 'absolute',
+              right: 2,
+              top: -6,
+              width: 52,
+              height: 112,
+            }}
+            resizeMode="contain"
+          />
+
+          {/* Center Titles */}
+          <Text
+            style={{
+              fontFamily: 'Talina',
+              fontSize: 34,
+              color: '#38BDF8',
+              letterSpacing: 0.4,
+              textAlign: 'center',
+            }}
           >
-            <View className="flex-row items-center">
-              <Ionicons name="bar-chart" size={24} color="white" />
-              <Text style={{ fontFamily: "Outfit_700Bold" }} className="text-white text-lg ml-3">
-                Leaderboard
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="white" />
-          </TouchableOpacity>
-
-          {storeItems.length > 0 && (
-            <View className="mb-4">
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {categories.map((category) => (
-                  <FilterButton key={category} title={category} filterKey={category} />
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {filteredItems.length > 0 ? (
-            <View className="flex-row flex-wrap justify-between mb-6">
-              {filteredItems.map((item) => (
-                <ItemCard key={item.id} item={item} />
-              ))}
-            </View>
-          ) : storeItems.length === 0 ? (
-            <View className="my-4">...</View>
-          ) : (
-            <View className="flex-1 justify-center items-center py-16">
-              <Ionicons name="search-outline" size={64} color="#6B7280" />
-              <Text style={{ fontFamily: "Outfit_600SemiBold" }} className="text-[#0C3572] text-xl mt-4 mb-2">
-                No Items Found
-              </Text>
-              <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-center">
-                No items available in this category at the moment.
-              </Text>
-            </View>
-          )}
+            The SAT Store
+          </Text>
+          <Text
+            style={{
+              fontFamily: 'Talina',
+              fontSize: 16,
+              color: isDark ? '#FFFFFF' : '#000000',
+              marginTop: 4,
+              textAlign: 'center',
+            }}
+          >
+            For Memories That Stay
+          </Text>
         </View>
-      </ScrollView> */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
+
+        {/* Products List */}
+        {filteredProducts.length === 0 ? (
+          <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+            <Ionicons name="search-outline" size={48} color="#71717A" />
+            <Text
+              style={{
+                fontFamily: 'Poppins_500Medium',
+                color: '#9CA3AF',
+                fontSize: 15,
+                marginTop: 12,
+              }}
+            >
+              No products found matching "{searchQuery}"
+            </Text>
+          </View>
+        ) : (
+          <View style={{ gap: 32 }}>
+            {filteredProducts.map((product) => {
+              const isBookmarked = bookmarkedIds.has(product.id);
+
+              return (
+                <View key={product.id} style={{ alignItems: 'center' }}>
+                  {/* 3-Rectangle Row (Left: Olive, Center: Dark Green / Blank, Right: Magenta) */}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: SCREEN_WIDTH,
+                    }}
+                  >
+                    {/* Left Olive / Gold Card (shorter & overflows out of screen) */}
+                    <View
+                      style={{
+                        width: SIDE_CARD_WIDTH,
+                        height: SIDE_CARD_HEIGHT,
+                        borderRadius: 20,
+                        backgroundColor: '#7A6D24',
+                        overflow: 'hidden',
+                        marginLeft: -SIDE_OVERFLOW,
+                        marginRight: SIDE_GAP,
+                      }}
+                    >
+                      <JaaliOverlay
+                        color="rgba(0, 0, 0, 0.22)"
+                        cardWidth={SIDE_CARD_WIDTH}
+                        cardHeight={SIDE_CARD_HEIGHT}
+                      />
+                    </View>
+
+                    {/* Center Main Card (Blank rectangle with price badge & bookmark) */}
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      onPress={() => {
+                        // Navigate to item details if desired
+                        router.push({
+                          pathname: '/store/ItemDetails',
+                          params: { itemId: product.id },
+                        });
+                      }}
+                      style={{
+                        width: CENTER_CARD_WIDTH,
+                        height: CENTER_CARD_HEIGHT,
+                        borderRadius: 22,
+                        backgroundColor: '#172E1E',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 6 },
+                        shadowOpacity: 0.45,
+                        shadowRadius: 10,
+                        elevation: 6,
+                      }}
+                    >
+                      <JaaliOverlay
+                        color="rgba(0, 0, 0, 0.2)"
+                        cardWidth={CENTER_CARD_WIDTH}
+                        cardHeight={CENTER_CARD_HEIGHT}
+                      />
+
+                      {/* Price Badge Pill in Top-Left */}
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: 12,
+                          left: 12,
+                          backgroundColor: 'rgba(0, 0, 0, 0.52)',
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 10,
+                          zIndex: 5,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: 'Poppins_500Medium',
+                            fontSize: 13,
+                            color: '#D1D5DB',
+                          }}
+                        >
+                          {product.priceText}
+                        </Text>
+                      </View>
+
+                      {/* Bookmark Icon in Top-Right */}
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => toggleBookmark(product.id)}
+                        style={{
+                          position: 'absolute',
+                          top: 12,
+                          right: 12,
+                          width: 32,
+                          height: 32,
+                          borderRadius: 16,
+                          backgroundColor: 'rgba(0, 0, 0, 0.52)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          zIndex: 5,
+                        }}
+                      >
+                        <Ionicons
+                          name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+                          size={17}
+                          color={isBookmarked ? '#38BDF8' : '#D1D5DB'}
+                        />
+                      </TouchableOpacity>
+
+                      {/* Product area is intentionally left blank as requested */}
+                    </TouchableOpacity>
+
+                    {/* Right Magenta / Pink Card (shorter & overflows out of screen) */}
+                    <View
+                      style={{
+                        width: SIDE_CARD_WIDTH,
+                        height: SIDE_CARD_HEIGHT,
+                        borderRadius: 20,
+                        backgroundColor: '#B01866',
+                        overflow: 'hidden',
+                        marginLeft: SIDE_GAP,
+                        marginRight: -SIDE_OVERFLOW,
+                      }}
+                    >
+                      <JaaliOverlay
+                        color="rgba(0, 0, 0, 0.22)"
+                        cardWidth={SIDE_CARD_WIDTH}
+                        cardHeight={SIDE_CARD_HEIGHT}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Product Title */}
+                  <Text
+                    style={{
+                      fontFamily: 'Poppins_700Bold',
+                      fontSize: 18,
+                      color: isDark ? '#FFFFFF' : '#000000',
+                      textAlign: 'center',
+                      marginTop: 14,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {product.name}
+                  </Text>
+
+                  {/* Product Description */}
+                  <Text
+                    style={{
+                      fontFamily: 'Poppins_400Regular',
+                      fontSize: 13,
+                      color: isDark ? '#9CA3AF' : '#555555',
+                      textAlign: 'center',
+                      lineHeight: 18,
+                      maxWidth: 290,
+                      paddingHorizontal: 16,
+                    }}
+                  >
+                    {product.description}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
 
 export default StoreScreen;
-

@@ -25,6 +25,8 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	r.Static("/static", "../app/assets")
+
 	optional := middleware.Auth(clients, s, cfg.HostEmailDomain, false)
 	required := middleware.Auth(clients, s, cfg.HostEmailDomain, true)
 
@@ -50,6 +52,12 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	open.GET("/events/:id", api.GetEvent)
 	open.GET("/faqs", api.ListFaqs)
 	open.GET("/venues", api.ListVenues)
+	open.GET("/banners", api.ListBanners)
+	open.GET("/banners/:id", api.GetBanner)
+	open.GET("/reels", api.ListReels)
+	open.GET("/reels/:id", api.GetReel)
+	open.GET("/stories", api.ListStories)
+	open.GET("/stories/:id", api.GetStory)
 	open.POST("/chatbot/ask", api.Chat)
 
 	registered.POST("/events/:id/register", api.Register)
@@ -81,6 +89,31 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	admin.PATCH("/admin/venues/:id", api.UpdateVenue)
 	admin.DELETE("/admin/venues/:id", api.DeleteVenue)
 
+	// Banners
+	admin.GET("/admin/banners", api.AdminListBanners)
+	admin.GET("/admin/banners/:id", api.AdminGetBanner)
+	admin.POST("/admin/banners", api.CreateBanner)
+	admin.PATCH("/admin/banners/:id", api.UpdateBanner)
+	admin.DELETE("/admin/banners/:id", api.DeleteBanner)
+
+	// Reels
+	admin.GET("/admin/reels", api.AdminListReels)
+	admin.GET("/admin/reels/:id", api.AdminGetReel)
+	admin.POST("/admin/reels", api.CreateReel)
+	admin.PATCH("/admin/reels/:id", api.UpdateReel)
+	admin.DELETE("/admin/reels/:id", api.DeleteReel)
+
+	// Stories
+	admin.GET("/admin/stories", api.AdminListStories)
+	admin.GET("/admin/stories/:id", api.AdminGetStory)
+	admin.POST("/admin/stories", api.CreateStory)
+	admin.PATCH("/admin/stories/:id", api.UpdateStory)
+	admin.DELETE("/admin/stories/:id", api.DeleteStory)
+
+	// ImageKit media
+	admin.POST("/admin/media/upload", api.UploadMedia)
+	admin.DELETE("/admin/media", api.DeleteMedia)
+
 	// Admin user management: look up by unique email, edit, or delete.
 	admin.GET("/admin/users/by-email/:email", api.AdminGetUser)
 	admin.PATCH("/admin/users/by-email/:email", api.AdminUpdateUser)
@@ -99,7 +132,7 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	// the Easebuzz redirect/webhook; status lets the app poll outcome.
 	authed.POST("/payments/initiate", api.InitiatePayment)
 	v1.POST("/payments/callback", api.PaymentCallback) // open: Easebuzz hits this
-	if cfg.PaymentsDummy {
+	if cfg.PaymentsDummy || cfg.EasebuzzKey == "" || cfg.EasebuzzSalt == "" {
 		v1.GET("/payments/dummy", api.DummyPayment) // open: local test bypass, never in prod
 	}
 	authed.GET("/payments/:merchantOrderId", api.GetPayment)

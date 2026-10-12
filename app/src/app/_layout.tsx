@@ -12,6 +12,13 @@ import {
   Outfit_800ExtraBold,
   Outfit_900Black,
 } from "@expo-google-fonts/outfit";
+import {
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+  Poppins_800ExtraBold,
+} from "@expo-google-fonts/poppins";
 import '../global.css';
 import { BackHandler, StatusBar, ToastAndroid, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +33,8 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SplashScreen from '@/components/SplashScreen';
+
+import { useThemeStore } from '@/state/themeStore';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,14 +65,26 @@ export default function RootLayout() {
     Outfit_700Bold,
     Outfit_800ExtraBold,
     Outfit_900Black,
+    Talina: require('@/assets/fonts/talina.otf'),
+    talina: require('@/assets/fonts/talina.otf'),
+    'Talina DEMO': require('@/assets/fonts/talina.otf'),
+    'TalinaDEMO-Regular': require('@/assets/fonts/talina.otf'),
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    Poppins_800ExtraBold,
+    Poppins: Poppins_400Regular,
   });
 
   const { rehydrateFromStorage } = useUserStore();
+  const { isDark, colors, loadTheme } = useThemeStore();
   useAuthListener();
   useNotifications();
 
   useEffect(() => {
     rehydrateFromStorage();
+    loadTheme();
   }, []);
 
   useEffect(() => {
@@ -71,10 +92,6 @@ export default function RootLayout() {
       ExpoSplashScreen.hideAsync();
     }
   }, [fontsLoaded, error]);
-
-
-
-
 
   if (!fontsLoaded && !error) {
     return <SplashScreen />;
@@ -86,9 +103,12 @@ export default function RootLayout() {
       <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: asyncStoragePersister }}>
         <StoreProvider>
           <AlertProvider>
-            <SafeAreaView style={{ flex: 1, backgroundColor: '#040D2D' }}>
-              <StatusBar backgroundColor="#040D2D" barStyle="light-content" />
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#DBE2ED' } }}>
+            <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
+              <StatusBar
+                backgroundColor={colors.background}
+                barStyle={isDark ? "light-content" : "dark-content"}
+              />
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="admin" />

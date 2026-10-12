@@ -53,22 +53,8 @@ export interface UserProfile {
   gender: 'male' | 'female' | 'other';
   sessionToken: string;
   accommodationNeeded: boolean;
-  accommodation?: {
-    day0?: boolean;
-    day00?: boolean;
-    day1?: boolean;
-    day2?: boolean;
-    day3?: boolean;
-    day4?: boolean;
-  };
-  food?: {
-    day0?: boolean;
-    day00?: boolean;
-    day1?: boolean;
-    day2?: boolean;
-    day3?: boolean;
-    day4?: boolean;
-  };
+  accommodation?: Record<string, boolean>;
+  food?: Record<string, boolean>;
   fullyRegistered: boolean; // to check if the person has not only done Oauth but also filled his details.
   isAmbassador: boolean;
   coins: number;
@@ -206,6 +192,7 @@ export interface FirebaseEvent {
   minTeamSize?: number;
   paymentRequired: boolean;
   paymentStarted: boolean;
+  paymentType?: 'per_team' | 'per_individual';
   prizes: string;
   shortPrizes: string;
   reelsId: string[];
@@ -218,6 +205,7 @@ export interface FirebaseEvent {
   sameCollegeOnly: boolean;
   venueId?: string;
   venueName?: string;
+  registeredCount?: number;
 }
 
 // Venue model for locations/venues

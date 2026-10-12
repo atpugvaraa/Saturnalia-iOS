@@ -1,6 +1,7 @@
 import React from "react";
 import { Tabs } from "expo-router";
-import { Image, View } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   House,
   CalendarRange as Calendar,
@@ -8,81 +9,259 @@ import {
   Store,
   User,
 } from "lucide-react-native";
+import { GlassView } from "expo-glass-effect";
+import { useThemeStore } from "@/state/themeStore";
+import { useAdminDrawerStore } from "@/state/adminDrawerStore";
+import { useUserStore } from "@/state/userStore";
+import AdminDrawer from "@/components/layout/AdminDrawer";
 
-export default function TabLayout() {
+const ACTIVE_LOGO_COLOR = "#41B8F0";
+
+const TAB_ICONS: Record<string, { label: string; Icon: React.ComponentType<any> }> = {
+  index: { label: "Home", Icon: House },
+  events: { label: "Events", Icon: Calendar },
+  reels: { label: "Reels", Icon: Play },
+  store: { label: "Store", Icon: Store },
+  profile: { label: "Profile", Icon: User },
+};
+
+function CustomTabBar({
+  state,
+  descriptors,
+  navigation,
+  insets,
+}: {
+  state: any;
+  descriptors: any;
+  navigation: any;
+  insets: any;
+}) {
+  const { isDark } = useThemeStore();
+
+  const focusedOptions = descriptors[state.routes[state.index].key]?.options;
+  if (
+    focusedOptions?.tabBarStyle &&
+    (focusedOptions.tabBarStyle as any)?.display === "none"
+  ) {
+    return null;
+  }
+
+  const inactiveColor = isDark
+    ? "rgba(255, 255, 255, 0.45)"
+    : "rgba(0, 0, 0, 0.4)";
+
+  // Dark mode navbar: #212121 with glassmorphism
+  // Light mode navbar: translucent with blur
+  const navBgColor = isDark
+    ? "rgba(33, 33, 33, 0.88)"
+    : "rgba(255, 255, 255, 0.68)";
+
+  const navBorderColor = isDark
+    ? "rgba(255, 255, 255, 0.14)"
+    : "rgba(255, 255, 255, 0.85)";
+
   return (
-    <Tabs
-      backBehavior="initialRoute"
-      screenOptions={{
-        sceneStyle: { backgroundColor: '#DBE2ED' },
-        headerShown: false,
-        tabBarBackground: () => (
-          <View style={{ flex: 1, borderRadius: 50, overflow: 'hidden', backgroundColor: '#2D4593' }}>
-            <Image
-              source={require("@/assets/mosaic.png")}
-              style={{ width: '100%', height: '150%', resizeMode: 'cover', position: 'absolute', top: -50, transform: [{ scale: 1.5 }] }}
-            />
-          </View>
-        ),
-        tabBarStyle: {
-          zIndex: 10,
-          position: "absolute",
-          marginHorizontal: 12,
-          marginVertical: 15,
-          height: 70,
-          backgroundColor: "transparent",
-          paddingHorizontal: 18,
-          borderRadius: 50,
-          borderTopWidth: 0,
-          paddingBottom: 0,
-          paddingTop: 6,
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-        tabBarLabelStyle: {
-          fontFamily: "Outfit_600SemiBold",
-          fontSize: 12,
-          fontWeight: "600",
-        },
-        tabBarActiveTintColor: "#EEB170",
-        tabBarInactiveTintColor: "#FFFFFF",
+    <View
+      style={{
+        position: "absolute",
+        left: 14,
+        right: 14,
+        bottom: Math.max(insets.bottom, 12),
+        height: 68,
+        // Ambient glassmorphic shadow
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: isDark ? 0.45 : 0.12,
+        shadowRadius: 16,
+        elevation: 10,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => <House size={26} color={"#232323"} fill={color} />,
+      <View
+        style={{
+          flex: 1,
+          borderRadius: 34,
+          overflow: "hidden",
+          borderWidth: 1,
+          borderColor: navBorderColor,
+          backgroundColor: navBgColor,
         }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: "Calendar",
-          tabBarIcon: ({ color }) => <Calendar size={26} color={"#232323"} fill={color} />,
+      >
+        {/* iOS Native Liquid Glass / Glass Effect */}
+        <GlassView
+          glassEffectStyle="regular"
+          colorScheme={isDark ? "dark" : "light"}
+          tintColor={isDark ? "rgba(33, 33, 33, 0.85)" : "rgba(255, 255, 255, 0.65)"}
+          style={StyleSheet.absoluteFill}
+        />
+
+        {/* Tab Items Row */}
+        <View
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-around",
+            paddingHorizontal: 4,
+          }}
+        >
+          {state.routes.map((route: any, index: number) => {
+            const { options } = descriptors[route.key];
+            const isFocused = state.index === index;
+            const tabMeta = TAB_ICONS[route.name] || {
+              label: options.title || route.name,
+              Icon: House,
+            };
+            const IconComponent = tabMeta.Icon;
+            const label = options.title !== undefined ? options.title : tabMeta.label;
+
+            const onPress = () => {
+              const event = navigation.emit({
+                type: "tabPress",
+                target: route.key,
+                canPreventDefault: true,
+              });
+
+              if (!isFocused && !event.defaultPrevented) {
+                navigation.navigate(route.name, route.params);
+              }
+            };
+
+            const onLongPress = () => {
+              navigation.emit({
+                type: "tabLongPress",
+                target: route.key,
+              });
+            };
+
+            // Active pill background: White stadium pill as shown in mockup
+            const activePillBg = "#FFFFFF";
+
+            return (
+              <TouchableOpacity
+                key={route.key}
+                accessibilityRole="button"
+                accessibilityState={isFocused ? { selected: true } : {}}
+                accessibilityLabel={options.tabBarAccessibilityLabel}
+                testID={options.tabBarButtonTestID}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                activeOpacity={0.75}
+                style={{
+                  flex: 1,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "100%",
+                }}
+              >
+                {isFocused ? (
+                  <View
+                    style={{
+                      width: 72,
+                      height: 54,
+                      borderRadius: 27,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 3 },
+                      shadowOpacity: 0.22,
+                      shadowRadius: 8,
+                      elevation: 5,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                        borderRadius: 27,
+                        overflow: "hidden",
+                        backgroundColor: activePillBg,
+                        borderWidth: 1,
+                        borderColor: "rgba(255, 255, 255, 0.6)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <IconComponent
+                        size={21}
+                        color={ACTIVE_LOGO_COLOR}
+                        strokeWidth={2.5}
+                        {...(route.name === "reels" ? { fill: ACTIVE_LOGO_COLOR } : {})}
+                      />
+                      <Text
+                        style={{
+                          fontFamily: "Poppins_600SemiBold",
+                          fontSize: 10,
+                          marginTop: 2,
+                          color: ACTIVE_LOGO_COLOR,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {label}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      width: 72,
+                      height: 54,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <IconComponent
+                      size={21}
+                      color={inactiveColor}
+                      strokeWidth={1.8}
+                    />
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_500Medium",
+                        fontSize: 10,
+                        marginTop: 2,
+                        color: inactiveColor,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export default function TabLayout() {
+  const { isDark } = useThemeStore();
+  const { isOpen, closeDrawer } = useAdminDrawerStore();
+  const { userData } = useUserStore();
+
+  const userRoles = Array.isArray(userData?.roles) ? userData.roles : [];
+
+  return (
+    <>
+      <Tabs
+        backBehavior="initialRoute"
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{
+          sceneStyle: { backgroundColor: isDark ? "#131316" : "#E0E0E0" },
+          headerShown: false,
         }}
+      >
+        <Tabs.Screen name="index" options={{ title: "Home" }} />
+        <Tabs.Screen name="events" options={{ title: "Events" }} />
+        <Tabs.Screen name="reels" options={{ title: "Reels" }} />
+        <Tabs.Screen name="store" options={{ title: "Store" }} />
+        <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+      </Tabs>
+
+      <AdminDrawer
+        visible={isOpen}
+        onClose={closeDrawer}
+        userRoles={userRoles}
       />
-      <Tabs.Screen
-        name="reels"
-        options={{
-          title: "Reels",
-          tabBarIcon: ({ color }) => <Play size={26} color={"#232323"} fill={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="store"
-        options={{
-          title: "Store",
-          tabBarIcon: ({ color }) => <Store size={26} color={"#232323"} fill={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color }) => <User size={26} color={"#232323"} fill={color} />,
-        }}
-      />
-    </Tabs>
+    </>
   );
 }

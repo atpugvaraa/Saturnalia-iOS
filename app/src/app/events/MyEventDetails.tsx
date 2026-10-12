@@ -249,7 +249,22 @@ const MyEventDetailsScreen: React.FC = () => {
           />
         )}
 
-        {/* Payment Button - shown when paymentStatus is pending */}
+        {/* Payment Pending for Team Members (non-leader) */}
+        {registration.paymentStatus === 'pending' && eventData?.eventType === 'team' && !isLeader && (
+          <View className="mb-6 bg-amber-50 border border-amber-300 rounded-xl p-4">
+            <View className="flex-row items-center mb-2">
+              <Ionicons name="time" size={20} color="#d97706" />
+              <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-amber-800 ml-2 text-base">
+                Waiting for Team Leader Payment
+              </Text>
+            </View>
+            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-amber-700 text-sm leading-5">
+              The registration fee for this team event must be completed by your team leader to confirm the team's registration.
+            </Text>
+          </View>
+        )}
+
+        {/* Payment Button - shown when paymentStatus is pending for leader or individual */}
         {registration.paymentStatus === 'pending' && (eventData?.eventType === 'individual' || isLeader) && (
           <View className="mb-6">
             <View className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-3">
@@ -280,6 +295,41 @@ const MyEventDetailsScreen: React.FC = () => {
               variant="none"
               className="bg-[#FEE59C] border-[#0C3572] border-2 flex-row items-center justify-center rounded-xl py-4"
               textClassName="text-[#0C3572] font-semibold"
+            />
+          </View>
+        )}
+
+        {/* Accommodation & Food Card */}
+        {!userProfile?.isHostCollegeStudent && (
+          <View className="mb-6 bg-white border border-[#DBE2ED] rounded-2xl p-5 shadow-sm">
+            <View className="flex-row items-center justify-between mb-2">
+              <View className="flex-row items-center">
+                <Ionicons name="bed-outline" size={22} color="#0C3572" />
+                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg ml-2">
+                  Accommodation & Food
+                </Text>
+              </View>
+              {(Object.values(userProfile?.accommodation || {}).some(Boolean) || Object.values(userProfile?.food || {}).some(Boolean)) ? (
+                <View className="bg-green-100 px-3 py-1 rounded-full">
+                  <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 text-xs">
+                    Pass Active
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-sm mb-4 leading-5">
+              {(Object.values(userProfile?.accommodation || {}).some(Boolean) || Object.values(userProfile?.food || {}).some(Boolean))
+                ? 'You have booked accommodation or meal passes. You can add more days or view details from your profile.'
+                : eventData?.eventType === 'team' && !isLeader
+                  ? 'Accommodation is individual per person. Book your hostel stay and meals separately from the team registration.'
+                  : 'Attending Saturnalia from outside? Book hostel accommodation (₹300/day) and meal passes (₹200/day).'}
+            </Text>
+            <Button
+              title={(Object.values(userProfile?.accommodation || {}).some(Boolean) || Object.values(userProfile?.food || {}).some(Boolean)) ? "Manage Accommodation" : "Book Accommodation & Food"}
+              onPress={() => router.push('/profile/Accommodation')}
+              variant="none"
+              className="bg-[#0C3572] rounded-xl py-3 items-center justify-center"
+              textClassName="text-[#EEB170] font-semibold"
             />
           </View>
         )}

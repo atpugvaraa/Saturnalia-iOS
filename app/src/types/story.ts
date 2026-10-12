@@ -2,7 +2,7 @@
 
 export interface StoryItem {
   storyId: string;
-  storyLink: string;
+  storyLink: any;
   storyUploadTime: number; // Unix timestamp in milliseconds
   storyExpiryTime: number; // Unix timestamp in milliseconds
   mediaType: 'image' | 'video';
@@ -11,9 +11,10 @@ export interface StoryItem {
 export interface UserStory {
   userId: string;
   name: string;
-  photoURL?: string;
+  photoURL?: any;
   stories: StoryItem[];
   lastUploadTime: number; // Unix timestamp for sorting
+  isDummyStory?: boolean;
 }
 
 export interface StoryUploadResponse {

@@ -2,7 +2,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Filter, X } from "lucide-react-native";
-import { TransactionFilters } from '@/types/adminTypes';
+import { TransactionFilters } from "@/types/adminTypes";
 
 interface TransactionFiltersProps {
   filters: TransactionFilters;
@@ -38,159 +38,162 @@ const TransactionFiltersComponent: React.FC<TransactionFiltersProps> =
       filters.paymentTypeFilter !== "all" ||
       filters.dateRange !== "all";
 
-    const getFilterChipColor = (isActive: boolean) => {
-      return isActive
-        ? "bg-[#FFBA00] text-[#121212]"
-        : "bg-[#2C2C2C] text-gray-300";
-    };
-
     return (
-      <View className="px-4 py-3">
+      <View className="px-4 py-2">
         {/* Filter Header */}
-        <View className="flex-row items-center justify-between mb-3">
+        <View className="flex-row items-center justify-between mb-2">
           <View className="flex-row items-center">
-            <Filter size={18} color="#FFBA00" />
+            <Filter size={16} color="#0C3572" />
             <Text
               style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-white text-base ml-2"
+              className="text-[#0C3572] text-sm ml-1.5"
             >
-              Filters
+              Filter Transactions
             </Text>
           </View>
 
           {hasActiveFilters && (
             <TouchableOpacity
               onPress={onClearFilters}
-              className="flex-row items-center bg-red-500/20 px-3 py-1 rounded-lg"
+              className="flex-row items-center bg-rose-100 border border-rose-200 px-2.5 py-1 rounded-full"
               activeOpacity={0.7}
             >
-              <X size={14} color="#EF4444" />
+              <X size={12} color="#E11D48" />
               <Text
                 style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-red-400 text-sm ml-1"
+                className="text-rose-600 text-xs ml-1"
               >
-                Clear
+                Clear Filters
               </Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Status Filter */}
-        <View className="mb-3">
+        <View className="mb-2.5">
           <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-gray-300 text-sm mb-2"
+            style={{ fontFamily: "Outfit_600SemiBold" }}
+            className="text-[#2175C0] text-xs uppercase tracking-wider mb-1.5"
           >
             Status
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row">
-              {statusOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  onPress={() =>
-                    onFiltersChange({
-                      ...filters,
-                      statusFilter: option.value as any,
-                    })
-                  }
-                  className={`px-4 py-2 rounded-full mr-2 ${getFilterChipColor(
-                    filters.statusFilter === option.value
-                  )}`}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className={`text-sm ${
-                      filters.statusFilter === option.value
-                        ? "text-[#121212]"
-                        : "text-gray-300"
+            <View className="flex-row gap-2">
+              {statusOptions.map((option) => {
+                const isSelected = filters.statusFilter === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    onPress={() =>
+                      onFiltersChange({
+                        ...filters,
+                        statusFilter: option.value as any,
+                      })
+                    }
+                    className={`px-3.5 py-1.5 rounded-full border ${
+                      isSelected
+                        ? "bg-[#0C3572] border-[#0C3572]"
+                        : "bg-white/90 border-[#A0B3D0]"
                     }`}
+                    activeOpacity={0.7}
                   >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={{ fontFamily: "Outfit_500Medium" }}
+                      className={`text-xs ${
+                        isSelected ? "text-white" : "text-[#0C3572]"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </ScrollView>
         </View>
 
         {/* Payment Type Filter */}
-        <View className="mb-3">
+        <View className="mb-2.5">
           <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-gray-300 text-sm mb-2"
+            style={{ fontFamily: "Outfit_600SemiBold" }}
+            className="text-[#2175C0] text-xs uppercase tracking-wider mb-1.5"
           >
             Payment Type
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row">
-              {paymentTypeOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  onPress={() =>
-                    onFiltersChange({
-                      ...filters,
-                      paymentTypeFilter: option.value as any,
-                    })
-                  }
-                  className={`px-4 py-2 rounded-full mr-2 ${getFilterChipColor(
-                    filters.paymentTypeFilter === option.value
-                  )}`}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className={`text-sm ${
-                      filters.paymentTypeFilter === option.value
-                        ? "text-[#121212]"
-                        : "text-gray-300"
+            <View className="flex-row gap-2">
+              {paymentTypeOptions.map((option) => {
+                const isSelected = filters.paymentTypeFilter === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    onPress={() =>
+                      onFiltersChange({
+                        ...filters,
+                        paymentTypeFilter: option.value as any,
+                      })
+                    }
+                    className={`px-3.5 py-1.5 rounded-full border ${
+                      isSelected
+                        ? "bg-[#0C3572] border-[#0C3572]"
+                        : "bg-white/90 border-[#A0B3D0]"
                     }`}
+                    activeOpacity={0.7}
                   >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={{ fontFamily: "Outfit_500Medium" }}
+                      className={`text-xs ${
+                        isSelected ? "text-white" : "text-[#0C3572]"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </ScrollView>
         </View>
 
         {/* Date Range Filter */}
-        <View>
+        <View className="mb-1">
           <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-gray-300 text-sm mb-2"
+            style={{ fontFamily: "Outfit_600SemiBold" }}
+            className="text-[#2175C0] text-xs uppercase tracking-wider mb-1.5"
           >
             Date Range
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row">
-              {dateRangeOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  onPress={() =>
-                    onFiltersChange({
-                      ...filters,
-                      dateRange: option.value as any,
-                    })
-                  }
-                  className={`px-4 py-2 rounded-full mr-2 ${getFilterChipColor(
-                    filters.dateRange === option.value
-                  )}`}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className={`text-sm ${
-                      filters.dateRange === option.value
-                        ? "text-[#121212]"
-                        : "text-gray-300"
+            <View className="flex-row gap-2">
+              {dateRangeOptions.map((option) => {
+                const isSelected = filters.dateRange === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    onPress={() =>
+                      onFiltersChange({
+                        ...filters,
+                        dateRange: option.value as any,
+                      })
+                    }
+                    className={`px-3.5 py-1.5 rounded-full border ${
+                      isSelected
+                        ? "bg-[#0C3572] border-[#0C3572]"
+                        : "bg-white/90 border-[#A0B3D0]"
                     }`}
+                    activeOpacity={0.7}
                   >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={{ fontFamily: "Outfit_500Medium" }}
+                      className={`text-xs ${
+                        isSelected ? "text-white" : "text-[#0C3572]"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </ScrollView>
         </View>

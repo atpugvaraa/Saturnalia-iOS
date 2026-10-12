@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useThemeStore } from '@/state/themeStore';
 
 interface DrawerItem {
   label: string;
@@ -20,31 +21,32 @@ interface DrawerItem {
 }
 
 const ALL_ITEMS: DrawerItem[] = [
-  // { label: 'QR Scanner',        icon: 'qr-code-outline',    route: '/admin/QRScanner',           requiredRoles: ['admin', 'event_coordinator', 'executive_committee', 'core_member', 'event_admin', 'hospitality_admin', 'hospitality_member', 'outreach_admin', 'outreach_member'] },
-  { label: 'Event Management',  icon: 'calendar-outline',   route: '/admin/EventsManagement',    requiredRoles: ['admin', 'event_coordinator', 'event_admin', 'outreach_admin', 'outreach_member', 'hospitality_admin', 'hospitality_member'] },
-  // { label: 'Banner Management', icon: 'image-outline',      route: '/admin/Banner',              requiredRoles: ['admin', 'media'] },
-  // { label: 'Content Management',icon: 'stats-chart-outline',route: '/admin/Poll',                requiredRoles: ['admin', 'eb_member', 'event_admin'] },
-  { label: 'Venue Management',  icon: 'location-outline',   route: '/admin/Venue',               requiredRoles: ['admin', 'event_admin'] },
-  { label: 'FAQ Management',    icon: 'help-circle-outline', route: '/admin/FAQ',                requiredRoles: ['admin', 'eb_member'] },
-  // { label: 'Accommodation',     icon: 'bed-outline',        route: '/admin/Accommodation',       requiredRoles: ['admin', 'hospitality_member', 'hospitality_admin', 'outreach_admin'] },
-  { label: 'Users Management',  icon: 'people-outline',     route: '/admin/Users',               requiredRoles: ['admin', 'event_admin', 'hospitality_admin', 'outreach_admin'] },
-  // { label: 'Transactions',      icon: 'card-outline',       route: '/admin/Transactions',        requiredRoles: ['admin', 'finance'] },
+  { label: 'Event Management', icon: 'calendar-outline', route: '/admin/EventsManagement', requiredRoles: ['admin', 'event_coordinator', 'event_admin', 'outreach_admin', 'outreach_member', 'hospitality_admin', 'hospitality_member'] },
+  { label: 'QR Scanner', icon: 'qr-code-outline', route: '/admin/QRScanner', requiredRoles: ['admin', 'event_coordinator', 'executive_committee', 'core_member', 'event_admin', 'hospitality_admin', 'hospitality_member', 'outreach_admin', 'outreach_member'] },
+  { label: 'Merchandise Scanner', icon: 'barcode-outline', route: '/admin/MerchandiseScanner', requiredRoles: ['admin', 'core_member', 'executive_committee'] },
+  { label: 'Venue Management', icon: 'location-outline', route: '/admin/Venue', requiredRoles: ['admin', 'event_admin'] },
+  { label: 'FAQ Management', icon: 'help-circle-outline', route: '/admin/FAQ', requiredRoles: ['admin', 'eb_member'] },
+  { label: 'Accommodation', icon: 'bed-outline', route: '/admin/Accommodation', requiredRoles: ['admin', 'hospitality_member', 'hospitality_admin', 'outreach_admin'] },
+  { label: 'Users Management', icon: 'people-outline', route: '/admin/Users', requiredRoles: ['admin', 'event_admin', 'hospitality_admin', 'outreach_admin'] },
+  { label: 'Payment Management', icon: 'card-outline', route: '/admin/Transactions', requiredRoles: ['admin', 'finance'] },
   { label: 'Send Notification', icon: 'notifications-outline', route: '/admin/SendNotification', requiredRoles: ['admin', 'eb_member'] },
-  // { label: 'Reel Upload',       icon: 'film-outline',       route: '/admin/AdminReelUploadScreen', requiredRoles: ['admin', 'media'] },
+  { label: 'Content & Polls', icon: 'stats-chart-outline', route: '/admin/Poll', requiredRoles: ['admin', 'eb_member', 'event_admin'] },
+  { label: 'Banner Management', icon: 'image-outline', route: '/admin/Banner', requiredRoles: ['admin', 'media'] },
 ];
 
 interface AdminDrawerProps {
   visible: boolean;
   onClose: () => void;
-  userRoles: string[];
+  userRoles?: string[];
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
+const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.82, 340);
 
-const AdminDrawer: React.FC<AdminDrawerProps> = ({ visible, onClose, userRoles }) => {
+const AdminDrawer: React.FC<AdminDrawerProps> = ({ visible, onClose, userRoles = [] }) => {
   const router = useRouter();
-  
+  const { isDark } = useThemeStore();
+
   const [isModalVisible, setIsModalVisible] = useState(visible);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -57,13 +59,13 @@ const AdminDrawer: React.FC<AdminDrawerProps> = ({ visible, onClose, userRoles }
           toValue: 0,
           useNativeDriver: true,
           bounciness: 0,
-          speed: 12, // adjust speed for a snappy feel
+          speed: 14,
         }),
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 250,
+          duration: 220,
           useNativeDriver: true,
-        })
+        }),
       ]).start();
     } else {
       Animated.parallel([
@@ -71,33 +73,44 @@ const AdminDrawer: React.FC<AdminDrawerProps> = ({ visible, onClose, userRoles }
           toValue: -DRAWER_WIDTH,
           useNativeDriver: true,
           bounciness: 0,
-          speed: 14,
+          speed: 16,
         }),
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 200,
+          duration: 180,
           useNativeDriver: true,
-        })
+        }),
       ]).start(() => {
         setIsModalVisible(false);
       });
     }
   }, [visible, slideAnim, fadeAnim]);
 
-  const visibleItems = useMemo(
-    () => ALL_ITEMS.filter(item => item.requiredRoles.some(r => userRoles.includes(r))),
-    [userRoles],
-  );
+  const visibleItems = useMemo(() => {
+    // If no roles specified or admin/dev, show all items
+    if (!userRoles || userRoles.length === 0 || userRoles.includes('admin') || userRoles.includes('dev')) {
+      return ALL_ITEMS;
+    }
+    const filtered = ALL_ITEMS.filter((item) =>
+      item.requiredRoles.some((r) => userRoles.includes(r))
+    );
+    return filtered.length > 0 ? filtered : ALL_ITEMS;
+  }, [userRoles]);
 
   const navigate = (route: string) => {
     onClose();
-    // Allow time for the drawer to close before pushing the route
     setTimeout(() => {
       router.push(route as any);
-    }, 250);
+    }, 220);
   };
 
   if (!isModalVisible) return null;
+
+  const drawerBg = isDark ? '#18181B' : '#FFFFFF';
+  const textPrimary = isDark ? '#FFFFFF' : '#111827';
+  const textSecondary = isDark ? '#9CA3AF' : '#6B7280';
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+  const iconBg = isDark ? 'rgba(65, 184, 240, 0.14)' : 'rgba(65, 184, 240, 0.12)';
 
   return (
     <Modal
@@ -107,11 +120,14 @@ const AdminDrawer: React.FC<AdminDrawerProps> = ({ visible, onClose, userRoles }
       onRequestClose={onClose}
     >
       {/* Backdrop */}
-      <Animated.View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', opacity: fadeAnim }}>
-        <Pressable
-          style={{ flex: 1 }}
-          onPress={onClose}
-        />
+      <Animated.View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          opacity: fadeAnim,
+        }}
+      >
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
       </Animated.View>
 
       {/* Drawer panel */}
@@ -122,38 +138,115 @@ const AdminDrawer: React.FC<AdminDrawerProps> = ({ visible, onClose, userRoles }
           left: 0,
           bottom: 0,
           width: DRAWER_WIDTH,
-          backgroundColor: '#0C3572',
-          paddingTop: 60,
+          backgroundColor: drawerBg,
+          paddingTop: 54,
           paddingHorizontal: 0,
+          borderRightWidth: 1,
+          borderRightColor: borderColor,
+          shadowColor: '#000',
+          shadowOffset: { width: 4, height: 0 },
+          shadowOpacity: isDark ? 0.45 : 0.15,
+          shadowRadius: 16,
+          elevation: 16,
           transform: [{ translateX: slideAnim }],
         }}
       >
         {/* Header */}
-        <View style={{ paddingHorizontal: 24, marginBottom: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ fontFamily: 'Outfit_700Bold', color: '#EEB170', fontSize: 22 }}>Admin Panel</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={26} color="#fff" />
+        <View
+          style={{
+            paddingHorizontal: 22,
+            marginBottom: 20,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: borderColor,
+          }}
+        >
+          <View>
+            <Text
+              style={{
+                fontFamily: 'Talina',
+                color: textPrimary,
+                fontSize: 22,
+                letterSpacing: 0.5,
+              }}
+            >
+              Admin Panel
+            </Text>
+            <Text
+              style={{
+                fontFamily: 'Poppins_500Medium',
+                color: '#41B8F0',
+                fontSize: 12,
+                marginTop: 2,
+              }}
+            >
+              Control Center
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onClose}
+            activeOpacity={0.7}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="close" size={20} color={textPrimary} />
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-          {visibleItems.map(item => (
+        {/* Menu Items */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          {visibleItems.map((item) => (
             <TouchableOpacity
               key={item.route}
               onPress={() => navigate(item.route)}
+              activeOpacity={0.7}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                paddingHorizontal: 24,
-                paddingVertical: 16,
+                paddingHorizontal: 20,
+                paddingVertical: 14,
                 borderBottomWidth: 1,
-                borderBottomColor: 'rgba(255,255,255,0.08)',
+                borderBottomColor: borderColor,
               }}
             >
-              <Ionicons name={item.icon as any} size={22} color="#EEB170" style={{ marginRight: 16 }} />
-              <Text style={{ fontFamily: 'Outfit_500Medium', color: '#fff', fontSize: 16 }}>
-                {item.label}
-              </Text>
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  backgroundColor: iconBg,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 14,
+                }}
+              >
+                <Ionicons name={item.icon as any} size={20} color="#41B8F0" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontFamily: 'Poppins_600SemiBold',
+                    color: textPrimary,
+                    fontSize: 14.5,
+                  }}
+                  numberOfLines={1}
+                >
+                  {item.label}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={textSecondary} />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -163,4 +256,3 @@ const AdminDrawer: React.FC<AdminDrawerProps> = ({ visible, onClose, userRoles }
 };
 
 export default AdminDrawer;
-

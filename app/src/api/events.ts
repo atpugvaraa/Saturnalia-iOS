@@ -32,6 +32,7 @@ const toFirebaseEvent = (raw: any): FirebaseEvent => {
   minTeamSize: e.minTeamSize,
   paymentRequired: !!e.paymentRequired,
   paymentStarted: !!e.paymentStarted,
+  paymentType: e.paymentType,
   prizes: e.prizes ?? "",
   shortPrizes: e.shortPrizes ?? "",
   reelsId: e.reelsId ?? [],
@@ -44,6 +45,7 @@ const toFirebaseEvent = (raw: any): FirebaseEvent => {
   sameCollegeOnly: !!e.sameCollegeOnly,
   venueId: e.venueId,
   venueName: e.venueName,
+  registeredCount: Number(e.registeredCount ?? 0),
   };
 };
 

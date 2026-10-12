@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"backend/internal/cache"
+	"backend/internal/chatbot"
 	"backend/internal/config"
 	"backend/internal/fb"
 	"backend/internal/handlers"
 	"backend/internal/qr"
+	"backend/internal/storage"
 	"backend/internal/store"
-	"backend/internal/chatbot"
 )
 
 func main() {
@@ -40,13 +41,27 @@ func main() {
 	}
 	defer provider.Close()
 
+	var mediaStore *storage.Store
+	if cfg.ImageKitAccountsFile != "" {
+		ms, err := storage.New(cfg.ImageKitAccountsFile, provider)
+		if err != nil {
+			log.Printf("imagekit storage init warning: %v", err)
+		} else {
+			mediaStore = ms
+			log.Printf("imagekit storage initialized successfully")
+		}
+	}
+
 	st := store.New(clients.FS, cfg)
 	events := store.NewEventCache(st, provider, provider, cfg.EventCacheTTL)
 	events.StartInvalidationListener(ctx)
 	cb := chatbot.NewService(cfg.GroqAPIKey)
 	faqs := store.NewListCache(provider, store.KeyFaqs, cfg.EventCacheTTL, st.AllFaqs)
 	venues := store.NewListCache(provider, store.KeyVenues, cfg.EventCacheTTL, st.AllVenues)
-	api := handlers.New(st, events, faqs, venues, qr.New(cfg.QRSecret), cfg, cb, clients)
+	banners := store.NewListCache(provider, store.KeyBanners, cfg.EventCacheTTL, st.AllBanners)
+	reels := store.NewListCache(provider, store.KeyReels, cfg.EventCacheTTL, st.AllReels)
+	stories := store.NewListCache(provider, store.KeyStories, cfg.EventCacheTTL, st.AllStories)
+	api := handlers.New(st, events, faqs, venues, banners, reels, stories, qr.New(cfg.QRSecret), cfg, cb, clients, mediaStore)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -84,6 +99,21 @@ func main() {
 			log.Printf("cache warm: venues: %v", err)
 		} else {
 			log.Printf("cache warm: venues ready")
+		}
+		if _, err := banners.All(wctx); err != nil {
+			log.Printf("cache warm: banners: %v", err)
+		} else {
+			log.Printf("cache warm: banners ready")
+		}
+		if _, err := reels.All(wctx); err != nil {
+			log.Printf("cache warm: reels: %v", err)
+		} else {
+			log.Printf("cache warm: reels ready")
+		}
+		if _, err := stories.All(wctx); err != nil {
+			log.Printf("cache warm: stories: %v", err)
+		} else {
+			log.Printf("cache warm: stories ready")
 		}
 	}()
 

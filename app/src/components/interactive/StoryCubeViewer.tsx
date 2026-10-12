@@ -263,7 +263,7 @@ const StoryContent = React.memo(
               </View>
             )}
             <Image
-              source={typeof mediaUrl === 'number' ? mediaUrl : { uri: mediaUrl }}
+              source={typeof mediaUrl === 'number' ? mediaUrl : (typeof mediaUrl === 'object' && (mediaUrl as any)?.uri ? mediaUrl : { uri: String(mediaUrl) })}
               style={styles.image}
               resizeMode="cover"
               onLoad={() => setIsImageLoaded(true)}

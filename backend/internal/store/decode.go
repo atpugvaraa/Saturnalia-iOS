@@ -81,3 +81,32 @@ func decodeTeam(snap *firestore.DocumentSnapshot) (*models.Team, error) {
 	t.Normalise()
 	return &t, nil
 }
+
+func decodeBanner(snap *firestore.DocumentSnapshot) (*models.Banner, error) {
+	var b models.Banner
+	if err := snap.DataTo(&b); err != nil {
+		return nil, err
+	}
+	b.ID = snap.Ref.ID
+	return &b, nil
+}
+
+func decodeReel(snap *firestore.DocumentSnapshot) (*models.Reel, error) {
+	var r models.Reel
+	if err := snap.DataTo(&r); err != nil {
+		return nil, err
+	}
+	r.ID = snap.Ref.ID
+	return &r, nil
+}
+
+func decodeStory(snap *firestore.DocumentSnapshot) (*models.Story, error) {
+	var s models.Story
+	if err := snap.DataTo(&s); err != nil {
+		return nil, err
+	}
+	s.ID = snap.Ref.ID
+	s.Normalise()
+	return &s, nil
+}
+

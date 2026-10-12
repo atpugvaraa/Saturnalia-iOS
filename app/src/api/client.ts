@@ -42,6 +42,13 @@ export async function apiFetch(
 }
 
 export async function readError(response: Response, fallback: string): Promise<string> {
-  const errorData = await response.json().catch(() => ({ message: undefined as string | undefined }));
-  return errorData.message || fallback;
+  try {
+    const errorData = await response.json();
+    if (typeof errorData?.error === "string") return errorData.error;
+    if (typeof errorData?.error?.message === "string") return errorData.error.message;
+    if (typeof errorData?.message === "string") return errorData.message;
+    return fallback;
+  } catch {
+    return fallback;
+  }
 }

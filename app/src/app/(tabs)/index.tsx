@@ -1,30 +1,50 @@
 // src/screens/App/Home/HomeScreen.tsx
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Text, ScrollView, View, Image,Linking, TouchableOpacity, TextInput, FlatList, ActivityIndicator, RefreshControl, BackHandler, ToastAndroid } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { Text, ScrollView, View, Image, Linking, TouchableOpacity, TextInput, FlatList, ActivityIndicator, RefreshControl, BackHandler, ToastAndroid, Platform, StyleSheet, _ScrollView } from 'react-native';
 import { Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUserStore } from '@/state/userStore';
 import { Carousel, StoryCubeViewer } from '../../components';
 import { Banner as BannerType } from '@/data/Colleges';
 import Banner from '@/components/display/Banner';
-import EventCard from '@/components/display/EventCard';
+import FeaturedEventCard from '@/components/display/FeaturedEventCard';
 import MiniMap from '@/components/display/MiniMap';
-import { useEventsByCategory } from '@/hooks/useEvents';
+import { useEvents } from '@/hooks/useEvents';
 import ChatBot from '@/components/interactive/ChatBot';
 import { Bell, Bot, Menu, Plus } from 'lucide-react-native';
 import { useStories } from '@/hooks/useStories';
 import StoryUploadButton from '@/components/story/StoryUploadButton';
 import { Corousal } from '@/types/models';
-import Header from '@/components/layout/Header';
+import HeroBanner from '@/components/display/HeroBanner';
+import { useThemeStore } from '@/state/themeStore';
 import { HomeScreenSkeleton } from '@/components/skeletons/HomeScreenSkeleton';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { API_BASE_URL } from '@/config/api';
+import { UserStory } from '@/types/story';
 
+const STORY_BORDER_COLORS = [
+  '#41B8F0',
+  '#F05041',
+  '#7BF041',
+  '#41B8F0',
+  '#F05041',
+  '#7BF041',
+];
+
+const FEATURED_FILTERS = [
+  'Technical',
+  'Centerstage',
+  'Workshops',
+  'Business',
+  'Cultural',
+  'All',
+];
 
 export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x: boolean) => void }) {
   const router = useRouter();
+  const { isDark, colors, toggleTheme } = useThemeStore();
   const lastExitPress = useRef(0);
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedFeaturedCategory, setSelectedFeaturedCategory] = useState<string>('Technical');
   
   useFocusEffect(
     useCallback(() => {
@@ -50,46 +70,16 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
   const [corousalLoading, setCorousalLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { userData: userProfile,refreshUserProfile } = useUserStore();
-  const categories = ['All', 'Technical', 'Cultural', 'Business', 'Informal'];
 
-  const { events: filteredEvents, loading, error, refresh: refreshEvents } = useEventsByCategory(selectedCategory);
+  const { events: allEvents, loading, error, refresh: refreshEvents } = useEvents();
   const { stories, loading: storiesLoading, refresh: refreshStories } = useStories();
 
-  const dummyStories = [
-    {
-      userId: 'dummy1',
-      name: 'Student 1',
-      isDummyStory: true,
-      stories: [
-        { storyId: 's1-1', storyLink: require("@/assets/story1/Copy_of_DSC_2885_ehyu7g.jpg"), mediaType: 'image' },
-        { storyId: 's1-2', storyLink: require("@/assets/story1/Copy_of_JPG06242_hugpaw.jpg"), mediaType: 'image' },
-      ],
-      photoURL: 'https://api.dicebear.com/10.x/open-peeps/png?seed=Felix&hair=full,pixie,fonze,turban'
-    },
-    {
-      userId: 'dummy2',
-      name: 'Student 2',
-      isDummyStory: true,
-      stories: [
-        { storyId: 's2-1', storyLink: require("@/assets/story2/Copy_of_DSC09217_cesaci.jpg"), mediaType: 'image' },
-        { storyId: 's2-2', storyLink: require("@/assets/story2/Copy_of_JPG06985_hrr7ta.jpg"), mediaType: 'image' },
-        { storyId: 's2-3', storyLink: require("@/assets/story2/Copy_of_OWL02218_ofmovh.jpg"), mediaType: 'image' },
-      ],
-      photoURL: 'https://api.dicebear.com/10.x/open-peeps/png?seed=Aneka&hair=full,pixie,fonze,turban'
-    },
-    {
-      userId: 'dummy3',
-      name: 'Student 3',
-      isDummyStory: true,
-      stories: [
-        { storyId: 's3-1', storyLink: require("@/assets/story3/Copy_of_KAREE_SAT_PBKS-87_pllsr4.jpg"), mediaType: 'image' },
-        { storyId: 's3-2', storyLink: require("@/assets/story3/Copy_of_OWL02359_lyncrp.jpg"), mediaType: 'image' },
-      ],
-      photoURL: 'https://api.dicebear.com/10.x/open-peeps/png?seed=Jasper&hair=full,pixie,fonze,turban'
-    }
-  ];
-
-  const displayStories = stories.length > 0 ? stories : dummyStories;
+  // Featured events: strictly only events marked with isFeatured tag
+  const featuredEvents = useMemo(() => {
+    const onlyFeatured = allEvents.filter(e => e.isFeatured === true);
+    if (selectedFeaturedCategory === 'All') return onlyFeatured;
+    return onlyFeatured.filter(e => (e.category || '').toLowerCase() === selectedFeaturedCategory.toLowerCase());
+  }, [allEvents, selectedFeaturedCategory]);
 
   // Guard: once data has loaded for the first time, never show the skeleton again
   // (prevents flash when navigating back to this screen)
@@ -166,49 +156,76 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
     refreshStories();
   };
 
-  const renderStoryItem = ({ item, index }: { item: any, index: number }) => {
-    const isDummy = item.isDummyStory;
+  const renderStoryItem = ({ item, index }: { item: UserStory; index: number }) => {
+    const borderColor = STORY_BORDER_COLORS[index % STORY_BORDER_COLORS.length];
+    const firstImage = item.photoURL || (item.stories && item.stories.length > 0 ? item.stories[0].storyLink : null);
+    const imageSource = typeof firstImage === 'number' ? firstImage : (firstImage?.uri ? firstImage : { uri: firstImage });
+
     return (
       <TouchableOpacity
-        style={{
-          boxSizing: 'content-box',
-        }}
-        className={`items-center mr-4 ${isDummy ? 'opacity-70' : ''}`}
+        key={item.userId || `story-${index}`}
+        className="items-center mr-4"
         onPress={() => handleStoryPress(index)}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
-        <View className={`p-[2.5px] ${isDummy ? 'bg-[#FFD430]' : 'bg-[#FFBA00]'} rounded-full`}>
-          <View className={`w-20 h-20 rounded-full ${isDummy ? 'bg-[#FFD430]' : 'bg-white'} border-[2px] border-black items-center justify-center overflow-hidden`}>
-            {item.photoURL ? (
-              <Image
-                source={typeof item.photoURL === 'number' ? item.photoURL : { uri: item.photoURL }}
-                className="w-full h-full"
-                resizeMode="cover"
-              />
-            ) : (
-              <View className="w-full h-full bg-gray-300 items-center justify-center">
-                <Text className="text-black text-2xl font-bold">
-                  {item.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </View>
+        <View
+          style={{
+            width: 82,
+            height: 95,
+            borderRadius: 24,
+            borderWidth: 1.5,
+            borderColor: borderColor,
+            overflow: 'hidden',
+            backgroundColor: isDark ? '#1C1C1E' : '#E5E7EB',
+          }}
+        >
+          {firstImage ? (
+            <Image
+              source={imageSource}
+              style={[
+                { width: '100%', height: '100%' },
+                Platform.OS === 'web' && ({ filter: 'grayscale(25%)' } as any),
+              ]}
+              resizeMode="cover"
+            />
+          ) : (
+            <View className="w-full h-full bg-neutral-800 items-center justify-center">
+              <Text style={{ fontFamily: 'Poppins_700Bold', color: '#FFFFFF', fontSize: 22 }}>
+                {item.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+
+          {/* Subtle grayscale / desaturation filter overlay */}
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: 'rgba(120, 120, 120, 0.3)' },
+            ]}
+            pointerEvents="none"
+          />
         </View>
-        <Text className="text-[#0C3572] text-md mt-2" style={{ fontFamily: 'Outfit_500Medium' }} numberOfLines={1}>
-          {item.name.split(" ")[0]}
+
+        <Text
+          style={{
+            fontFamily: 'Poppins_600SemiBold',
+            color: isDark ? '#FFFFFF' : '#000000',
+            fontSize: 14,
+            marginTop: 8,
+            textAlign: 'center',
+          }}
+          numberOfLines={1}
+        >
+          {item.name}
         </Text>
       </TouchableOpacity>
     );
   };
 
-  const renderEventCard = ({ item }: { item: any }) => (
-    <EventCard event={item} />
-  );
-
   // Show skeleton while initial data is loading — but ONLY if it has never loaded before.
   // This prevents a flash skeleton re-render when navigating back to this screen.
   const isInitialLoading = !hasLoadedOnce.current && (
-    (loading && filteredEvents.length === 0) ||
+    (loading && allEvents.length === 0) ||
     (storiesLoading && stories.length === 0) ||
     corousalLoading
   );
@@ -218,12 +235,10 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* Scrollable Content */}
-      <Header userProfile={userProfile} setShowBottomNav={setShowBottomNav || (() => {})} />
-
+    <View style={{ flex: 1, backgroundColor: isDark ? '#000000' : '#E0E0E0' }}>
       <ScrollView
         className="flex-1"
+        style={{ backgroundColor: isDark ? '#000000' : '#E0E0E0' }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
@@ -235,200 +250,190 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
           />
         }
       >
+        {/* Full-section Hero Banner with Top and Bottom Gradients */}
+        <HeroBanner userProfile={userProfile} />
 
-        <View pointerEvents="auto" className='w-full flex-row justify-between items-center my-6'>
-          <Carousel
-            data={[1, 2, 3, 4].map((id) => ({
-              id: id.toString(),
-              imageUrl: require("@/assets/banner.png"),
-              isActive: true,
-              link: '',
-              priority: id,
-              title: `Banner ${id}`,
-            }))}
-            renderItem={({ item }) => (
-              <Banner
-          banner={item as unknown as BannerType}
-          onPress={async (url?: string) => {
-            if (!url) return;
-            try {
-              // require Linking here so we don't need to modify top-level imports
-              const canOpen = await Linking.canOpenURL(url);
-              if (canOpen) {
-                await Linking.openURL(url);
-              } else {
-                console.warn('Cannot open URL:', url);
-              }
-            } catch (err) {
-              console.error('Error opening URL:', err);
-            }
-          }}
-              />
-            )}
-            autoPlay={true}
-            autoPlayInterval={4000}
-            showDots={true}
-          />
-        </View>
-        <View className="min-h-fit px-6">
-          {/* SatWrap Banner — temporarily hidden */}
-          {null && (
-            <TouchableOpacity
-              onPress={() => router.push('/SatWrap')}
-              className="bg-[#0C3572] rounded-2xl py-6 px-6 mb-6 flex-row items-center justify-between"
-              style={{ boxShadow: '0px 4px 15px 0px rgba(12, 53, 114, 0.4)' }}
+        {/* Event Stories Section - Located right under the banner */}
+        <View style={{ marginTop: 22, marginBottom: 6 }}>
+          <View style={{ paddingHorizontal: 24, marginBottom: 14 }}>
+            <Text
+              style={{
+                fontFamily: 'Talina',
+                color: isDark ? '#FFFFFF' : '#000000',
+                fontSize: 28,
+                letterSpacing: 0.5,
+              }}
             >
-              <View>
-                <Text style={{ fontFamily: 'Outfit_900Black' }} className="text-[#EEB170] text-2xl">SatWrap '26</Text>
-                <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#DBE2ED] mt-1 text-sm">Your Saturnalia journey awaits!</Text>
-              </View>
-              <View className="bg-[#EEB170] w-10 h-10 rounded-full items-center justify-center">
-                <Ionicons name="play" size={20} color="#0C3572" style={{ marginLeft: 2 }} />
-              </View>
-            </TouchableOpacity>
-          )}
+              Event Stories
+            </Text>
+          </View>
 
-          {/* Search Bar */}
-          <TouchableOpacity
-            onPress={handleSearchPress}
-            className="bg-[#FFFFFF] rounded-2xl py-4 px-6 mb-6 flex-row items-center"
-            style={{
-               boxShadow: '0px 4px 10px 0px rgba(0, 0, 0, 0.2)', 
-            }}
-          >
-            <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572]text-xl flex-1">Search Events</Text>
-            <Ionicons name="search" size={22} color="#0C3572" />
-          </TouchableOpacity>
-
-
-          {/* Stories Section - Coming Soon */}
-          {false && (storiesLoading && stories.length === 0 ? (
-            <View className="py-10 items-center">
+          {storiesLoading && stories.length === 0 ? (
+            <View className="py-6 items-center">
               <ActivityIndicator size="small" color="#FFBA00" />
             </View>
           ) : (
-            <View className="mb-1">
-              <FlatList
-                data={[
-                  ...(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('media')
-                    ? [{ isUploadButton: true }]
-                    : []),
-                  ...displayStories
-                ]}
-                renderItem={({ item, index }) => {
-                  const canAddStory = userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('media');
-                  if ('isUploadButton' in item && item.isUploadButton) {
-                    return (
-                      <View className="items-center mr-4">
-                        <StoryUploadButton
-                          userId={userProfile?.userId || ''}
-                          userName={userProfile?.displayName || 'User'}
-                          userPhotoURL={userProfile?.photoURL}
-                          onUploadComplete={handleStoryUploadComplete}
-                        />
-                        <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572] text-md mt-2">Add Story</Text>
-                      </View>
-                    );
-                  }
-
-                  const storyIndex = canAddStory ? index - 1 : index;
-                  return renderStoryItem({ item, index: storyIndex });
-                }}
-                keyExtractor={(item, index) =>
-                  'isUploadButton' in item && item.isUploadButton
-                    ? 'upload-button'
-                    : (item as any).userId
-                }
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 20, marginBottom: 10 }}
-                ListEmptyComponent={null}
-              />
-            </View>
-          ))}
-
-          {/* Upcoming Events */}
-          <View className="mb-6">
-            <View className='flex flex-1 flex-row justify-between w-full items-center mb-6'>
-              <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-2xl">Upcoming Events</Text>
-              <TouchableOpacity
-                onPress={handleSearchPress}
-              >
-                <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572] text-lg mr-2">See all</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Category Filter */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="mb-8"
-            >
-              {categories.map(cat => {
-                const selected = selectedCategory === cat;
-                return (
-                  <Pressable
-                    key={cat}
-                    onPress={() => setSelectedCategory(cat)}
-                    className={`${selected ? 'bg-[#EEB170]' : ''} border-[#0C3572] w-28 py-2 rounded-2xl border-2 mr-3 items-center justify-center`}
-                  >
-                    <Text style={{ fontFamily: 'Outfit_500Medium' }} className={`text-[#0C3572] font-medium`}>{cat}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {/* Event Cards */}
             <FlatList
-              data={filteredEvents}
-              renderItem={renderEventCard}
-              keyExtractor={(item) => item.eventId}
+              data={stories}
+              renderItem={renderStoryItem}
+              keyExtractor={(item, index) => item.userId || `story-${index}`}
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 24, paddingBottom: 20 }}
+              contentContainerStyle={{ paddingHorizontal: 24 }}
             />
-          </View>
-          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-2xl my-2">Event Map</Text>
-          {/* Mini Map Component */}
-          <MiniMap onPress={handleMapPress} />
+          )}
+        </View>
 
-          {/* Action Hub: SatPlay, SatClick & SatPay — temporarily hidden */}
-          {null && (
-            <>
-              <View className="flex-row justify-between items-center mt-8 mb-4">
+        {/* Peacock Theme Illustration - Under the stories */}
+        <View style={{ width: '100%', alignItems: 'center', marginVertical: 12 }}>
+          <Image
+            source={isDark ? require('@/assets/peacock-dark.png') : require('@/assets/peacock-light.png')}
+            style={{
+              width: '100%',
+              aspectRatio: 402 / 534,
+            }}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* Venue Map Section - Under the peacock image */}
+        <View style={{ paddingHorizontal: 24, marginTop: 4, marginBottom: 20 }}>
+          <Text
+            style={{
+              fontFamily: 'Talina',
+              color: isDark ? '#FFFFFF' : '#000000',
+              textAlign: 'center',
+              fontSize: 28,
+              letterSpacing: 0.5,
+              marginBottom: 16,
+            }}
+          >
+            Venue Map
+          </Text>
+
+          <TouchableOpacity
+            onPress={handleMapPress}
+            activeOpacity={0.88}
+            style={{
+              overflow: 'hidden',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: isDark ? 0.35 : 0.08,
+              shadowRadius: 10,
+              elevation: 4,
+            }}
+          >
+            <Image
+              source={require('@/assets/map.png')}
+              style={{
+                width: '100%',
+                height: 220,
+              }}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Featured Events Section - Directly under the Venue Map */}
+        <View style={{ paddingHorizontal: 24, marginTop: 12, marginBottom: 26 }}>
+          {/* Centered Heading */}
+          <Text
+            style={{
+              fontFamily: 'Talina',
+              color: isDark ? '#FFFFFF' : '#000000',
+              textAlign: 'center',
+              fontSize: 34,
+              letterSpacing: 0.5,
+            }}
+          >
+            Featured Events
+          </Text>
+
+          {/* Centered Subtitle */}
+          <Text
+            style={{
+              fontFamily: 'Poppins_400Regular',
+              color: isDark ? '#9CA3AF' : '#6B7280',
+              textAlign: 'center',
+              fontSize: 14,
+              marginTop: 6,
+              marginBottom: 18,
+            }}
+          >
+            Lorem Ipsum Dolor Sit Amet, Lorem Ipsum
+          </Text>
+
+          {/* Category Filters with transparent background and 41B8F0 border */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, paddingBottom: 2 }}
+            style={{ marginBottom: 22 }}
+          >
+            {FEATURED_FILTERS.map((cat) => {
+              const isSelected = selectedFeaturedCategory.toLowerCase() === cat.toLowerCase();
+              return (
                 <TouchableOpacity
-                  onPress={() => router.push('/SatPlay')}
-                  className="bg-[#FFFFFF] rounded-[28px] flex-1 aspect-square items-center justify-center"
-                  style={{ boxShadow: '0px 4px 10px 0px rgba(0, 0, 0, 0.2)' }}
+                  key={cat}
+                  onPress={() => setSelectedFeaturedCategory(cat)}
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: isSelected ? 'rgba(65, 184, 240, 0.22)' : 'transparent',
+                    borderWidth: 1.5,
+                    borderColor: '#41B8F0',
+                    borderRadius: 10,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                  }}
                 >
-                  <Image source={require("@/assets/rubik.png")} style={{ width: 100, height: 100, resizeMode: 'contain' }} />
-                  <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-xl">SatPlay</Text>
+                  <Text
+                    style={{
+                      fontFamily: 'Poppins_600SemiBold',
+                      color: isDark ? '#FFFFFF' : '#000000',
+                      fontSize: 14,
+                    }}
+                  >
+                    {cat}
+                  </Text>
                 </TouchableOpacity>
-                <View className="w-[2px] h-16 bg-[#A0B3D0] mx-4 opacity-40 rounded-full" />
-                <TouchableOpacity
-                  onPress={() => router.push('/SatClick')}
-                  className="bg-[#FFFFFF] rounded-[28px] flex-1 aspect-square items-center justify-center"
-                  style={{ boxShadow: '0px 4px 10px 0px rgba(0, 0, 0, 0.2)' }}
-                >
-                  <Image source={require("@/assets/camera.png")} style={{ width: 100, height: 100, resizeMode: 'contain' }} />
-                  <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-xl">SatClick</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
-                onPress={() => router.push('/SatPayOffline')}
-                className="bg-[#FFFFFF] rounded-[28px] w-full py-5 mb-10 flex-row items-center px-6"
-                style={{ boxShadow: '0px 4px 10px 0px rgba(0, 0, 0, 0.2)' }}
+              );
+            })}
+          </ScrollView>
+
+          {/* Vertical Featured Event Cards */}
+          {loading && featuredEvents.length === 0 ? (
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#41B8F0" />
+            </View>
+          ) : featuredEvents.length === 0 ? (
+            <View
+              style={{
+                paddingVertical: 28,
+                paddingHorizontal: 16,
+                alignItems: 'center',
+                backgroundColor: isDark ? '#141416' : '#F3F4F6',
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: isDark ? '#262628' : '#E5E7EB',
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: 'Poppins_500Medium',
+                  color: isDark ? '#9CA3AF' : '#6B7280',
+                  fontSize: 14,
+                  textAlign: 'center',
+                }}
               >
-                <View className="bg-[#0C3572] w-14 h-14 rounded-full items-center justify-center shadow-sm">
-                  <Ionicons name="wifi" size={24} color="#EEB170" />
-                </View>
-                <View className="ml-4 flex-1">
-                  <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-xl">SatPay Offline</Text>
-                  <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572] opacity-70 text-sm mt-1">Pay at stalls without internet</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color="#A0B3D0" />
-              </TouchableOpacity>
-            </>
+                No featured events found for {selectedFeaturedCategory}
+              </Text>
+            </View>
+          ) : (
+            <View style={{ width: '100%' }}>
+              {featuredEvents.map((evt) => (
+                <FeaturedEventCard key={evt.eventId} event={evt} />
+              ))}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -449,9 +454,9 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
       </TouchableOpacity>
 
       {/* Story Cube Viewer Modal */}
-      {showStoryViewer && displayStories.length > 0 && (
+      {showStoryViewer && stories.length > 0 && (
         <StoryCubeViewer
-          users={displayStories.map((userStory) => ({
+          users={stories.map((userStory) => ({
             id: userStory.userId,
             user: userStory.name,
             stories: userStory.stories.map((story: any) => ({
@@ -464,9 +469,6 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
           onClose={handleCloseStoryViewer}
           initialUserIndex={selectedStoryIndex}
           onDeleteStory={async (userId, storyId) => {
-            // Call your actual delete API here
-            /* Removed API call */
-            // Refresh stories after deletion
             refreshStories();
           }}
         />

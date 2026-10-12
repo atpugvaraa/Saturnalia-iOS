@@ -22,6 +22,8 @@ import UserSearchBar from "@/components/admin/UserSearchBar";
 import UserDetailsModal from "@/components/admin/UserDetailsModal";
 import UserQRScannerModal from "@/components/admin/UserQRScannerModal";
 
+import { useThemeStore } from "@/state/themeStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAlert } from "@/components";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
 
@@ -31,6 +33,8 @@ interface UsersProps {
 
 const Users: React.FC = () => {
   const navigation = useAdminNavigation();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
   const [users, setUsers] = useState<AdminUserProfile[]>([]);
   const [searchLoading, setSearchLoading] = useState(false); // Search/filter loading
   const [refreshing, setRefreshing] = useState(false);
@@ -191,27 +195,64 @@ const Users: React.FC = () => {
     );
   };
 
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#9CA3AF" : "#6B7280";
+
   return (
-    <View className="flex-1 bg-transparent">
+    <View style={{ flex: 1, backgroundColor: isDark ? "#131316" : "#E0E0E0" }}>
       {/* Header */}
-      <View className="bg-[#EEB170] pt-4 rounded-b-2xl pb-6 px-6 flex-row items-center justify-between">
+      <View
+        style={{
+          paddingTop: Math.max(insets.top + 8, 16),
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: cardBg,
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isDark ? 0.3 : 0.05,
+          shadowRadius: 6,
+          elevation: 4,
+        }}
+      >
         <TouchableOpacity
           onPress={() => navigation.navigate("Dashboard")}
-          className="mr-4"
           activeOpacity={0.7}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
         >
-          <ArrowLeft size={28} color="#121212" />
+          <ArrowLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <View className="flex-1">
+        <View style={{ flex: 1 }}>
           <Text
-            style={{ fontFamily: "Outfit_700Bold" }}
-            className="text-[#121212] text-2xl"
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
           >
             Users Management
           </Text>
           <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-[#121212] text-sm opacity-80"
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
           >
             {hasActiveFilters(filters)
               ? `${users.length} users loaded${
@@ -250,14 +291,29 @@ const Users: React.FC = () => {
         <View className="px-4 my-4">
           <TouchableOpacity
             onPress={() => setQrScannerVisible(true)}
-            className="bg-[#EEB170] rounded-xl p-4 flex-row items-center justify-center"
-            activeOpacity={0.7}
+            style={{
+              backgroundColor: "#41B8F0",
+              borderRadius: 16,
+              padding: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+            activeOpacity={0.75}
           >
-            <QrCode size={24} color="#121212" />
+            <QrCode size={22} color="#FFFFFF" />
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#121212] text-base ml-2"
+              style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 15, marginLeft: 8 }}
             >
+              Scan User QR Code
+            </Text>
+          </TouchableOpacity>
+        </View>
               Scan User QR Code
             </Text>
           </TouchableOpacity>

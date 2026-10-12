@@ -1,13 +1,16 @@
-// src/components/skeletons/HomeScreenSkeleton.tsx
 import React from 'react';
 import { View, ScrollView } from 'react-native';
 import { Skeleton, SkeletonCircle } from '../ui/Skeleton';
-import { BackgroundGradient } from '../layout/BackgroundGradient';
+import { useThemeStore } from '@/state/themeStore';
 
 export const HomeScreenSkeleton = () => {
+  const { isDark } = useThemeStore();
   return (
-    // <BackgroundGradient>
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+    <ScrollView
+      className="flex-1"
+      style={{ backgroundColor: isDark ? '#000000' : '#E0E0E0' }}
+      showsVerticalScrollIndicator={false}
+    >
         {/* Header Skeleton */}
         <View className="px-6 pt-14 pb-4">
           <View className="flex-row justify-between items-center">
@@ -38,7 +41,7 @@ export const HomeScreenSkeleton = () => {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {[1, 2, 3, 4, 5].map((item) => (
                 <View key={item} className="items-center mr-4">
-                  <SkeletonCircle size={80} />
+                  <Skeleton width={82} height={84} borderRadius={24} />
                   <Skeleton width={60} height={16} borderRadius={8} className="mt-2" />
                 </View>
               ))}

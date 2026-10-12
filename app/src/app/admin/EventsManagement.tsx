@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  StatusBar,
 } from "react-native";
 import { useEffect, useState } from "react";
 import { FirebaseEvent } from "@/types/models";
@@ -21,10 +22,14 @@ import {
 } from "lucide-react-native";
 import { Input } from "@/components";
 import { useUserStore } from "@/state/userStore";
+import { useThemeStore } from "@/state/themeStore";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function EventsManagement() {
   const navigation = useAdminNavigation();
+  const insets = useSafeAreaInsets();
+  const { isDark } = useThemeStore();
   const [events, setEvents] = useState<FirebaseEvent[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<FirebaseEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,52 +100,49 @@ export default function EventsManagement() {
   const getEventStatusColor = (event: FirebaseEvent) => {
     const now = new Date();
     const eventDate = new Date(event.dateTime || event.startDateTime);
-    const registrationDeadline = new Date(event.registrationDeadline);
 
     if (eventDate < now) return "#6B7280"; // Gray - Past event
-    if (registrationDeadline < now) return "#EF4444"; // Red - Registration closed
-    if (event.isFeatured) return "#10B981"; // Green - Featured
-    return "#3B82F6"; // Blue - Active
+    if (event.isLive) return "#10B981"; // Green - Live now
+    return "#41B8F0"; // Cyan/Blue - Upcoming
   };
 
-  const getEventStatusText = (event: FirebaseEvent) => {
-    const now = new Date();
-    const eventDate = new Date(event.dateTime || event.startDateTime);
-    const registrationDeadline = new Date(event.registrationDeadline);
-
-    if (eventDate < now) return "Completed";
-    if (registrationDeadline < now) return "Registration Closed";
-    if (event.isFeatured) return "Featured";
-    return "Active";
-  };
+  const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const cardBorder = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#9CA3AF" : "#6B7280";
 
   const renderEventCard = ({ item }: { item: FirebaseEvent }) => (
     <TouchableOpacity
-      className="bg-[#FFFFFF66] rounded-2xl mb-4 border border-[#A0B3D0] overflow-hidden"
+      style={{
+        flexDirection: "row",
+        height: 140,
+        backgroundColor: cardBg,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: cardBorder,
+        marginBottom: 14,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: isDark ? 0.3 : 0.06,
+        shadowRadius: 8,
+        elevation: 3,
+      }}
       onPress={() =>
         navigation.navigate("AdminEventDetails", {
           eventId: item.eventId,
           event: item,
         })
       }
-      activeOpacity={0.7}
-      style={{ flexDirection: "row", height: 150 }}
+      activeOpacity={0.75}
     >
-      {/* Event Image - Full Height */}
-      <View style={{ width: 100, height: "100%", backgroundColor: '#A0B3D0' }}>
+      {/* Event Image */}
+      <View style={{ width: 105, height: "100%", backgroundColor: isDark ? "#2A2A30" : "#E5E7EB" }}>
         {item.coverImage ? (
           <Image
-            source={{
-              uri: item.coverImage,
-            }}
+            source={{ uri: item.coverImage }}
             style={{ width: "100%", height: "100%" }}
             resizeMode="cover"
-            onError={() => {
-              // Image load error
-            }}
-            onLoad={() => {
-              // Image loaded successfully
-            }}
           />
         ) : (
           <View
@@ -151,90 +153,129 @@ export default function EventsManagement() {
               alignItems: "center",
             }}
           >
-            <ImageIcon size={24} color="#666" />
+            <ImageIcon size={26} color={textSecondary} />
           </View>
         )}
       </View>
 
-      {/* All Event Content on the Right */}
-      <View className="flex-1 p-3 justify-between">
+      {/* Content */}
+      <View style={{ flex: 1, padding: 12, justifyContent: "space-between" }}>
         {/* Header with Title and Status */}
-        <View className="flex-row items-start justify-between mb-1">
-          <View className="flex-1 mr-2">
+        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <View style={{ flex: 1, marginRight: 8 }}>
             <Text
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-base mb-1"
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: textPrimary,
+                fontSize: 15,
+              }}
               numberOfLines={1}
             >
               {item.title}
             </Text>
-            <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-xs" numberOfLines={1} ellipsizeMode="tail">
+            <Text
+              style={{
+                fontFamily: "Poppins_400Regular",
+                color: textSecondary,
+                fontSize: 11,
+                marginTop: 1,
+              }}
+              numberOfLines={1}
+            >
               {item.shortDescription || item.description}
             </Text>
           </View>
 
           {/* Status Badge */}
           <View
-            className="px-2 py-1 rounded-full"
-            style={{ backgroundColor: getEventStatusColor(item) + "20" }}
+            style={{
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 12,
+              backgroundColor: getEventStatusColor(item) + "20",
+            }}
           >
             <Text
-
-              className="text-xs"
-              style={{ color: getEventStatusColor(item), fontFamily: "Outfit_500Medium" }}
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                fontSize: 10,
+                color: getEventStatusColor(item),
+              }}
             >
-              {getEventStatusText(item)}
+              {new Date(item.dateTime || item.startDateTime) < new Date()
+                ? "Past"
+                : item.isLive
+                ? "Live"
+                : "Upcoming"}
             </Text>
           </View>
         </View>
 
-        {/* Event Details */}
-        <View className=" flex-col gap-1">
+        {/* Details */}
+        <View style={{ gap: 4 }}>
           {/* Date */}
-          <View className="flex-row items-center">
-            <Calendar size={12} color="#EEB170" />
-
-            <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-xs ml-2">
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Calendar size={13} color="#41B8F0" />
+            <Text
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: textSecondary,
+                fontSize: 11,
+                marginLeft: 6,
+              }}
+              numberOfLines={1}
+            >
               {formatDate(item.dateTime || item.startDateTime)}
             </Text>
           </View>
 
           {/* Venue */}
           {item.venueName && (
-            <View className="flex-row items-center">
-              <MapPin size={12} color="#EEB170" />
-              <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-xs ml-2" numberOfLines={1}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <MapPin size={13} color="#41B8F0" />
+              <Text
+                style={{
+                  fontFamily: "Poppins_500Medium",
+                  color: textSecondary,
+                  fontSize: 11,
+                  marginLeft: 6,
+                }}
+                numberOfLines={1}
+              >
                 {item.venueName}
               </Text>
             </View>
           )}
 
-          {/* Event Type & Category */}
-          <View className="flex-row items-center">
-            <Users size={12} color="#EEB170" />
-            <Text style={{ fontFamily: "Outfit_400Regular" }} className="text-[#2175C0] text-xs ml-2 capitalize">
+          {/* Type & Category */}
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Users size={13} color="#41B8F0" />
+            <Text
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: textSecondary,
+                fontSize: 11,
+                marginLeft: 6,
+                textTransform: "capitalize",
+              }}
+            >
               {item.eventType} • {item.category}
             </Text>
           </View>
         </View>
 
-        {/* Event Badges */}
-        <View className="flex-row flex-wrap mt-1 gap-1">
+        {/* Badges */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 2 }}>
           {item.isFeatured && (
-            <View className="bg-[#10B981]/20 px-1.5 py-0.5 rounded">
-              <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#10B981] text-xs">
+            <View style={{ backgroundColor: "#10B98120", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#10B981", fontSize: 10 }}>
                 Featured
               </Text>
             </View>
           )}
           {item.paymentRequired && (
-            <View className="bg-[#F59E0B]/20 px-1.5 py-0.5 rounded">
-              <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#F59E0B] text-xs">Paid</Text>
-            </View>
-          )}
-          {!item.isPublic && (
-            <View className="bg-[#EF4444]/20 px-1.5 py-0.5 rounded">
-              <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-[#EF4444] text-xs">Private</Text>
+            <View style={{ backgroundColor: "#F59E0B20", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#F59E0B", fontSize: 10 }}>Paid</Text>
             </View>
           )}
         </View>
@@ -243,71 +284,147 @@ export default function EventsManagement() {
   );
 
   return (
-    <View className="flex-1 bg-transparent">
+    <View style={{ flex: 1, backgroundColor: isDark ? "#131316" : "#E0E0E0" }}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
       {/* Header */}
-      <View className="bg-[#EEB170] pt-6 rounded-b-2xl pb-6 px-6 flex-row items-center justify-between">
+      <View
+        style={{
+          paddingTop: Math.max(insets.top + 8, 16),
+          paddingBottom: 16,
+          paddingHorizontal: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: isDark ? "#1C1C20" : "#FFFFFF",
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isDark ? 0.3 : 0.05,
+          shadowRadius: 6,
+          elevation: 4,
+        }}
+      >
         <TouchableOpacity
           onPress={() => navigation.navigate("Dashboard")}
-          className="mr-4"
           activeOpacity={0.7}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 14,
+          }}
         >
-          <ArrowLeft size={28} color="#121212" />
+          <ArrowLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <View className="flex-1">
-          <Text className="text-[#121212] text-2xl font-bold">
+
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: "Talina",
+              fontSize: 22,
+              color: textPrimary,
+              letterSpacing: 0.5,
+            }}
+          >
             Events Management
           </Text>
-          <Text className="text-[#121212] text-sm opacity-80">
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 12,
+              color: "#41B8F0",
+              marginTop: 1,
+            }}
+          >
             Manage all events and registrations
           </Text>
         </View>
       </View>
 
       {/* Search and Filter */}
-      <View className="p-6 pb-0">
+      <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
         <Input
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Search events..."
-          className="mb-4"
+          placeholder="Search events by title, category..."
         />
 
-        {/* Category Filter */}
+        {/* Category Filter Pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="mb-4"
+          style={{ marginBottom: 12 }}
+          contentContainerStyle={{ gap: 8 }}
         >
-          <View className="flex-row gap-3">
-            {categories.map((category) => (
+          {categories.map((category) => {
+            const isSelected = selectedCategory === category;
+            return (
               <TouchableOpacity
                 key={category}
-                className={`${selectedCategory === category ? 'border-[#E84054]' : 'border-[#A0B3D0]'} w-28 py-2 rounded-2xl border-2 mr-2 items-center justify-center`}
                 onPress={() => setSelectedCategory(category)}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 7,
+                  borderRadius: 20,
+                  backgroundColor: isSelected ? "#41B8F0" : cardBg,
+                  borderWidth: 1,
+                  borderColor: isSelected ? "#41B8F0" : cardBorder,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
                 <Text
-                   style={{ fontFamily: 'Outfit_500Medium' }} className={`${selectedCategory === category ? 'text-[#E84054]' : 'text-[#a4a4a4]'}  font-medium`}
+                  style={{
+                    fontFamily: isSelected ? "Poppins_600SemiBold" : "Poppins_500Medium",
+                    fontSize: 12.5,
+                    color: isSelected ? "#FFFFFF" : textSecondary,
+                    textTransform: "capitalize",
+                  }}
                 >
                   {category}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+            );
+          })}
         </ScrollView>
       </View>
 
       {/* Events List */}
-      <View className="flex-1 px-6">
+      <View style={{ flex: 1, paddingHorizontal: 20 }}>
         {loading ? (
-          <View className="items-center justify-center py-12">
-            <ActivityIndicator size="large" color="#EEB170" />
-            <Text className="text-[#2175C0] mt-4">Loading events...</Text>
+          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 48 }}>
+            <ActivityIndicator size="large" color="#41B8F0" />
+            <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, marginTop: 12 }}>
+              Loading events...
+            </Text>
           </View>
         ) : filteredEvents.length === 0 ? (
-          <View className="bg-[#FFFFFF66] rounded-2xl p-8 items-center border border-[#A0B3D0]">
-            <Calendar size={48} color="#555" />
-            <Text className="text-[#2175C0] text-center mt-4">
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 20,
+              padding: 32,
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: cardBorder,
+              marginTop: 16,
+            }}
+          >
+            <Calendar size={42} color={textSecondary} />
+            <Text
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: textSecondary,
+                textAlign: "center",
+                marginTop: 12,
+                fontSize: 14,
+              }}
+            >
               {searchQuery || selectedCategory !== "all"
                 ? "No events match your search criteria"
                 : "No events found"}
@@ -315,16 +432,22 @@ export default function EventsManagement() {
           </View>
         ) : (
           <>
-            <Text className="text-[#EEB170] text-lg font-bold mb-4">
-              {filteredEvents.length} Event
-              {filteredEvents.length !== 1 ? "s" : ""} Found
+            <Text
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                fontSize: 14,
+                color: textPrimary,
+                marginBottom: 10,
+              }}
+            >
+              {filteredEvents.length} Event{filteredEvents.length !== 1 ? "s" : ""} Found
             </Text>
             <FlatList
               data={filteredEvents}
               renderItem={renderEventCard}
               keyExtractor={(item) => item.eventId}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 100 }}
+              contentContainerStyle={{ paddingBottom: 60 }}
             />
           </>
         )}

@@ -24,10 +24,10 @@ const MarkdownText: React.FC<MarkdownTextProps> = ({
   containerStyle = {},
   lightMode = false,
 }) => {
-  const baseTextColor = lightMode ? '#0C3572' : '#0C3572';
-  const codeBackgroundColor = lightMode ? '#F3F4F6' : '#374151';
+  const baseTextColor = (style as any)?.color || (lightMode ? '#1F2937' : '#FFFFFF');
+  const codeBackgroundColor = lightMode ? '#F3F4F6' : '#27272A';
   const codeTextColor = lightMode ? '#DC2626' : '#F87171';
-  const linkColor = lightMode ? '#2563EB' : '#60A5FA';
+  const linkColor = lightMode ? '#2563EB' : '#38BDF8';
 
   const parseMarkdown = (text: string): Paragraph[] => {
     const paragraphs: Paragraph[] = [];
@@ -166,12 +166,12 @@ const MarkdownText: React.FC<MarkdownTextProps> = ({
   const renderParagraph = (paragraph: Paragraph, index: number) => {
     const key = `p-${index}`;
     // Paragraph spacing. Adjust `marginBottom` as needed.
-    const paragraphStyle: ViewStyle = { marginBottom: 8 };
+    const paragraphStyle: TextStyle = { marginBottom: 8 };
 
     if (Array.isArray(paragraph)) {
       // This is a standard paragraph with inline elements
       return (
-        <Text key={key} style={[style, { color: baseTextColor }, paragraphStyle]}>
+        <Text key={key} style={[{ color: baseTextColor }, paragraphStyle, style]}>
           {paragraph.map(renderInlineElement)}
         </Text>
       );
@@ -182,20 +182,20 @@ const MarkdownText: React.FC<MarkdownTextProps> = ({
       case 'heading':
         const headingSize = Math.max(20 - (paragraph.level || 1) * 1.5, 14);
         return (
-          <Text key={key} style={[style, {
+          <Text key={key} style={[{
             color: baseTextColor,
             fontSize: headingSize,
             fontWeight: 'bold',
             marginBottom: 6, // Different margin for headings
-          }]}>
+          }, style]}>
             {paragraph.content}
           </Text>
         );
       case 'unordered-list-item':
         return (
           <View key={key} style={{ flexDirection: 'row', marginBottom: 3 }}>
-            <Text style={[style, { color: baseTextColor, marginRight: 8 }]}>•</Text>
-            <Text style={[style, { color: baseTextColor, flex: 1 }]}>
+            <Text style={[{ color: baseTextColor, marginRight: 8 }, style]}>•</Text>
+            <Text style={[{ color: baseTextColor, flex: 1 }, style]}>
               {parseInlineMarkdown(paragraph.content).map(renderInlineElement)}
             </Text>
           </View>
@@ -203,8 +203,8 @@ const MarkdownText: React.FC<MarkdownTextProps> = ({
       case 'ordered-list-item':
         return (
           <View key={key} style={{ flexDirection: 'row', marginBottom: 3 }}>
-            <Text style={[style, { color: baseTextColor, marginRight: 8 }]}>{paragraph.itemNumber}.</Text>
-            <Text style={[style, { color: baseTextColor, flex: 1 }]}>
+            <Text style={[{ color: baseTextColor, marginRight: 8 }, style]}>{paragraph.itemNumber}.</Text>
+            <Text style={[{ color: baseTextColor, flex: 1 }, style]}>
               {parseInlineMarkdown(paragraph.content).map(renderInlineElement)}
             </Text>
           </View>

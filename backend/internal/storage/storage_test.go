@@ -138,6 +138,29 @@ func TestPickingFailsOnceEveryAccountIsFull(t *testing.T) {
 	}
 }
 
+func TestAURLIsUnsignedAndPointsToAccountEndpoint(t *testing.T) {
+	s, _ := newTestStore(t, testAccount("ik1", 100), testAccount("ik2", 100))
+
+	raw, err := s.URL("ik2|68af3c9d|402118|/events/poster.jpg")
+	if err != nil {
+		t.Fatalf("getting url for a well formed reference should succeed, got %v", err)
+	}
+
+	u, err := parseSigned(t, raw)
+	if err != nil {
+		t.Fatalf("URL should return a parseable url, got %q: %v", raw, err)
+	}
+	if !strings.HasPrefix(raw, "https://ik.imagekit.io/ik2/") {
+		t.Errorf("the url should be built on the endpoint of the account in the reference, got %q", raw)
+	}
+	if !strings.Contains(u.Path, "poster.jpg") {
+		t.Errorf("the url should point at the file in the reference, got %q", raw)
+	}
+	if u.Query().Get("ik-s") != "" {
+		t.Errorf("an unsigned url should not have ik-s, got %q", raw)
+	}
+}
+
 func TestASignedURLCarriesAnExpiryAndSignature(t *testing.T) {
 	s, _ := newTestStore(t, testAccount("ik1", 100), testAccount("ik2", 100))
 

@@ -9,16 +9,17 @@ import {
   Platform,
   TextInput,
   KeyboardAvoidingView,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { setStringAsync } from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Button from "../ui/Button";
-import Input from "../ui/Input";
+import MetallicButton from "@/components/MetallicButton";
 import { FirebaseEvent } from '@/types/models';
 import { useUserStore } from '@/state/userStore';
 import { showAlert } from "../index";
 import { useRouter } from "expo-router";
+import { useThemeStore } from "@/state/themeStore";
 import {
   registerForEvent,
   createEventTeam,
@@ -41,10 +42,8 @@ type RegistrationStep =
 
 const showModalAlert = (title?: string, message?: string) => {
   if (Platform.OS === "ios") {
-    // Use native Alert for iOS
     Alert.alert(title || "", message || "");
   } else {
-    // Use custom alert for Android
     showAlert(title, message);
   }
 };
@@ -56,6 +55,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
   onSuccess,
 }: RegistrationModalProps) => {
   const router = useRouter();
+  const { isDark } = useThemeStore();
   const userData = useUserStore((state) => state.userData);
   const [registrationStep, setRegistrationStep] =
     useState<RegistrationStep>("choice");
@@ -93,8 +93,23 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
     }
   }, [visible, event.eventType]);
 
-  // Fetch team data when invite code is available
-  /* Removed API call */
+  const canGoBack =
+    event.eventType === "team" &&
+    (registrationStep === "create-team" ||
+      registrationStep === "join-team" ||
+      (registrationStep === "custom-fields" && !createdInviteCode));
+
+  const handleBack = () => {
+    if (registrationStep === "create-team" || registrationStep === "join-team") {
+      setRegistrationStep("choice");
+    } else if (registrationStep === "custom-fields") {
+      if (isCreateTeamFlow) {
+        setRegistrationStep("create-team");
+      } else {
+        setRegistrationStep("join-team");
+      }
+    }
+  };
 
   const handleCreateTeam = async () => {
     if (!teamName.trim()) {
@@ -149,6 +164,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
       setIsLoading(false);
     }
   };
+
   const handleCompleteRegistration = async () => {
     try {
       setIsLoading(true);
@@ -189,9 +205,14 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
       }
 
       await registerForEvent(event.eventId, registrationData);
-      showModalAlert("Success", "Registration completed successfully!");
       onSuccess();
       onClose();
+      if (event.paymentRequired) {
+        router.push({ pathname: '/events/Payment', params: { eventId: event.eventId } });
+      } else {
+        showModalAlert("Success", "Registration completed successfully!");
+        router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } });
+      }
     } catch (error: any) {
       showModalAlert("Error", error.message || "Failed to complete registration");
     } finally {
@@ -199,187 +220,10 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
     }
   };
 
-  const renderStepTitle = () => {
-    switch (registrationStep) {
-      case "choice":
-        return "Team Registration";
-      case "create-team":
-        return "Create Team";
-      case "join-team":
-        return "Join Team";
-      case "custom-fields":
-        return "Complete Registration";
-      default:
-        return "Registration";
-    }
-  };
-
-  const renderField = (field: any) => {
-    const value = customFieldsData[field.fieldId];
-
-    switch (field.type) {
-      case "text":
-      case "link":
-        return (
-          <TextInput
-            value={value || ""}
-            onChangeText={(text) => {
-              setCustomFieldsData({
-                ...customFieldsData,
-                [field.fieldId]: text,
-              });
-            }}
-            placeholder={field.placeholder || field.label}
-            placeholderTextColor="#666"
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="bg-[#DBE2ED] text-[#0C3572] px-4 py-3 rounded-lg border border-[#2175C0]"
-            keyboardType={field.type === "link" ? "url" : "default"}
-            autoCapitalize={field.type === "link" ? "none" : "sentences"}
-          />
-        );
-
-      case "number":
-        return (
-          <>
-            <TextInput
-              value={value?.toString() || ""}
-              onChangeText={(text) => {
-                const numValue = text ? parseFloat(text) : "";
-                setCustomFieldsData({
-                  ...customFieldsData,
-                  [field.fieldId]: numValue,
-                });
-              }}
-              style={{ fontFamily: "Outfit_500Medium" }}
-              placeholder={field.placeholder || field.label}
-              placeholderTextColor="#666"
-              className="bg-[#DBE2ED] text-[#0C3572] px-4 py-3 rounded-lg border border-[#2175C0]"
-              keyboardType="numeric"
-            />
-            <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#2175C0] mt-2 text-xs"
-            >
-              Minimum value of {field.minValue}, Maximum value of{" "}
-              {field.maxValue}
-            </Text>
-          </>
-        );
-
-      case "select":
-        return (
-          <View>
-            {customFieldsData[field.fieldId] ? (
-              <TouchableOpacity
-                onPress={() => {
-                  setCustomFieldsData({
-                    ...customFieldsData,
-                    [field.fieldId]: undefined,
-                  });
-                }}
-              >
-                <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-[#2175C0] mt-2 text-xs ml-auto"
-                >
-                  Clear selection
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-            <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#2175C0] mb-2"
-            >
-              {value || `Select ${field.label}`}
-            </Text>
-            <View className="flex gap-3">
-              {field.options?.map((option: string, idx: number) => (
-                <TouchableOpacity
-                  key={idx}
-                  onPress={() =>
-                    setCustomFieldsData({
-                      ...customFieldsData,
-                      [field.fieldId]: option,
-                    })
-                  }
-                  className={`px-4 py-3 rounded-lg border ${value === option
-                      ? "bg-yellow-400/20 border-yellow-400"
-                      : "bg-[#DBE2ED] border-[#2175C0]"
-                    }`}
-                >
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className={`${value === option ? "text-yellow-400" : "text-[#0C3572]"
-                      }`}
-                  >
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        );
-
-      case "multi-select":
-        return (
-          <View className="flex gap-3">
-            {field.options?.map((option: string, idx: number) => {
-              const currentValues = value || [];
-              const isSelected = currentValues.includes(option);
-
-              return (
-                <TouchableOpacity
-                  key={idx}
-                  onPress={() => {
-                    let newValues;
-                    if (isSelected) {
-                      newValues = currentValues.filter(
-                        (v: string) => v !== option
-                      );
-                    } else {
-                      newValues = [...currentValues, option];
-                    }
-                    setCustomFieldsData({
-                      ...customFieldsData,
-                      [field.fieldId]: newValues,
-                    });
-                  }}
-                  className={`flex-row items-center px-4 py-3 rounded-lg border ${isSelected
-                      ? "bg-yellow-400/20 border-yellow-400"
-                      : "bg-[#DBE2ED] border-[#2175C0]"
-                    }`}
-                >
-                  <View
-                    className={`w-5 h-5 rounded border-2 mr-3 items-center justify-center ${isSelected
-                        ? "bg-yellow-400 border-yellow-400"
-                        : "border-[#2175C0]"
-                      }`}
-                  >
-                    {isSelected && (
-                      <Ionicons name="checkmark" size={16} color="#1a1a1a" />
-                    )}
-                  </View>
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className={`${isSelected ? "text-yellow-400" : "text-[#0C3572]"
-                      }`}
-                  >
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        );
-
-      default:
-        return null;
-    }
-  };
-
   const expression =
     /[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/gi;
   const linkRegex = new RegExp(expression);
+
   function isResponseValid(field: any, response: any) {
     if (
       field.isRequired &&
@@ -417,6 +261,209 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
     return true;
   }
 
+  const renderField = (field: any) => {
+    const value = customFieldsData[field.fieldId];
+
+    switch (field.type) {
+      case "text":
+      case "link":
+        return (
+          <TextInput
+            value={value || ""}
+            onChangeText={(text) => {
+              setCustomFieldsData({
+                ...customFieldsData,
+                [field.fieldId]: text,
+              });
+            }}
+            placeholder={field.placeholder || field.label}
+            placeholderTextColor={modalPlaceholder}
+            style={{
+              fontFamily: "Poppins_500Medium",
+              backgroundColor: modalCardBg,
+              color: modalTextPrimary,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: modalBorderColor,
+              fontSize: 15,
+            }}
+            keyboardType={field.type === "link" ? "url" : "default"}
+            autoCapitalize={field.type === "link" ? "none" : "sentences"}
+          />
+        );
+
+      case "number":
+        return (
+          <>
+            <TextInput
+              value={value?.toString() || ""}
+              onChangeText={(text) => {
+                const numValue = text ? parseFloat(text) : "";
+                setCustomFieldsData({
+                  ...customFieldsData,
+                  [field.fieldId]: numValue,
+                });
+              }}
+              style={{
+                fontFamily: "Poppins_500Medium",
+                backgroundColor: modalCardBg,
+                color: modalTextPrimary,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: modalBorderColor,
+                fontSize: 15,
+              }}
+              placeholder={field.placeholder || field.label}
+              placeholderTextColor={modalPlaceholder}
+              keyboardType="numeric"
+            />
+            <Text
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: modalTextSecondary,
+                marginTop: 6,
+                fontSize: 12,
+              }}
+            >
+              Minimum value of {field.minValue}, Maximum value of {field.maxValue}
+            </Text>
+          </>
+        );
+
+      case "select":
+        return (
+          <View>
+            {customFieldsData[field.fieldId] ? (
+              <TouchableOpacity
+                onPress={() => {
+                  setCustomFieldsData({
+                    ...customFieldsData,
+                    [field.fieldId]: undefined,
+                  });
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    color: "#38BDF8",
+                    marginBottom: 6,
+                    fontSize: 12,
+                    textAlign: "right",
+                  }}
+                >
+                  Clear selection
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+            <View style={{ gap: 10 }}>
+              {field.options?.map((option: string, idx: number) => {
+                const isSelected = value === option;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() =>
+                      setCustomFieldsData({
+                        ...customFieldsData,
+                        [field.fieldId]: option,
+                      })
+                    }
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 14,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: isSelected ? "#38BDF8" : modalBorderColor,
+                      backgroundColor: isSelected ? "rgba(56, 189, 248, 0.12)" : modalCardBg,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: isSelected ? "Poppins_600SemiBold" : "Poppins_500Medium",
+                        color: isSelected ? "#38BDF8" : modalTextPrimary,
+                        fontSize: 14,
+                      }}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        );
+
+      case "multi-select":
+        return (
+          <View style={{ gap: 10 }}>
+            {field.options?.map((option: string, idx: number) => {
+              const currentValues = value || [];
+              const isSelected = currentValues.includes(option);
+
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => {
+                    let newValues;
+                    if (isSelected) {
+                      newValues = currentValues.filter((v: string) => v !== option);
+                    } else {
+                      newValues = [...currentValues, option];
+                    }
+                    setCustomFieldsData({
+                      ...customFieldsData,
+                      [field.fieldId]: newValues,
+                    });
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: isSelected ? "#38BDF8" : modalBorderColor,
+                    backgroundColor: isSelected ? "rgba(56, 189, 248, 0.12)" : modalCardBg,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 6,
+                      borderWidth: 1.5,
+                      marginRight: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderColor: isSelected ? "#38BDF8" : modalPlaceholder,
+                      backgroundColor: isSelected ? "#38BDF8" : "transparent",
+                    }}
+                  >
+                    {isSelected && <Ionicons name="checkmark" size={14} color="#000000" />}
+                  </View>
+                  <Text
+                    style={{
+                      fontFamily: isSelected ? "Poppins_600SemiBold" : "Poppins_500Medium",
+                      color: isSelected ? "#38BDF8" : modalTextPrimary,
+                      fontSize: 14,
+                    }}
+                  >
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   const renderCustomFields = () => {
     const isNonHostStudent = userData && !userData.isHostCollegeStudent;
     let isValid = true;
@@ -427,45 +474,72 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
     }
 
     return (
-      <View>
-
+      <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 40 }}>
         {!createdInviteCode && event.customFields && event.customFields.length > 0 && (
-          <>
+          <View style={{ gap: 16 }}>
             {event.customFields.map((field: any) => (
-              <View key={field.fieldId} className="mb-4">
+              <View key={field.fieldId}>
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-[#2175C0] mb-2"
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    color: modalTextPrimary,
+                    fontSize: 14,
+                    marginBottom: 8,
+                  }}
                 >
                   {field.label}
                   {field.isRequired && (
-                    <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-red-400"
-                    >
-                      {" "}
-                      *
-                    </Text>
+                    <Text style={{ color: "#EF4444" }}> *</Text>
                   )}
                 </Text>
                 {renderField(field)}
               </View>
             ))}
-          </>
+          </View>
         )}
 
+        {/* Team Invite Code Display if already created */}
         {createdInviteCode && (
-          <View className="bg-[#DBE2ED] p-4 rounded-lg mb-4 border border-[#2175C0]">
+          <View
+            style={{
+              backgroundColor: modalCardBg,
+              padding: 18,
+              borderRadius: 16,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: modalBorderColor,
+            }}
+          >
             <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#2175C0] mb-2"
+              style={{
+                fontFamily: "Poppins_600SemiBold",
+                color: modalTextSecondary,
+                fontSize: 13,
+                marginBottom: 8,
+              }}
             >
               Your Team Invite Code:
             </Text>
-            <View className="flex-row items-center justify-between bg-[#ffffff] p-3 rounded-lg border border-[#A0B3D0]">
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                backgroundColor: isDark ? "#202024" : "#F3F4F6",
+                padding: 14,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: modalBorderColor,
+              }}
+            >
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-[#0C3572] text-lg flex-1"
+                style={{
+                  fontFamily: "Poppins_700Bold",
+                  color: modalTextPrimary,
+                  fontSize: 18,
+                  letterSpacing: 2,
+                  flex: 1,
+                }}
                 selectable={true}
               >
                 {createdInviteCode}
@@ -479,38 +553,61 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
                     showModalAlert("Error", "Failed to copy code");
                   }
                 }}
-                className="bg-[#0C3572] p-2 rounded-lg ml-2 flex-row items-center"
+                style={{
+                  backgroundColor: modalButtonBg,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
               >
-                <Ionicons name="copy-outline" size={18} color="white" />
-                <Text style={{ fontFamily: "Outfit_500Medium" }} className="text-white text-xs ml-1">Copy</Text>
+                <Ionicons name="copy-outline" size={16} color={modalTextPrimary} />
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: modalTextPrimary, fontSize: 12 }}>
+                  Copy
+                </Text>
               </TouchableOpacity>
             </View>
             <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#2175C0] text-sm mt-2"
+              style={{
+                fontFamily: "Poppins_400Regular",
+                color: modalTextSecondary,
+                fontSize: 13,
+                marginTop: 8,
+              }}
             >
               Share this code with your team members
             </Text>
             {event.minTeamSize && (
-              <View className="mt-3 pt-3 border-t border-[#A0B3D0]">
+              <View
+                style={{
+                  marginTop: 12,
+                  paddingTop: 12,
+                  borderTopWidth: 1,
+                  borderTopColor: "rgba(255, 255, 255, 0.08)",
+                }}
+              >
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className={`text-sm ${currentTeamSize >= event.minTeamSize
-                      ? "text-green-400"
-                      : "text-orange-400"
-                    }`}
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    fontSize: 13,
+                    color: currentTeamSize >= event.minTeamSize ? "#4ADE80" : "#F59E0B",
+                  }}
                 >
-                  Team Size: {currentTeamSize} / {event.minTeamSize}-
-                  {event.maxTeamSize || "∞"}
+                  Team Size: {currentTeamSize} / {event.minTeamSize}-{event.maxTeamSize || "∞"}
                 </Text>
                 {currentTeamSize < event.minTeamSize && (
                   <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-orange-400 text-xs mt-1"
+                    style={{
+                      fontFamily: "Poppins_400Regular",
+                      color: "#F59E0B",
+                      fontSize: 12,
+                      marginTop: 4,
+                    }}
                   >
                     ⚠️ Need {event.minTeamSize - currentTeamSize} more member
-                    {event.minTeamSize - currentTeamSize !== 1 ? "s" : ""} to
-                    submit
+                    {event.minTeamSize - currentTeamSize !== 1 ? "s" : ""} to submit
                   </Text>
                 )}
               </View>
@@ -520,28 +617,37 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
         {/* Referral Code Section - Only for non-host college students */}
         {isNonHostStudent && !createdInviteCode && (
-          <View className="pt-4 border-t border-[#A0B3D0] mt-4">
+          <View
+            style={{
+              paddingTop: 16,
+              borderTopWidth: 1,
+              borderTopColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)",
+              marginTop: 16,
+            }}
+          >
             <TouchableOpacity
               onPress={() => {
                 setHasReferralCode(!hasReferralCode);
                 if (hasReferralCode) setReferralCode("");
               }}
-              className="flex-row items-center mb-3"
+              style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}
             >
               <View
-                className={`w-5 h-5 rounded border-2 mr-3 items-center justify-center ${hasReferralCode
-                    ? "bg-yellow-400 border-yellow-400"
-                    : "border-[#2175C0]"
-                  }`}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 6,
+                  borderWidth: 1.5,
+                  marginRight: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderColor: hasReferralCode ? "#38BDF8" : modalPlaceholder,
+                  backgroundColor: hasReferralCode ? "#38BDF8" : "transparent",
+                }}
               >
-                {hasReferralCode && (
-                  <Ionicons name="checkmark" size={16} color="#1a1a1a" />
-                )}
+                {hasReferralCode && <Ionicons name="checkmark" size={14} color="#000000" />}
               </View>
-              <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#0C3572]"
-              >
+              <Text style={{ fontFamily: "Poppins_500Medium", color: modalTextPrimary, fontSize: 14 }}>
                 I have a referral code
               </Text>
             </TouchableOpacity>
@@ -549,18 +655,31 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
             {hasReferralCode && (
               <View>
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-[#2175C0] mb-2"
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    color: modalTextSecondary,
+                    marginBottom: 6,
+                    fontSize: 13,
+                  }}
                 >
                   Referral Code
                 </Text>
                 <TextInput
-                  style={{ fontFamily: "Outfit_500Medium" }}
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    backgroundColor: modalCardBg,
+                    color: modalTextPrimary,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: modalBorderColor,
+                    fontSize: 15,
+                  }}
                   value={referralCode}
                   onChangeText={(text) => setReferralCode(text.toUpperCase())}
                   placeholder="Enter your referral code"
-                  placeholderTextColor="#666"
-                  className="bg-[#DBE2ED] text-[#0C3572] px-4 py-3 rounded-lg border border-[#2175C0]"
+                  placeholderTextColor={modalPlaceholder}
                   autoCapitalize="characters"
                 />
               </View>
@@ -568,199 +687,394 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({
           </View>
         )}
 
-        {event.eventType !== "team" ? (
-          <View className="flex-row space-x-3 flex-1 gap-2 mt-6">
-            <Button
+        {/* Submit Action Button */}
+        <View style={{ marginTop: 28 }}>
+          {event.eventType !== "team" ? (
+            <MetallicButton
               title={isLoading ? "Registering..." : "Complete Registration"}
               onPress={handleCompleteRegistration}
-              variant="none"
-              className="flex-1 bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl"
-              textClassName="text-[#0C3572]"
               disabled={isLoading || !isValid}
+              height={54}
+              borderRadius={27}
+              fontSize={16}
+              style={{ width: "100%" }}
+              contentStyle={{ width: "100%", height: 51 }}
+              textStyle={{ fontFamily: "Poppins_700Bold", letterSpacing: 0.3 }}
             />
-          </View>
-        ) : createdInviteCode ? (
-          <View className="flex-row space-x-3 flex-1 gap-2 mt-6">
-            <Button
+          ) : createdInviteCode ? (
+            <MetallicButton
               title={event.paymentRequired ? "Complete Payment" : "View Registration"}
               onPress={() => {
                 onClose();
                 if (event.paymentRequired) {
-                  router.push({ pathname: '/events/Payment', params: { eventId: event.eventId, teamId: createdTeamId } });
+                  router.push({
+                    pathname: '/events/Payment',
+                    params: { eventId: event.eventId, teamId: createdTeamId },
+                  });
                 } else {
-                  router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } });
+                  router.push({
+                    pathname: '/events/MyEventDetails',
+                    params: { eventId: event.eventId },
+                  });
                 }
               }}
-              variant="none"
-              className="flex-1 bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl"
-              textClassName="text-[#0C3572]"
               disabled={isLoading}
+              height={54}
+              borderRadius={27}
+              fontSize={16}
+              style={{ width: "100%" }}
+              contentStyle={{ width: "100%", height: 51 }}
+              textStyle={{ fontFamily: "Poppins_700Bold", letterSpacing: 0.3 }}
             />
-          </View>
-        ) : (
-          <View className="flex-row space-x-3 flex-1 gap-2 mt-6">
-            <Button
+          ) : (
+            <MetallicButton
               title={isLoading ? "Registering..." : "Complete Registration"}
               onPress={handleCompleteRegistration}
-              variant="none"
-              className="flex-1 bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl"
-              textClassName="text-[#0C3572]"
               disabled={isLoading || !isValid}
+              height={54}
+              borderRadius={27}
+              fontSize={16}
+              style={{ width: "100%" }}
+              contentStyle={{ width: "100%", height: 51 }}
+              textStyle={{ fontFamily: "Poppins_700Bold", letterSpacing: 0.3 }}
             />
-          </View>
-        )}
+          )}
+        </View>
       </View>
     );
   };
+
+  const modalBg = isDark ? "#131316" : "#E0E0E0";
+  const modalCardBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const modalBorderColor = isDark ? "rgba(255, 255, 255, 0.14)" : "#D0D0D0";
+  const modalTextPrimary = isDark ? "#FFFFFF" : "#000000";
+  const modalTextSecondary = isDark ? "#9CA3AF" : "#666666";
+  const modalPlaceholder = isDark ? "#71717A" : "#888888";
+  const modalButtonBg = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true}
+      transparent={false}
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        className="flex-1 justify-end bg-black/50"
-        behavior="padding"
-        keyboardVerticalOffset={0}
-      >
-
+      <View style={{ flex: 1, backgroundColor: modalBg }}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          {/* Header Bar */}
           <View
-            className="bg-white rounded-t-3xl p-6"
-            style={{ maxHeight: "90%", paddingBottom: Math.max(insets.bottom + 16, 24) }}
+            style={{
+              paddingTop: Math.max(insets.top + 8, 16),
+              paddingHorizontal: 20,
+              paddingBottom: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
           >
-            {/* Header */}
-            <View className="flex-row justify-between items-center mb-4">
-              <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-[#0C3572] text-2xl"
+            {/* Left back button (if can go back) */}
+            {canGoBack ? (
+              <TouchableOpacity
+                onPress={handleBack}
+                activeOpacity={0.8}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: modalButtonBg,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                {renderStepTitle()}
-              </Text>
-              <TouchableOpacity onPress={onClose}>
-                <Ionicons name="close" size={28} color="#0C3572" />
+                <Ionicons name="chevron-back" size={22} color={modalTextPrimary} />
               </TouchableOpacity>
-            </View>
+            ) : (
+              <View style={{ width: 40 }} />
+            )}
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              automaticallyAdjustKeyboardInsets
-              contentContainerStyle={{
-                paddingBottom: 20,
+            {/* Pill: Complete Registration */}
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                borderRadius: 9999,
+                backgroundColor: isDark ? "rgba(255, 255, 255, 0.06)" : "#FFFFFF",
+                borderWidth: 1,
+                borderColor: modalBorderColor,
               }}
             >
-              {/* Team Choice */}
-              {registrationStep === "choice" && (
-                <View>
-                  <Button
-                    title="Create New Team"
-                    onPress={() => setRegistrationStep("create-team")}
-                    variant="none"
-                    className="mb-4 bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl"
-                    textClassName="text-[#0C3572]"
-                  />
-                  <Button
-                    title="Join Existing Team"
-                    onPress={() => setRegistrationStep("join-team")}
-                    variant="secondary"
-                  />
-                </View>
-              )}
+              <Text
+                style={{
+                  fontFamily: "Poppins_700Bold",
+                  fontSize: 16,
+                  color: modalTextPrimary,
+                  letterSpacing: 0.3,
+                }}
+              >
+                Complete Registration
+              </Text>
+            </View>
 
-              {/* Create Team */}
-              {registrationStep === "create-team" && (
-                <View>
-                  <Text
-  style={{ fontFamily: "Outfit_500Medium" }}
-  className="text-[#2175C0] mb-2"
->
-  Team Name
-</Text>
-
-<TextInput
-  value={teamName}
-  onChangeText={setTeamName}
-  placeholder="Enter team name"
-  placeholderTextColor="#666"
-  className="bg-[#ffffff90] text-[#0C3572] px-4 py-3 rounded-lg mb-4 border-[#2175C0] border"
-/>
-                  <Text className="text-[#2175C0] text-sm mb-4">
-                    Team size: {event.minTeamSize || 1} - {event.maxTeamSize || 5}{" "}
-                    members
-                  </Text>
-                  <View className="flex-row space-x-3 flex gap-2">
-                    <Button
-                      title="Back"
-                      onPress={() => setRegistrationStep("choice")}
-                      variant="secondary"
-                      className="flex-1 border border-gray-600"
-                    />
-                    <Button
-                      title={isLoading ? "Creating..." : "Create Team"}
-                      onPress={handleCreateTeam}
-                      variant="none"
-                      className="flex-1 bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl"
-                      textClassName="text-[#0C3572]"
-                      disabled={isLoading}
-                    />
-                  </View>
-                </View>
-              )}
-
-              {/* Join Team */}
-              {registrationStep === "join-team" && (
-                <View>
-                 <Text
-  style={{ fontFamily: "Outfit_500Medium" }}
-  className="text-[#2175C0] mb-2"
->
-  Team Invite Code
-</Text>
-
-<TextInput
-  value={teamInviteCode}
-  onChangeText={setTeamInviteCode}
-  placeholder="Enter team invite code"
-  placeholderTextColor="#666"
-  className="bg-[#DBE2ED] text-[#0C3572] px-4 py-3 rounded-lg mb-4 border-[#2175C0] border "
-  autoCapitalize="characters"
-/>
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#2175C0] text-sm mb-4"
-                  >
-                    Ask your team leader for the invite code
-                  </Text>
-                  <View className="flex-row space-x-3 flex gap-2">
-                    <Button
-                      title="Back"
-                      onPress={() => {
-                        setRegistrationStep("choice");
-                        setIsCreateTeamFlow(true);
-                      }}
-                      variant="secondary"
-                      className="flex-1 border border-gray-600"
-                    />
-                    <Button
-                      title={isLoading ? "Joining..." : "Join Team"}
-                      onPress={handleJoinTeam}
-                      variant="none"
-                      className="flex-1 bg-[#95aad3] border-[#0C3572] border-2 py-3 rounded-xl"
-                      textClassName="text-[#0C3572]"
-                      disabled={isLoading}
-                    />
-                  </View>
-                </View>
-              )}
-
-              {/* Custom Fields */}
-              {registrationStep === "custom-fields" && renderCustomFields()}
-            </ScrollView>
+            {/* Close 'X' Button on Right */}
+            <TouchableOpacity
+              onPress={onClose}
+              activeOpacity={0.8}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: modalButtonBg,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="close" size={22} color={modalTextPrimary} />
+            </TouchableOpacity>
           </View>
-      </KeyboardAvoidingView>
+
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            contentContainerStyle={{
+              paddingBottom: Math.max(insets.bottom + 20, 30),
+            }}
+          >
+            {/* Team Choice */}
+            {registrationStep === "choice" && (
+              <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 16 }}>
+                {/* Create Team Card */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setRegistrationStep("create-team")}
+                  style={{
+                    backgroundColor: modalCardBg,
+                    borderRadius: 18,
+                    borderWidth: 1,
+                    borderColor: modalBorderColor,
+                    padding: 24,
+                    minHeight: 90,
+                    justifyContent: "center",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 8,
+                    elevation: 3,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_700Bold",
+                      fontSize: 20,
+                      color: modalTextPrimary,
+                    }}
+                  >
+                    Create Team
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Join Team Card */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setRegistrationStep("join-team")}
+                  style={{
+                    backgroundColor: modalCardBg,
+                    borderRadius: 18,
+                    borderWidth: 1,
+                    borderColor: modalBorderColor,
+                    padding: 24,
+                    minHeight: 90,
+                    justifyContent: "center",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 8,
+                    elevation: 3,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Poppins_700Bold",
+                      fontSize: 20,
+                      color: modalTextPrimary,
+                    }}
+                  >
+                    Join Team
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Create Team */}
+            {registrationStep === "create-team" && (
+              <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+                <Text
+                  style={{
+                    fontFamily: "Poppins_700Bold",
+                    fontSize: 22,
+                    color: modalTextPrimary,
+                    marginBottom: 6,
+                  }}
+                >
+                  Create Team
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Poppins_400Regular",
+                    fontSize: 14,
+                    color: modalTextSecondary,
+                    marginBottom: 20,
+                  }}
+                >
+                  Choose a unique name for your team
+                </Text>
+
+                <Text
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    fontSize: 14,
+                    color: modalTextPrimary,
+                    marginBottom: 8,
+                  }}
+                >
+                  Team Name
+                </Text>
+
+                <TextInput
+                  value={teamName}
+                  onChangeText={setTeamName}
+                  placeholder="Enter team name"
+                  placeholderTextColor={modalPlaceholder}
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    backgroundColor: modalCardBg,
+                    color: modalTextPrimary,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: modalBorderColor,
+                    fontSize: 15,
+                    marginBottom: 12,
+                  }}
+                />
+
+                <Text
+                  style={{
+                    fontFamily: "Poppins_400Regular",
+                    fontSize: 13,
+                    color: modalTextSecondary,
+                    marginBottom: 24,
+                  }}
+                >
+                  Team size: {event.minTeamSize || 1} - {event.maxTeamSize || 5} members
+                </Text>
+
+                <MetallicButton
+                  title={isLoading ? "Creating..." : "Create Team"}
+                  onPress={handleCreateTeam}
+                  disabled={isLoading || !teamName.trim()}
+                  height={54}
+                  borderRadius={27}
+                  fontSize={16}
+                  style={{ width: "100%" }}
+                  contentStyle={{ width: "100%", height: 51 }}
+                  textStyle={{ fontFamily: "Poppins_700Bold", letterSpacing: 0.3 }}
+                />
+              </View>
+            )}
+
+            {/* Join Team */}
+            {registrationStep === "join-team" && (
+              <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+                <Text
+                  style={{
+                    fontFamily: "Poppins_700Bold",
+                    fontSize: 22,
+                    color: modalTextPrimary,
+                    marginBottom: 6,
+                  }}
+                >
+                  Join Team
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Poppins_400Regular",
+                    fontSize: 14,
+                    color: modalTextSecondary,
+                    marginBottom: 20,
+                  }}
+                >
+                  Enter the invite code shared by your team leader
+                </Text>
+
+                <Text
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    fontSize: 14,
+                    color: modalTextPrimary,
+                    marginBottom: 8,
+                  }}
+                >
+                  Team Invite Code
+                </Text>
+
+                <TextInput
+                  value={teamInviteCode}
+                  onChangeText={setTeamInviteCode}
+                  placeholder="Enter invite code"
+                  placeholderTextColor={modalPlaceholder}
+                  autoCapitalize="characters"
+                  style={{
+                    fontFamily: "Poppins_500Medium",
+                    backgroundColor: modalCardBg,
+                    color: modalTextPrimary,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: modalBorderColor,
+                    fontSize: 16,
+                    letterSpacing: 1.5,
+                    marginBottom: 12,
+                  }}
+                />
+
+                <Text
+                  style={{
+                    fontFamily: "Poppins_400Regular",
+                    fontSize: 13,
+                    color: modalTextSecondary,
+                    marginBottom: 24,
+                  }}
+                >
+                  Ask your team leader for the invite code
+                </Text>
+
+                <MetallicButton
+                  title={isLoading ? "Joining..." : "Join Team"}
+                  onPress={handleJoinTeam}
+                  disabled={isLoading || !teamInviteCode.trim()}
+                  height={54}
+                  borderRadius={27}
+                  fontSize={16}
+                  style={{ width: "100%" }}
+                  contentStyle={{ width: "100%", height: 51 }}
+                  textStyle={{ fontFamily: "Poppins_700Bold", letterSpacing: 0.3 }}
+                />
+              </View>
+            )}
+
+            {/* Custom Fields */}
+            {registrationStep === "custom-fields" && renderCustomFields()}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

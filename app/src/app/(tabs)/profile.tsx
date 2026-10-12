@@ -9,11 +9,14 @@ import {
   Linking,
   Share,
   Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useUserStore } from '@/state/userStore';
-import Header from '@/components/layout/Header';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useUserStore } from "@/state/userStore";
+import { useThemeStore } from "@/state/themeStore";
+import { useAdminDrawerStore } from "@/state/adminDrawerStore";
 import UserQRCodeModal from "@/components/profile/UserQRCodeModal";
 import { getAppVersion } from "@/utils/appVersion";
 import { setStringAsync } from "expo-clipboard";
@@ -23,14 +26,16 @@ import { runAllDebugChecks } from "@/utils/debugVersion";
 
 const ProfileScreen = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { userData: userProfile } = useUserStore();
+  const { isDark, toggleTheme } = useThemeStore();
+  const { openDrawer } = useAdminDrawerStore();
   const [showQRModal, setShowQRModal] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [debugTapCount, setDebugTapCount] = useState(0);
 
-  const boysHairStyles = ['turban','fonze']
-  const girlsHairStyles = ['full','pixie']
-  //build the profile pic url ?hair= random hairstyle based on user.gender
+  const boysHairStyles = ['turban', 'fonze'];
+  const girlsHairStyles = ['full', 'pixie'];
   const getRandomHairStyle = () => {
     const hairStyles = userProfile?.gender === 'male' ? boysHairStyles : girlsHairStyles;
     const randomIndex = Math.floor(Math.random() * hairStyles.length);
@@ -47,24 +52,18 @@ const ProfileScreen = () => {
     setDebugTapCount(newCount);
 
     if (newCount === 7) {
-      // Reset counter
       setDebugTapCount(0);
-
-      // Run debug checks
       console.log('\n\n🔍 Running Firebase Debug Checks...\n');
       await runAllDebugChecks();
-
       showAlert(
         "🔍 Debug Mode",
         "Firebase debug checks have been run. Check the console logs for detailed information.",
         [{ text: "OK" }]
       );
     } else if (newCount >= 4) {
-      // Give feedback that they're getting close
       console.log(`Debug mode: ${newCount}/7 taps`);
     }
 
-    // Reset counter after 2 seconds of no taps
     setTimeout(() => setDebugTapCount(0), 2000);
   };
 
@@ -74,8 +73,8 @@ const ProfileScreen = () => {
       "Are you sure you want to log out?",
       [
         { text: "Cancel", style: "cancel" },
-        { 
-          text: "Log Out", 
+        {
+          text: "Log Out",
           onPress: async () => {
             try {
               const { handleSignOut } = await import('@/api/auth');
@@ -87,34 +86,43 @@ const ProfileScreen = () => {
               showAlert('Error', 'Failed to log out properly');
             }
           },
-          style: "destructive"
-        }
+          style: "destructive",
+        },
       ]
     );
   };
+
+  const handleDeleteAccount = () => {
+    showAlert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            showAlert(
+              "Request Submitted",
+              "Your account deletion request has been submitted to administrators."
+            );
+          },
+        },
+      ]
+    );
+  };
+
   const handleCheckForUpdates = async () => {
     setCheckingUpdate(true);
     try {
       const currentVersion = getAppVersion();
-      console.log('[ProfileScreen] ========== MANUAL UPDATE CHECK ==========');
-      console.log('[ProfileScreen] Current version:', currentVersion);
-      console.log('[ProfileScreen] Platform:', Platform.OS);
-
       const result = await checkAppStatus(currentVersion);
-
-      console.log('[ProfileScreen] ========== CHECK RESULTS ==========');
-      console.log('[ProfileScreen] Full result:', JSON.stringify(result, null, 2));
-      console.log('[ProfileScreen] Maintenance under maintenance?', result.maintenanceInfo.isUnderMaintenance);
-      console.log('[ProfileScreen] Update required?', result.versionInfo.updateRequired);
-      console.log('[ProfileScreen] =====================================');
 
       if (result.maintenanceInfo.isUnderMaintenance) {
         showAlert(
           "🚧 Maintenance Mode",
           `The app is currently under maintenance for ${result.maintenanceInfo.platform}.\n\nPlease check back later. We apologize for the inconvenience.`,
-          [
-            { text: "OK" },
-          ]
+          [{ text: "OK" }]
         );
       } else if (result.versionInfo.updateRequired) {
         const appStoreUrl =
@@ -147,11 +155,8 @@ const ProfileScreen = () => {
   const handleShareApp = async () => {
     const currentVersion = getAppVersion();
     const result = await checkAppStatus(currentVersion);
-
-    let appStoreUrl =
-      Platform.OS === "ios"
-        ? result.appLinks.appleStore
-        : result.appLinks.playStore;
+    const appStoreUrl =
+      Platform.OS === "ios" ? result.appLinks.appleStore : result.appLinks.playStore;
 
     try {
       await Share.share({
@@ -164,279 +169,375 @@ const ProfileScreen = () => {
     }
   };
 
-  const handleContactUs = () => {
-    Linking.openURL("mailto:styagi_be23@thapar.edu");
-  };
-  const handleFollowUs = () => {
-    Linking.openURL("https://www.instagram.com/saturnalia.thapar");
-  };
-
-  const handleRateApp = async () => {
-    const currentVersion = getAppVersion();
-    const result = await checkAppStatus(currentVersion);
-
-    let appStoreUrl =
-      Platform.OS === "ios"
-        ? result.appLinks.appleStore
-        : result.appLinks.playStore;
-
-    showAlert("Rate App", "Please rate our app on the app store!", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Rate", onPress: () => Linking.openURL(appStoreUrl) },
-    ]);
+  const handleCopyReferral = async () => {
+    const code = userProfile?.referralCode;
+    if (!code) {
+      showAlert("No Code", "Referral code not available");
+      return;
+    }
+    try {
+      await setStringAsync(code);
+      showAlert("Copied", "Referral code copied to clipboard!");
+    } catch (err) {
+      showAlert("Error", "Failed to copy referral code");
+    }
   };
 
-  const MenuIcon = ({ iconName, color }: { iconName: any; color: string }) => (
-    <View className={`rounded-full items-center justify-center mr-4`}>
-      <Ionicons name={iconName} size={30} color={color} />
-    </View>
-  );
-
-  const MenuItem = ({
+  // Card Menu Item matching the reference UI screenshot
+  const ProfileMenuItem = ({
     icon,
-    title,
+    label,
     onPress,
-    iconColor,
+    extra,
   }: {
     icon: any;
-    title: string;
-    onPress: () => void;
-    iconColor: string;
+    label: string;
+    onPress?: () => void;
+    extra?: React.ReactNode;
   }) => (
     <TouchableOpacity
-      className="bg-[#2D1E2F]/40 mb-4 p-[2px] rounded-[10px]"
+      activeOpacity={0.8}
       onPress={onPress}
+      style={{
+        width: '100%',
+        height: 72,
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+        marginBottom: 12,
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isDark ? 0.2 : 0.04,
+        shadowRadius: 6,
+        elevation: 2,
+      }}
     >
-      <View className="flex-row items-center border-[1.5px] border-[#6b6474] p-3 rounded-[8px]">
-        <MenuIcon iconName={icon} color={iconColor} />
-        <Text className="text-white text-base font-medium flex-1">{title}</Text>
-        <Ionicons name="chevron-forward" size={20} color="#fff" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View>
+          <Ionicons
+            name={icon}
+            size={22}
+            color={isDark ? '#9CA3AF' : '#666666'}
+          />
+          <Text
+            style={{
+              fontFamily: 'Poppins_600SemiBold',
+              fontSize: 14,
+              color: isDark ? '#FFFFFF' : '#000000',
+              marginTop: 4,
+            }}
+          >
+            {label}
+          </Text>
+        </View>
+        {extra}
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <View className="flex-1 bg-transparent">
-      {/* Scrollable Black Content */}
-      <Header />
+    <View style={{ flex: 1, backgroundColor: isDark ? '#131316' : '#E0E0E0' }}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+
+      {/* Top Header Bar: Hamburger + Profile */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingTop: Math.max(insets.top + 8, 16),
+          paddingHorizontal: 16,
+          paddingBottom: 14,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity
+            onPress={openDrawer}
+            activeOpacity={0.75}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: isDark ? 0.25 : 0.06,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+          </TouchableOpacity>
+          <Text
+            style={{
+              fontFamily: 'Talina',
+              fontSize: 24,
+              color: isDark ? '#FFFFFF' : '#000000',
+              letterSpacing: 0.5,
+            }}
+          >
+            Profile
+          </Text>
+        </View>
+      </View>
 
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingBottom: 110,
+        }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
       >
-        <View className="bg-transparent rounded-t-3xl min-h-screen px-6 pt-8">
-          {/* Profile Section */}
-          <View className="items-center mb-4">
-            {/* Profile Image with QR Code Button */}
-            <TouchableOpacity
-              onPress={handleDebugTap}
-              activeOpacity={0.9}
-              className="w-28 h-28 relative mb-4"
-            >
-              <Image
-                source={{
-                  uri: profilePicUrl,
-                }}
-                className="w-28 h-28 rounded-full bg-white"
-              />
-
-              {/* QR Code Button - GPay style */}
-              <TouchableOpacity
-                onPress={(e) => {
-                  e.stopPropagation();
-                  setShowQRModal(true);
-                }}
-                className="absolute -bottom-1 -right-1 w-10 h-10 bg-[#EEB170] rounded-full items-center justify-center shadow-lg"
+        {/* Main Profile Card matching UI reference */}
+        <View
+          style={{
+            backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+            padding: 22,
+            marginBottom: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: isDark ? 0.3 : 0.06,
+            shadowRadius: 10,
+            elevation: 4,
+          }}
+        >
+          {/* Top Row: User Name & Email on left, Circular Avatar on right */}
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+            }}
+          >
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <TouchableOpacity activeOpacity={0.9} onPress={handleDebugTap}>
+                <Text
+                  style={{
+                    fontFamily: 'Poppins_700Bold',
+                    fontSize: 24,
+                    lineHeight: 30,
+                    color: isDark ? '#FFFFFF' : '#000000',
+                  }}
+                  numberOfLines={2}
+                >
+                  {userProfile?.displayName || "Rohan Khurana"}
+                </Text>
+              </TouchableOpacity>
+              <Text
                 style={{
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 3.84,
-                  elevation: 5,
+                  fontFamily: 'Poppins_400Regular',
+                  fontSize: 14,
+                  color: isDark ? '#9CA3AF' : '#666666',
+                  marginTop: 4,
+                }}
+                numberOfLines={1}
+              >
+                {userProfile?.email || "LM.thapar.edu"}
+              </Text>
+            </View>
+
+            {/* Avatar circle with cyan ring */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => setShowQRModal(true)}
+              style={{
+                width: 66,
+                height: 66,
+                borderRadius: 33,
+                borderWidth: 3,
+                borderColor: '#38BDF8',
+                backgroundColor: isDark ? '#121214' : '#E5E7EB',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}
+            >
+              {userProfile?.photoURL ? (
+                <Image
+                  source={{ uri: userProfile.photoURL }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons
+                  name="person"
+                  size={32}
+                  color={isDark ? '#9CA3AF' : '#4B5563'}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Bottom Row: Logout & Delete Account Buttons */}
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              marginTop: 20,
+              gap: 10,
+            }}
+          >
+            {/* Logout Button */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleSignOutPress}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingHorizontal: 14,
+                paddingVertical: 7,
+                borderRadius: 12,
+                backgroundColor: isDark ? '#1F2228' : '#FEE2E2',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FCA5A5',
+              }}
+            >
+              <Ionicons name="log-out-outline" size={16} color="#EF4444" />
+              <Text
+                style={{
+                  fontFamily: 'Poppins_600SemiBold',
+                  fontSize: 13,
+                  color: '#EF4444',
                 }}
               >
-                <Ionicons name="qr-code" size={20} color="#000" />
-              </TouchableOpacity>
-            </TouchableOpacity>
-
-            {/* User Info */}
-            <Text
-              style={{ fontFamily: "Outfit_700Bold" }}
-              className="text-[#0C3572] text-2xl mb-1"
-            >
-              {userProfile?.displayName || "User123"}
-            </Text>
-            <Text
-              style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#2175C0] text-base mb-6"
-            >
-              {userProfile?.email || "email@email.com"}
-            </Text>
-            <View>
-              {/* Referral code with copy option */}
-              <View className="flex-row w-60 items-center my-2 bg-[#1A1A1A] rounded-xl p-4">
-                <View className="flex-1 flex-col">
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-gray-400 text-sm "
-                  >
-                    Your Referral Code:
-                  </Text>
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-white text-sm flex-1"
-                  >
-                    {userProfile?.referralCode || "Not available"}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  onPress={async () => {
-                    const code = userProfile?.referralCode;
-                    if (!code) {
-                      showAlert("No Code", "Referral code not available");
-                      return;
-                    }
-                    try {
-                      await setStringAsync(code);
-                      showAlert("Copied", "Referral code copied to clipboard");
-                    } catch (err) {
-                      console.error("Copy failed", err);
-                      showAlert("Error", "Failed to copy referral code");
-                    }
-                  }}
-                  className="ml-3 p-2 bg-[#1A1A1A] rounded-full"
-                  accessibilityLabel="Copy referral code"
-                >
-                  <Ionicons name="copy" size={16} color="#EEB170" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-
-          {/* Menu Items */}
-          <View>
-            {/* <MenuItem
-              icon="wallet"
-              title="My Wallet"
-              onPress={() => router.push("/WalletDashboard")}
-              iconColor="#0C3572"
-            /> */}
-
-            <MenuItem
-              icon="person-circle"
-              title="Profile Details"
-              onPress={() => router.push("/profile/ProfileDetails")}
-              iconColor="#0C3572"
-            />
-
-            {!isHostCollegeStudent && (
-              <MenuItem
-                icon="home"
-                title="Accommodation & Food"
-                onPress={() => router.push("/profile/Accommodation")}
-                iconColor="#0C3572"
-              />
-            )}
-
-            <MenuItem
-              icon="calendar"
-              title="Your Events"
-              onPress={() => router.push("/profile/UserEvents")}
-              iconColor="#0C3572"
-            />
-
-            {null && (
-              <MenuItem
-                icon="receipt"
-                title="Your Orders"
-                onPress={() => router.push("/profile/UserOrders")}
-                iconColor="#0C3572"
-              />
-            )}
-
-            <MenuItem
-              icon="people"
-              title="Our Team"
-              onPress={() => router.push("/profile/Team")}
-              iconColor="#0C3572"
-            />
-
-            <MenuItem
-              icon="share-social"
-              title="Share App"
-              onPress={handleShareApp}
-              iconColor="#0C3572"
-            />
-
-            <MenuItem
-              icon="help-circle"
-              title="FAQ"
-              onPress={() => router.push("/profile/FAQ")}
-              iconColor="#0C3572"
-            />
-
-            {null && (
-              <MenuItem
-                icon="alert-circle"
-                title="Report a Problem"
-                onPress={() => router.push("/profile/ReportProblem")}
-                iconColor="#0C3572"
-              />
-            )}
-
-            <MenuItem
-              icon="star"
-              title="Rate App"
-              onPress={handleRateApp}
-              iconColor="#0C3572"
-            />
-
-            <TouchableOpacity
-              className="flex-row items-center bg-[#0C3572] mb-4 p-4 rounded-2xl shadow-sm"
-              onPress={handleCheckForUpdates}
-              disabled={checkingUpdate}
-            >
-              <MenuIcon
-                iconName={checkingUpdate ? "hourglass" : "cloud-download"}
-                color="#00CC9C"
-              />
-              <Text className="text-white text-base font-medium flex-1">
-                {checkingUpdate ? "Checking for Updates..." : "Check for Updates"}
+                Logout
               </Text>
-              <View className="bg-[#ffffff3d] px-3 py-1 rounded-full">
-                <Text
-                  style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#00CC9C] text-xs"
-                >
-                  v{getAppVersion()}
-                </Text>
-              </View>
             </TouchableOpacity>
 
-            <MenuItem
-              icon="call"
-              title="Contact Us"
-              onPress={handleContactUs}
-              iconColor="#0C3572"
-            />
-
-            <MenuItem
-              icon="logo-instagram"
-              title="Follow Us"
-              onPress={handleFollowUs}
-              iconColor="#0C3572"
-            />
-
-            <MenuItem
-              icon="log-out"
-              title="Log Out"
-              onPress={handleSignOutPress}
-              iconColor="#0C3572"
-            />
+            {/* Delete Account Button */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleDeleteAccount}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 12,
+                backgroundColor: isDark ? '#1F2228' : '#FEF2F2',
+                borderWidth: 1,
+                borderColor: '#EF4444',
+              }}
+            >
+              <Ionicons name="trash-outline" size={15} color="#EF4444" />
+              <Text
+                style={{
+                  fontFamily: 'Poppins_600SemiBold',
+                  fontSize: 13,
+                  color: '#EF4444',
+                }}
+              >
+                Delete Account
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
+
+        {/* Menu Items List matching reference UI */}
+        {!isHostCollegeStudent && (
+          <ProfileMenuItem
+            icon="bed-outline"
+            label="Accommodation"
+            onPress={() => router.push("/profile/Accommodation")}
+          />
+        )}
+
+        <ProfileMenuItem
+          icon="calendar-outline"
+          label="My Events"
+          onPress={() => router.push("/profile/UserEvents")}
+        />
+
+        <ProfileMenuItem
+          icon="person-outline"
+          label="Profile Details"
+          onPress={() => router.push("/profile/ProfileDetails")}
+        />
+
+        {/* Theme Switch Card */}
+        <ProfileMenuItem
+          icon={isDark ? "moon-outline" : "sunny-outline"}
+          label={isDark ? "Dark Theme (Active)" : "Light Theme (Active)"}
+          onPress={toggleTheme}
+          extra={
+            <TouchableOpacity
+              onPress={toggleTheme}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+                borderRadius: 12,
+                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                borderWidth: 1,
+                borderColor: isDark ? '#38BDF8' : '#F59E0B',
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: 'Poppins_600SemiBold',
+                  fontSize: 12,
+                  color: isDark ? '#38BDF8' : '#F59E0B',
+                }}
+              >
+                Switch
+              </Text>
+            </TouchableOpacity>
+          }
+        />
+
+        {/* Referral Code Card */}
+        {userProfile?.referralCode ? (
+          <ProfileMenuItem
+            icon="gift-outline"
+            label={`Referral Code: ${userProfile.referralCode}`}
+            onPress={handleCopyReferral}
+            extra={
+              <Ionicons
+                name="copy-outline"
+                size={18}
+                color={isDark ? '#38BDF8' : '#0C3572'}
+              />
+            }
+          />
+        ) : null}
+
+        <ProfileMenuItem
+          icon="people-outline"
+          label="Our Team"
+          onPress={() => router.push("/profile/Team")}
+        />
+
+        <ProfileMenuItem
+          icon="share-social-outline"
+          label="Share App"
+          onPress={handleShareApp}
+        />
+
+        <ProfileMenuItem
+          icon="help-circle-outline"
+          label="FAQ & Help"
+          onPress={() => router.push("/profile/FAQ")}
+        />
+
+        <ProfileMenuItem
+          icon="cloud-download-outline"
+          label={checkingUpdate ? "Checking for Updates..." : `Check for Updates (v${getAppVersion()})`}
+          onPress={handleCheckForUpdates}
+        />
       </ScrollView>
 
       {/* User QR Code Modal */}

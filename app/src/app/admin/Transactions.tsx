@@ -1,5 +1,5 @@
 // src/screens/Admin/Transactions.tsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from "react-native";
-import { ArrowLeft, CreditCard } from "lucide-react-native";
+import { ArrowLeft, CreditCard, CheckCircle2, Clock3, TrendingUp } from "lucide-react-native";
 import { PaymentTransaction, TransactionFilters } from "@/types/adminTypes";
 import {
   fetchTransactions,
@@ -22,10 +22,6 @@ import TransactionSearchBar from "@/components/admin/TransactionSearchBar";
 import TransactionDetailModal from "@/components/admin/TransactionDetailModal";
 import { showAlert } from "@/components";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
-
-interface TransactionsProps {
-  navigation: any;
-}
 
 const Transactions: React.FC = () => {
   const navigation = useAdminNavigation();
@@ -46,15 +42,12 @@ const Transactions: React.FC = () => {
     dateRange: "all",
   });
 
-  // Load transactions when filters change - with immediate UI feedback
+  // Load transactions when filters change
   useEffect(() => {
-    // Show loading immediately for better UX
     setSearchLoading(true);
-
-    // Small delay to show loading state, then load
     const timeoutId = setTimeout(() => {
       loadTransactions(false);
-    }, 50); // Very short delay just to show loading state
+    }, 50);
 
     return () => clearTimeout(timeoutId);
   }, [
@@ -63,7 +56,6 @@ const Transactions: React.FC = () => {
     filters.dateRange,
     filters.searchTerm,
   ]);
-
 
   const loadTransactions = async (loadMore: boolean = false) => {
     if (loadMore && (loadingMore || !hasMore)) return;
@@ -87,7 +79,7 @@ const Transactions: React.FC = () => {
       setError(null);
     } catch (err) {
       console.error("Error loading transactions:", err);
-      setError("Failed to load transactions. Please try again.");
+      setError("Failed to load transactions. Please check your connection.");
       showAlert(
         "Error",
         "Failed to load transactions. Please check your connection and try again."
@@ -152,29 +144,68 @@ const Transactions: React.FC = () => {
     }
   };
 
+  // Compute stats overview
+  const stats = useMemo(() => {
+    let settledRevenue = 0;
+    let successCount = 0;
+    let pendingCount = 0;
+
+    for (const t of transactions) {
+      if (t.status === "success") {
+        settledRevenue += t.finalAmount || 0;
+        successCount++;
+      } else if (t.status === "pending") {
+        pendingCount++;
+      }
+    }
+
+    return {
+      settledRevenue,
+      successCount,
+      pendingCount,
+      totalCount: transactions.length,
+    };
+  }, [transactions]);
+
   const renderEmptyState = () => {
-    const hasFiltersActive = hasActiveFilters(filters);
+    const hasFilters = hasActiveFilters(filters);
 
     return (
       <View
-        className="items-center justify-center py-20"
-        style={{ minHeight: 400 }}
+        className="bg-white rounded-2xl p-8 items-center border border-[#A0B3D0] mx-4 my-8"
+        style={{ boxShadow: "0px 4px 12px rgba(12, 53, 114, 0.06)" } as any}
       >
-        <CreditCard size={64} color="#6B7280" />
+        <View className="w-16 h-16 rounded-full bg-[#EEB170]/20 items-center justify-center mb-3">
+          <CreditCard size={32} color="#EEB170" />
+        </View>
         <Text
-          style={{ fontFamily: "Outfit_600SemiBold" }}
-          className="text-[#2175C0] text-xl mt-4 text-center"
+          style={{ fontFamily: "Outfit_700Bold" }}
+          className="text-[#0C3572] text-lg text-center"
         >
-          {hasFiltersActive ? "No transactions found" : "No transactions yet"}
+          {hasFilters ? "No matching transactions" : "No transactions recorded"}
         </Text>
         <Text
           style={{ fontFamily: "Outfit_400Regular" }}
-          className="text-gray-500 text-center mt-2 px-8"
+          className="text-[#2175C0] text-center mt-1 text-xs px-4"
         >
-          {hasFiltersActive
-            ? "Try adjusting your filters or search terms"
-            : "Transactions will appear here once users make payments"}
+          {hasFilters
+            ? "Try resetting your search query or status filters."
+            : "Incoming event and accommodation payments will appear here."}
         </Text>
+        {hasFilters && (
+          <TouchableOpacity
+            onPress={handleClearFilters}
+            className="mt-4 bg-[#0C3572] px-4 py-2 rounded-xl"
+            activeOpacity={0.7}
+          >
+            <Text
+              style={{ fontFamily: "Outfit_600SemiBold" }}
+              className="text-white text-xs"
+            >
+              Reset Filters
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -182,30 +213,26 @@ const Transactions: React.FC = () => {
   return (
     <View className="flex-1 bg-transparent">
       {/* Header */}
-      <View className="bg-[#EEB170] pt-4 rounded-b-2xl pb-6 px-6 flex-row items-center justify-between">
+      <View className="bg-[#EEB170] pt-6 rounded-b-3xl pb-6 px-6 flex-row items-center justify-between">
         <TouchableOpacity
           onPress={() => navigation.navigate("Dashboard")}
-          className="mr-4"
+          className="w-10 h-10 rounded-full bg-[#FFFFFF40] items-center justify-center mr-3"
           activeOpacity={0.7}
         >
-          <ArrowLeft size={28} color="#121212" />
+          <ArrowLeft size={24} color="#121212" />
         </TouchableOpacity>
         <View className="flex-1">
           <Text
             style={{ fontFamily: "Outfit_700Bold" }}
-            className="text-[#121212] text-2xl"
+            className="text-[#121212] text-2xl font-bold"
           >
-            Transactions
+            Payment Management
           </Text>
           <Text
             style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-[#121212] text-sm opacity-80"
+            className="text-[#121212] text-xs opacity-80 mt-0.5"
           >
-            {transactions.length > 0
-              ? `${transactions.length} transactions loaded${
-                  hasMore ? " (more available)" : ""
-                }`
-              : "Payment transaction history"}
+            Track and verify transactions & settlements
           </Text>
         </View>
       </View>
@@ -225,6 +252,78 @@ const Transactions: React.FC = () => {
         contentContainerStyle={{ paddingBottom: 100 }}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Quick Stats Strip */}
+        {transactions.length > 0 && (
+          <View className="flex-row gap-2.5 px-4 pt-3 pb-1">
+            {/* Total Settled */}
+            <View
+              className="flex-1 bg-white/90 border border-[#A0B3D0] rounded-2xl p-2.5 items-center"
+              style={{ boxShadow: "0px 2px 8px rgba(12, 53, 114, 0.05)" } as any}
+            >
+              <View className="flex-row items-center mb-0.5">
+                <TrendingUp size={12} color="#059669" />
+                <Text
+                  style={{ fontFamily: "Outfit_500Medium" }}
+                  className="text-slate-500 text-[10px] uppercase ml-1"
+                >
+                  Settled
+                </Text>
+              </View>
+              <Text
+                style={{ fontFamily: "Outfit_700Bold" }}
+                className="text-[#0C3572] text-sm"
+                numberOfLines={1}
+              >
+                ₹{stats.settledRevenue.toLocaleString("en-IN")}
+              </Text>
+            </View>
+
+            {/* Success Count */}
+            <View
+              className="flex-1 bg-white/90 border border-[#A0B3D0] rounded-2xl p-2.5 items-center"
+              style={{ boxShadow: "0px 2px 8px rgba(12, 53, 114, 0.05)" } as any}
+            >
+              <View className="flex-row items-center mb-0.5">
+                <CheckCircle2 size={12} color="#10B981" />
+                <Text
+                  style={{ fontFamily: "Outfit_500Medium" }}
+                  className="text-slate-500 text-[10px] uppercase ml-1"
+                >
+                  Success
+                </Text>
+              </View>
+              <Text
+                style={{ fontFamily: "Outfit_700Bold" }}
+                className="text-emerald-700 text-sm"
+              >
+                {stats.successCount}
+              </Text>
+            </View>
+
+            {/* Pending Count */}
+            <View
+              className="flex-1 bg-white/90 border border-[#A0B3D0] rounded-2xl p-2.5 items-center"
+              style={{ boxShadow: "0px 2px 8px rgba(12, 53, 114, 0.05)" } as any}
+            >
+              <View className="flex-row items-center mb-0.5">
+                <Clock3 size={12} color="#F59E0B" />
+                <Text
+                  style={{ fontFamily: "Outfit_500Medium" }}
+                  className="text-slate-500 text-[10px] uppercase ml-1"
+                >
+                  Pending
+                </Text>
+              </View>
+              <Text
+                style={{ fontFamily: "Outfit_700Bold" }}
+                className="text-amber-700 text-sm"
+              >
+                {stats.pendingCount}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Search Bar */}
         <TransactionSearchBar
           searchTerm={filters.searchTerm}
@@ -247,9 +346,21 @@ const Transactions: React.FC = () => {
             <ActivityIndicator size="small" color="#EEB170" />
             <Text
               style={{ fontFamily: "Outfit_500Medium" }}
-              className="text-[#2175C0] ml-2"
+              className="text-[#0C3572] ml-2 text-xs"
             >
-              Loading transactions...
+              Filtering transactions...
+            </Text>
+          </View>
+        )}
+
+        {/* Results Header */}
+        {!searchLoading && transactions.length > 0 && (
+          <View className="px-4 pt-2 pb-2">
+            <Text
+              style={{ fontFamily: "Outfit_700Bold" }}
+              className="text-[#0C3572] text-sm"
+            >
+              {transactions.length} Transaction{transactions.length !== 1 ? "s" : ""}
             </Text>
           </View>
         )}
@@ -259,7 +370,7 @@ const Transactions: React.FC = () => {
           <>
             {transactions.map((transaction) => (
               <TransactionCard
-                key={transaction.id}
+                key={transaction.id || transaction.merchantOrderId}
                 transaction={transaction}
                 onPress={handleTransactionPress}
               />
@@ -267,40 +378,29 @@ const Transactions: React.FC = () => {
 
             {/* Load More Button */}
             {hasMore && (
-              <View className="px-4 py-4">
-                {/* Info message for first batch */}
-                {transactions.length === 50 && (
-                  <View className="bg-blue-500/20 border border-blue-500/30 rounded-xl p-3 mb-3">
-                    <Text
-                      style={{ fontFamily: "Outfit_500Medium" }}
-                      className="text-blue-400 text-center text-sm"
-                    >
-                      Showing first 50 results. Click below to load more.
-                    </Text>
-                  </View>
-                )}
-
+              <View className="px-4 py-3">
                 <TouchableOpacity
                   onPress={handleLoadMore}
-                  className="bg-[#FFFFFF66] py-3 rounded-xl"
+                  className="bg-[#0C3572] py-3.5 rounded-2xl shadow-sm"
                   disabled={loadingMore}
+                  activeOpacity={0.7}
                 >
                   {loadingMore ? (
                     <View className="flex-row items-center justify-center">
                       <ActivityIndicator size="small" color="#EEB170" />
                       <Text
-                        style={{ fontFamily: "Outfit_500Medium" }}
-                        className="text-[#2175C0] ml-2"
+                        style={{ fontFamily: "Outfit_600SemiBold" }}
+                        className="text-white ml-2 text-sm"
                       >
-                        Loading 50 more transactions...
+                        Loading more transactions...
                       </Text>
                     </View>
                   ) : (
                     <Text
                       style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className="text-[#0C3572] text-center"
+                      className="text-white text-center text-sm"
                     >
-                      Load More Transactions (50 more)
+                      Load More Transactions
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -309,11 +409,11 @@ const Transactions: React.FC = () => {
 
             {/* End of results message */}
             {!hasMore && transactions.length > 0 && (
-              <View className="px-4 py-4">
-                <View className="bg-gray-500/20 border border-gray-500/30 rounded-xl p-3">
+              <View className="px-4 py-3">
+                <View className="bg-white/60 border border-[#A0B3D0]/60 rounded-xl p-2.5">
                   <Text
                     style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-[#2175C0] text-center text-sm"
+                    className="text-[#2175C0] text-center text-xs"
                   >
                     All {transactions.length} transactions loaded
                   </Text>
@@ -328,22 +428,23 @@ const Transactions: React.FC = () => {
         {/* Error State */}
         {error && (
           <View className="mx-4 mb-4">
-            <View className="bg-red-500/20 border border-red-500/30 rounded-xl p-4">
+            <View className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
               <Text
                 style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-red-400 text-center"
+                className="text-rose-700 text-center text-xs"
               >
                 {error}
               </Text>
               <TouchableOpacity
                 onPress={() => loadTransactions(false)}
-                className="mt-2 bg-red-500 py-2 px-4 rounded-lg"
+                className="mt-3 bg-[#0C3572] py-2 px-4 rounded-xl self-center"
+                activeOpacity={0.7}
               >
                 <Text
                   style={{ fontFamily: "Outfit_600SemiBold" }}
-                  className="text-[#0C3572] text-center"
+                  className="text-white text-xs"
                 >
-                  Retry
+                  Retry Loading
                 </Text>
               </TouchableOpacity>
             </View>

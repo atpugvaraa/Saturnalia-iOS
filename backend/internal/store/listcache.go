@@ -14,8 +14,11 @@ import (
 
 // Shared cache keys for the small lookup collections.
 const (
-	KeyFaqs   = "faqs:all"
-	KeyVenues = "venues:all"
+	KeyFaqs    = "faqs:all"
+	KeyVenues  = "venues:all"
+	KeyBanners = "banners:all"
+	KeyReels   = "reels:all"
+	KeyStories = "stories:all"
 )
 
 // ListCache holds a whole small collection in L2 only.

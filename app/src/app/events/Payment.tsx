@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, TouchableOpacity, ScrollView, Switch, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +19,7 @@ const PaymentScreen: React.FC = () => {
   const { userData: user } = useUserStore();
   const { data: eventData, loading: eventLoading } = useEventDetail(eventId);
 
-  const [phase, setPhase] = useState<'checkout' | 'initiating' | 'opening' | 'verifying' | 'done' | 'error'>('checkout');
+  const [phase, setPhase] = useState<'checkout' | 'initiating' | 'opening' | 'verifying' | 'done'>('checkout');
   const [errorMessage, setErrorMessage] = useState('');
 
   const [accommodation, setAccommodation] = useState<Record<string, boolean>>({
@@ -33,7 +33,7 @@ const PaymentScreen: React.FC = () => {
   const [validCoupon, setValidCoupon] = useState<CouponResponse | null>(null);
   const [couponError, setCouponError] = useState('');
 
-  // Lock already paid ones
+  // Lock already paid days from user profile
   useEffect(() => {
     if (user?.accommodation) {
       setAccommodation(prev => ({ ...prev, ...user.accommodation }));
@@ -54,23 +54,40 @@ const PaymentScreen: React.FC = () => {
   };
 
   const handleApplyCoupon = async () => {
-    if (!couponCode) return;
+    const trimmed = couponCode.trim().toUpperCase();
+    if (!trimmed) return;
     try {
       setCouponError('');
-      const res = await validateCoupon(couponCode, eventId);
+      const res = await validateCoupon(trimmed, eventId);
       setValidCoupon(res);
-      showAlert("Success", "Coupon applied!");
+      showAlert("Success", `Coupon "${res.code}" applied!`);
     } catch (err: any) {
       setCouponError(err.message || "Invalid coupon");
       setValidCoupon(null);
     }
   };
 
+  const handleRemoveCoupon = () => {
+    setValidCoupon(null);
+    setCouponCode('');
+    setCouponError('');
+  };
+
   const calculateTotal = () => {
     let baseEventFee = 0;
     if (eventData?.event?.paymentRequired) {
       const isHost = user?.isHostCollegeStudent;
-      baseEventFee = isHost ? eventData.event.registrationFee?.host || 0 : eventData.event.registrationFee?.other || 0;
+      if (
+        eventData.event.eventType === 'team' &&
+        eventData.event.paymentType === 'per_individual' &&
+        eventData.myTeam?.members?.length
+      ) {
+        baseEventFee = eventData.myTeam.members.reduce((acc: number, m: any) => {
+          return acc + (m.isHostCollegeStudent ? (eventData.event.registrationFee?.host || 0) : (eventData.event.registrationFee?.other || 0));
+        }, 0);
+      } else {
+        baseEventFee = isHost ? (eventData.event.registrationFee?.host || 0) : (eventData.event.registrationFee?.other || 0);
+      }
     }
 
     let accFoodFee = 0;
@@ -85,23 +102,49 @@ const PaymentScreen: React.FC = () => {
   };
 
   const total = calculateTotal();
+
   const calculateDiscount = () => {
     if (!validCoupon) return 0;
-    if (validCoupon.minCartValue > total) return 0;
+    if (validCoupon.minCartValue && total < validCoupon.minCartValue) return 0;
     if (validCoupon.discountType === 'flat') {
       return validCoupon.discountValue > total ? total : validCoupon.discountValue;
     }
     return total * (validCoupon.discountValue / 100);
   };
+
   const discount = calculateDiscount();
-  const finalAmount = total - discount;
+  const finalAmount = Math.max(0, total - discount);
+
+  const pollPaymentStatusWithRetry = async (
+    merchantOrderId: string,
+    maxAttempts = 4,
+    delayMs = 1500
+  ) => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const payment = await getPaymentStatus(merchantOrderId);
+        if (payment?.status === 'success' || payment?.status === 'failure') {
+          return payment;
+        }
+      } catch (e) {
+        // ignore intermediate network error and retry
+      }
+      if (attempt < maxAttempts - 1) {
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+    return await getPaymentStatus(merchantOrderId);
+  };
 
   const startPayment = async () => {
+    if (finalAmount <= 0) return;
     try {
       setPhase('initiating');
+      setErrorMessage('');
+
       const accToPay: Record<string, boolean> = {};
       const foodToPay: Record<string, boolean> = {};
-      
+
       Object.entries(accommodation).forEach(([day, selected]) => {
         if (selected && !user?.accommodation?.[day]) accToPay[day] = true;
       });
@@ -114,116 +157,232 @@ const PaymentScreen: React.FC = () => {
       const hasFood = Object.keys(foodToPay).length > 0;
       if (hasAcc && hasFood) pType = 'event_and_accommodation_and_food';
       else if (hasAcc) pType = 'event_and_accommodation';
-      else if (hasFood) pType = 'event_and_accommodation_and_food'; // fallback
+      else if (hasFood) pType = 'event_and_accommodation_and_food';
+
+      // Check coupon minCartValue
+      let appliedCoupon: string | undefined = undefined;
+      if (validCoupon) {
+        if (validCoupon.minCartValue && total < validCoupon.minCartValue) {
+          showAlert(
+            "Coupon Condition Not Met",
+            `Coupon "${validCoupon.code}" requires a minimum cart value of ₹${validCoupon.minCartValue}. Please add more options or remove the coupon to proceed.`
+          );
+          setPhase('checkout');
+          return;
+        }
+        appliedCoupon = validCoupon.code;
+      }
 
       const res = await initiateEventPayment({
         eventId,
-        teamId: teamId || undefined,
+        teamId: teamId || eventData?.myTeam?.teamId || undefined,
         paymentType: pType,
-        couponCode: validCoupon ? validCoupon.code : undefined,
+        couponCode: appliedCoupon,
         accommodation: accToPay,
-        food: foodToPay
+        food: foodToPay,
       });
 
-      setPhase('opening');
-      const redirectUrl = 'app://events/Payment';
-      const result = await WebBrowser.openAuthSessionAsync(res.paymentUrl, redirectUrl);
+      let orderId = res.merchantOrderId;
+      let urlStatus: string | null = null;
+      let browserResultType = 'success';
 
-      if (result.type === 'cancel' || result.type === 'dismiss') {
+      if (res.paymentUrl.includes('/payments/dummy')) {
         setPhase('verifying');
-        await pollAndFinish(res.merchantOrderId);
-        return;
-      }
+        try {
+          await fetch(res.paymentUrl, { headers: { Accept: 'application/json' } });
+          urlStatus = 'success';
+        } catch (e) {
+          const redirectUrl = 'app://events/Payment';
+          const result = await WebBrowser.openAuthSessionAsync(res.paymentUrl, redirectUrl);
+          browserResultType = result.type;
+        }
+      } else {
+        setPhase('opening');
+        const redirectUrl = 'app://events/Payment';
+        const result = await WebBrowser.openAuthSessionAsync(res.paymentUrl, redirectUrl);
+        browserResultType = result.type;
 
-      if (result.type === 'success' && result.url) {
-        setPhase('verifying');
-        const redirectedUrl = new URL(result.url);
-        const statusParam = redirectedUrl.searchParams.get('status');
-        const orderId = redirectedUrl.searchParams.get('merchantOrderId') || res.merchantOrderId;
-        await pollAndFinish(orderId, statusParam || undefined);
-        return;
+        if (result.type === 'success' && result.url) {
+          try {
+            const redirectedUrl = new URL(result.url);
+            urlStatus = redirectedUrl.searchParams.get('status');
+            const paramId = redirectedUrl.searchParams.get('merchantOrderId');
+            if (paramId) orderId = paramId;
+          } catch (e) {}
+        }
       }
 
       setPhase('verifying');
-      await pollAndFinish(res.merchantOrderId);
+      await pollAndFinish(orderId, browserResultType, urlStatus);
     } catch (err: any) {
-      setPhase('error');
+      setPhase('checkout');
       setErrorMessage(err?.message || 'Failed to start payment');
+      showAlert('Payment Error', err?.message || 'Failed to start payment');
     }
   };
 
-  const pollAndFinish = async (merchantOrderId: string, knownStatus?: string) => {
+  const pollAndFinish = async (
+    merchantOrderId: string,
+    browserResultType: string,
+    knownUrlStatus?: string | null
+  ) => {
     try {
-      const payment = await getPaymentStatus(merchantOrderId);
-      const status = payment.status;
-      setPhase('done');
+      const payment = await pollPaymentStatusWithRetry(merchantOrderId);
+      const status = payment?.status || knownUrlStatus || 'pending';
 
       if (status === 'success') {
+        await useUserStore.getState().refreshUserProfile();
+        queryClient.invalidateQueries({ queryKey: ['events'] });
+        setPhase('done');
         showAlert(
           'Payment Successful',
           'Your registration is now confirmed!',
-          [{ text: 'View Registration', onPress: () => {
-            queryClient.invalidateQueries({ queryKey: ['events', 'detail', eventId] });
-            queryClient.invalidateQueries({ queryKey: ['events', 'mine'] });
-            router.dismissAll();
-            router.push({ pathname: '/events/MyEventDetails', params: { eventId } });
-          }}]
+          [{
+            text: 'View Registration',
+            onPress: () => {
+              router.dismissAll();
+              router.push({ pathname: '/events/MyEventDetails', params: { eventId } });
+            }
+          }]
         );
       } else if (status === 'failure') {
+        setPhase('checkout');
         showAlert(
           'Payment Failed',
-          'Your payment could not be processed. Please try again.',
-          [{ text: 'Go Back', style: 'cancel', onPress: () => setPhase('checkout') }]
+          'Your payment could not be processed by the gateway. Please try again.',
+          [{ text: 'Try Again', onPress: () => setPhase('checkout') }]
         );
       } else {
-        showAlert(
-          'Payment Pending',
-          'Your payment is still processing. Check your profile shortly.',
-          [{ text: 'OK', onPress: () => {
-            queryClient.invalidateQueries({ queryKey: ['events', 'detail', eventId] });
-            queryClient.invalidateQueries({ queryKey: ['events', 'mine'] });
-            router.dismissAll();
-            router.push({ pathname: '/events/MyEventDetails', params: { eventId } });
-          }}]
-        );
+        if (browserResultType === 'cancel' || browserResultType === 'dismiss') {
+          setPhase('checkout');
+          showAlert(
+            'Payment Incomplete',
+            'The payment window was closed before completion. If your payment was deducted, it will update shortly; otherwise you can retry.',
+            [{ text: 'Try Again', onPress: () => setPhase('checkout') }]
+          );
+        } else {
+          setPhase('checkout');
+          showAlert(
+            'Payment Processing',
+            'Your payment is still being processed. Please check your registration status in a few moments.',
+            [{
+              text: 'View Registration',
+              onPress: () => {
+                queryClient.invalidateQueries({ queryKey: ['events'] });
+                router.dismissAll();
+                router.push({ pathname: '/events/MyEventDetails', params: { eventId } });
+              }
+            }]
+          );
+        }
       }
     } catch (err: any) {
-      showAlert('Notice', 'Could not confirm payment status automatically. Please check your profile in a few minutes.');
-      router.dismissAll();
-      router.push({ pathname: '/events/MyEventDetails', params: { eventId } });
+      setPhase('checkout');
+      showAlert(
+        'Notice',
+        'Could not confirm payment status automatically. If your account was debited, it will update shortly; otherwise you can retry.',
+        [{ text: 'OK', onPress: () => setPhase('checkout') }]
+      );
     }
   };
 
-  if (eventLoading || (phase !== 'checkout' && phase !== 'done' && phase !== 'error')) {
+  if (eventLoading || (phase !== 'checkout' && phase !== 'done')) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
+      <View className="flex-1 bg-white items-center justify-center px-6">
         <ActivityIndicator size="large" color="#0C3572" className="mb-4" />
-        <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg">
-          {phase === 'initiating' ? 'Preparing Checkout...' : 
-           phase === 'opening' ? 'Opening Payment Gateway...' : 
-           phase === 'verifying' ? 'Verifying Payment...' : 'Loading...'}
+        <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg text-center">
+          {phase === 'initiating' ? 'Preparing Checkout...' :
+           phase === 'opening' ? 'Opening Payment Gateway...' :
+           phase === 'verifying' ? 'Verifying Payment Outcome...' : 'Loading...'}
         </Text>
       </View>
     );
   }
 
-  if (phase === 'done' || phase === 'error') {
+  // 1. Check if user/team has ALREADY PAID for the event
+  const isAlreadyPaid =
+    eventData?.myRegistration?.paymentStatus === 'success' ||
+    (eventData?.event?.eventType === 'team' && !!eventData?.myTeam?.paid);
+
+  if (isAlreadyPaid) {
     return (
       <View className="flex-1 bg-white items-center justify-center px-8">
-        <View className={`w-20 h-20 rounded-full items-center justify-center mb-6 ${phase === 'done' ? 'bg-green-500' : 'bg-red-500'}`}>
-          <Ionicons name={phase === 'done' ? "checkmark" : "close"} size={40} color="white" />
+        <View className="w-20 h-20 rounded-full bg-green-100 items-center justify-center mb-6">
+          <Ionicons name="checkmark-circle" size={48} color="#16a34a" />
         </View>
-        <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-xl text-center mb-2">
-          {phase === 'done' ? 'Payment Processed' : 'Payment Failed'}
+        <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-2xl text-center mb-2">
+          Registration Already Paid
         </Text>
-        {phase === 'error' && (
-          <TouchableOpacity onPress={() => setPhase('checkout')} className="bg-[#0C3572] px-8 py-3 rounded-xl mt-6">
-            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-white">Try Again</Text>
-          </TouchableOpacity>
-        )}
+        <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-center mb-8 leading-6">
+          You have already completed payment for this event and your registration is confirmed.
+          If you need to book or update accommodation, you can manage it from the Accommodation page.
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.replace('/profile/Accommodation')}
+          className="bg-[#0C3572] w-full py-4 rounded-xl items-center mb-3"
+        >
+          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#EEB170] text-base">
+            Manage Accommodation & Food
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            router.dismissAll();
+            router.push({ pathname: '/events/MyEventDetails', params: { eventId } });
+          }}
+          className="bg-[#F2F5F8] w-full py-4 rounded-xl items-center"
+        >
+          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-base">
+            View Registration
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
+
+  // 2. Check if user is a team member who is NOT the leader
+  const isTeamMemberNotLeader =
+    eventData?.event?.eventType === 'team' &&
+    !!eventData?.myTeam &&
+    eventData.myTeam.leaderUserId !== user?.userId;
+
+  if (isTeamMemberNotLeader) {
+    return (
+      <View className="flex-1 bg-white items-center justify-center px-8">
+        <View className="w-20 h-20 rounded-full bg-amber-100 items-center justify-center mb-6">
+          <Ionicons name="people" size={44} color="#d97706" />
+        </View>
+        <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-2xl text-center mb-2">
+          Team Leader Payment Only
+        </Text>
+        <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-center mb-8 leading-6">
+          Only your team leader can complete the registration fee payment for the team.
+          You can book your individual accommodation and food passes from the Accommodation page.
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.replace('/profile/Accommodation')}
+          className="bg-[#0C3572] w-full py-4 rounded-xl items-center mb-3"
+        >
+          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#EEB170] text-base">
+            Book My Accommodation & Food
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            router.dismissAll();
+            router.push({ pathname: '/events/MyEventDetails', params: { eventId } });
+          }}
+          className="bg-[#F2F5F8] w-full py-4 rounded-xl items-center"
+        >
+          <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-base">
+            View Team Status
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const isTeamEvent = eventData?.event?.eventType === 'team';
 
   return (
     <View className="flex-1 bg-white">
@@ -232,12 +391,12 @@ const PaymentScreen: React.FC = () => {
         <TouchableOpacity onPress={() => router.back()} className="p-2 rounded-full bg-[#F2F5F8]">
           <Ionicons name="arrow-back" size={20} color="#0C3572" />
         </TouchableOpacity>
-        <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-2xl">
+        <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-2xl ml-3">
           Checkout
         </Text>
       </View>
 
-      <ScrollView 
+      <ScrollView
         className="flex-1 bg-[#F9FBFC]"
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 160 }}
         showsVerticalScrollIndicator={false}
@@ -245,21 +404,41 @@ const PaymentScreen: React.FC = () => {
         {/* Event Fee Card */}
         <View className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm mb-6">
           <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#2175C0] text-sm mb-1 uppercase tracking-wider">
-            Registration Fee
+            {isTeamEvent ? "Team Registration Fee" : "Registration Fee"}
           </Text>
           <Text style={{ fontFamily: 'Outfit_700Bold' }} className="text-[#0C3572] text-3xl">
-            ₹{eventData?.event?.paymentRequired ? (user?.isHostCollegeStudent ? eventData.event.registrationFee?.host : eventData.event.registrationFee?.other) : 0}
+            ₹{eventData?.event?.paymentRequired
+              ? isTeamEvent && eventData.event.paymentType === 'per_individual' && eventData.myTeam?.members?.length
+                ? eventData.myTeam.members.reduce((acc: number, m: any) => acc + (m.isHostCollegeStudent ? (eventData.event.registrationFee?.host || 0) : (eventData.event.registrationFee?.other || 0)), 0)
+                : user?.isHostCollegeStudent
+                  ? eventData.event.registrationFee?.host || 0
+                  : eventData.event.registrationFee?.other || 0
+              : 0}
           </Text>
+          {isTeamEvent && (
+            <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs mt-1">
+              Covers all registered members of your team.
+            </Text>
+          )}
         </View>
-        
+
         {/* Accommodation Section */}
         <View className="mb-4">
           <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-xl mb-1">
-            Stay & Food
+            Stay & Food (Optional)
           </Text>
-          <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-sm mb-4">
-            Add accommodation (₹{ACCOMMODATION_PRICE}/day) or food (₹{FOOD_PRICE}/day) to your registration.
+          <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-sm mb-3">
+            Add accommodation (₹{ACCOMMODATION_PRICE}/day) or food (₹{FOOD_PRICE}/day).
           </Text>
+
+          {isTeamEvent && (
+            <View className="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-4 flex-row items-center">
+              <Ionicons name="information-circle" size={20} color="#2175C0" />
+              <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#0C3572] text-xs ml-2 flex-1">
+                Accommodation selected here is for you (Team Leader) only. Other team members can book their stay individually from their profile.
+              </Text>
+            </View>
+          )}
 
           {['day0', 'day1', 'day2', 'day3', 'day4'].map((day) => {
             const accLocked = user?.accommodation?.[day] || false;
@@ -269,32 +448,44 @@ const PaymentScreen: React.FC = () => {
                 <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] text-lg mb-4 capitalize">
                   {day}
                 </Text>
-                
+
                 <View className="flex-row justify-between items-center mb-4">
                   <View>
                     <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572]">Accommodation</Text>
-                    <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">Campus Hostel</Text>
+                    <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">Campus Hostel (₹{ACCOMMODATION_PRICE}/day)</Text>
                   </View>
                   {accLocked ? (
-                    <View className="bg-green-100 px-3 py-1 rounded-full">
-                      <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 text-xs">Paid</Text>
+                    <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
+                      <Ionicons name="checkmark-circle" size={14} color="#15803d" />
+                      <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 text-xs ml-1">Paid</Text>
                     </View>
                   ) : (
-                    <Switch value={accommodation[day]} onValueChange={() => toggleAcc(day)} thumbColor={accommodation[day] ? '#0C3572' : '#f4f3f4'} trackColor={{ true: '#EEB170', false: '#d1d5db' }} />
+                    <Switch
+                      value={accommodation[day]}
+                      onValueChange={() => toggleAcc(day)}
+                      thumbColor={accommodation[day] ? '#0C3572' : '#f4f3f4'}
+                      trackColor={{ true: '#EEB170', false: '#d1d5db' }}
+                    />
                   )}
                 </View>
 
                 <View className="flex-row justify-between items-center">
                   <View>
                     <Text style={{ fontFamily: 'Outfit_500Medium' }} className="text-[#0C3572]">Meals</Text>
-                    <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">3 Meals Included</Text>
+                    <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-[#2175C0] text-xs">3 Meals Included (₹{FOOD_PRICE}/day)</Text>
                   </View>
                   {foodLocked ? (
-                    <View className="bg-green-100 px-3 py-1 rounded-full">
-                      <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 text-xs">Paid</Text>
+                    <View className="bg-green-100 px-3 py-1 rounded-full flex-row items-center">
+                      <Ionicons name="checkmark-circle" size={14} color="#15803d" />
+                      <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 text-xs ml-1">Paid</Text>
                     </View>
                   ) : (
-                    <Switch value={food[day]} onValueChange={() => toggleFood(day)} thumbColor={food[day] ? '#0C3572' : '#f4f3f4'} trackColor={{ true: '#EEB170', false: '#d1d5db' }} />
+                    <Switch
+                      value={food[day]}
+                      onValueChange={() => toggleFood(day)}
+                      thumbColor={food[day] ? '#0C3572' : '#f4f3f4'}
+                      trackColor={{ true: '#EEB170', false: '#d1d5db' }}
+                    />
                   )}
                 </View>
               </View>
@@ -307,7 +498,7 @@ const PaymentScreen: React.FC = () => {
           <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#0C3572] mb-3">
             Have a promo code?
           </Text>
-          <View className="flex-row space-x-3">
+          <View className="flex-row space-x-3 gap-2">
             <TextInput
               value={couponCode}
               onChangeText={setCouponCode}
@@ -317,12 +508,21 @@ const PaymentScreen: React.FC = () => {
               className="flex-1 bg-[#F2F5F8] px-4 py-3 rounded-xl border border-gray-100 text-[#0C3572]"
               style={{ fontFamily: 'Outfit_500Medium' }}
             />
-            <TouchableOpacity 
-              onPress={handleApplyCoupon} 
-              className="bg-[#0C3572] px-6 justify-center rounded-xl"
-            >
-              <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#EEB170]">Apply</Text>
-            </TouchableOpacity>
+            {validCoupon ? (
+              <TouchableOpacity
+                onPress={handleRemoveCoupon}
+                className="bg-red-100 px-5 justify-center rounded-xl"
+              >
+                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-red-600">Remove</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handleApplyCoupon}
+                className="bg-[#0C3572] px-6 justify-center rounded-xl"
+              >
+                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-[#EEB170]">Apply</Text>
+              </TouchableOpacity>
+            )}
           </View>
           {couponError ? (
             <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-red-500 mt-2 text-xs">
@@ -330,11 +530,18 @@ const PaymentScreen: React.FC = () => {
             </Text>
           ) : null}
           {validCoupon ? (
-            <View className="flex-row items-center mt-3 bg-green-50 p-2 rounded-lg">
-              <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
-              <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 ml-2 text-sm">
-                Coupon applied: -₹{discount.toFixed(2)}
-              </Text>
+            <View className="mt-3">
+              <View className="flex-row items-center bg-green-50 p-2.5 rounded-lg">
+                <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
+                <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className="text-green-700 ml-2 text-sm">
+                  Coupon applied: -₹{discount.toFixed(2)}
+                </Text>
+              </View>
+              {validCoupon.minCartValue && total < validCoupon.minCartValue ? (
+                <Text style={{ fontFamily: 'Outfit_400Regular' }} className="text-amber-600 text-xs mt-1.5">
+                  Note: Requires a minimum cart value of ₹{validCoupon.minCartValue} (current: ₹{total}).
+                </Text>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -358,10 +565,10 @@ const PaymentScreen: React.FC = () => {
           </View>
           <TouchableOpacity
             onPress={startPayment}
-            disabled={finalAmount === 0}
-            className={`px-10 py-4 rounded-xl flex-row items-center ${finalAmount === 0 ? 'bg-gray-200' : 'bg-[#0C3572]'}`}
+            disabled={finalAmount <= 0}
+            className={`px-10 py-4 rounded-xl flex-row items-center ${finalAmount <= 0 ? 'bg-gray-200' : 'bg-[#0C3572]'}`}
           >
-            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className={`text-lg ${finalAmount === 0 ? 'text-gray-400' : 'text-[#EEB170]'}`}>
+            <Text style={{ fontFamily: 'Outfit_600SemiBold' }} className={`text-lg ${finalAmount <= 0 ? 'text-gray-400' : 'text-[#EEB170]'}`}>
               Pay Now
             </Text>
           </TouchableOpacity>

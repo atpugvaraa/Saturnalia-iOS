@@ -16,6 +16,10 @@ import {
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useRouter, useIsFocused } from "expo-router";
 import { Volume2, VolumeX, PauseIcon, ArrowLeft } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { TouchableOpacity } from "react-native";
+import { useThemeStore } from "@/state/themeStore";
+import { useAdminDrawerStore } from "@/state/adminDrawerStore";
 import { Reel } from '@/types/models';
 import { showAlert } from "../../components";
 import { MOCK_REELS } from "@/mocks/reels";
@@ -530,6 +534,8 @@ const ReelItem: React.FC<ReelItemProps> = React.memo(
 
 const ReelsScreen: React.FC = () => {
   const router = useRouter();
+  const { isDark } = useThemeStore();
+  const { openDrawer } = useAdminDrawerStore();
   const [reels, setReels] = useState<Reel[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -666,16 +672,66 @@ const ReelsScreen: React.FC = () => {
   );
 
   return (
-    <View className="flex-1 bg-black justify-center items-center px-6">
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: isDark ? '#131316' : '#E0E0E0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+      }}
+    >
+      {/* Top Left Floating Hamburger Menu */}
+      <View
+        style={{
+          position: 'absolute',
+          top: Math.max(insets.top + 8, 16),
+          left: 16,
+          zIndex: 20,
+        }}
+      >
+        <TouchableOpacity
+          onPress={openDrawer}
+          activeOpacity={0.75}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: isDark ? 0.25 : 0.06,
+            shadowRadius: 4,
+            elevation: 2,
+          }}
+        >
+          <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+        </TouchableOpacity>
+      </View>
+
       <Text
-        style={{ fontFamily: "Outfit_700Bold" }}
-        className="text-[#FFBA00] text-3xl text-center mb-2"
+        style={{
+          fontFamily: 'Talina',
+          fontSize: 34,
+          color: isDark ? '#FFFFFF' : '#000000',
+          textAlign: 'center',
+          marginBottom: 8,
+          letterSpacing: 0.5,
+        }}
       >
         Coming Soon
       </Text>
       <Text
-        style={{ fontFamily: "Outfit_500Medium" }}
-        className="text-gray-300 text-center text-lg mt-2"
+        style={{
+          fontFamily: 'Poppins_500Medium',
+          fontSize: 16,
+          color: '#41B8F0',
+          textAlign: 'center',
+        }}
       >
         Exciting reels are on the way!
       </Text>

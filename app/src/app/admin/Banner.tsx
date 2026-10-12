@@ -265,7 +265,7 @@ export default function Banner() {
                     source={
                       item.imageUrl != null
                         ? { uri: fixDomain(item.imageUrl) }
-                        : require("../../assets/banner.png")
+                        : require("@/assets/banner.png")
                     }
                     resizeMode="cover"
                   />

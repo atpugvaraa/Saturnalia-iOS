@@ -1,6 +1,7 @@
 // src/components/ui/Input.tsx
 import React, { useState } from "react";
 import { View, TextInput, Text, TouchableOpacity } from "react-native";
+import { useThemeStore } from "@/state/themeStore";
 
 interface InputProps {
   label?: string;
@@ -41,56 +42,71 @@ const Input: React.FC<InputProps> = ({
   className = "",
   editable = true,
 }) => {
+  const { isDark } = useThemeStore();
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  const inputClassName = [
-    "border rounded-lg px-4 py-3 bg-[#121212]",
-    isFocused ? "border-blue-600 bg-blue-50" : "border-[#2175C0] bg-white",
-    error ? "border-red-500 bg-red-50" : "",
-    disabled ? "bg-gray-100 text-gray-500" : "text-gray-800",
-    leftIcon ? "pl-12" : "",
-    rightIcon || secureTextEntry ? "pr-12" : "",
-    multiline ? "text-top" : "",
-    className,
-  ]
-    .filter(Boolean)
-    .join(" ");
 
   const handleTogglePassword = () => {
     setShowPassword(!showPassword);
   };
 
+  const bg = isDark ? "#1C1C20" : "#FFFFFF";
+  const border = error
+    ? "#EF4444"
+    : isFocused
+    ? "#41B8F0"
+    : isDark
+    ? "rgba(255, 255, 255, 0.14)"
+    : "#D1D5DB";
+  const textColor = isDark ? "#FFFFFF" : "#111827";
+  const labelColor = isDark ? "#FFFFFF" : "#111827";
+  const placeholderColor = isDark ? "#9CA3AF" : "#6B7280";
+
   return (
-    <View className="mb-4">
+    <View className={`mb-4 ${className}`}>
       {label && (
         <Text
-          style={{ fontFamily: "Outfit_500Medium" }}
-          className="text-lg text-[#0C3572] mb-2"
+          style={{
+            fontFamily: "Poppins_600SemiBold",
+            color: labelColor,
+            fontSize: 14,
+            marginBottom: 6,
+          }}
         >
           {label}
         </Text>
       )}
 
-      <View className="relative">
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: multiline ? "flex-start" : "center",
+          backgroundColor: bg,
+          borderWidth: 1.5,
+          borderColor: border,
+          borderRadius: 14,
+          paddingHorizontal: 14,
+          paddingVertical: multiline ? 10 : 8,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isDark ? 0.2 : 0.04,
+          shadowRadius: 4,
+          elevation: 1,
+        }}
+      >
         {leftIcon && (
-          <View className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
-            <Text
-              style={{ fontFamily: "Outfit_400Regular" }}
-              className="text-white text-lg"
-            >
-              {leftIcon}
-            </Text>
-          </View>
+          <Text style={{ fontSize: 16, marginRight: 8 }}>{leftIcon}</Text>
         )}
 
         <TextInput
-          className={inputClassName}
           placeholder={placeholder}
+          placeholderTextColor={placeholderColor}
           style={{
-            fontFamily: "Outfit_500Medium",
-            backgroundColor: "transparent",
-            color: "#3B3B3B",
+            flex: 1,
+            fontFamily: "Poppins_500Medium",
+            fontSize: 14.5,
+            color: textColor,
+            paddingVertical: 4,
           }}
           value={value}
           onChangeText={onChangeText}
@@ -104,19 +120,15 @@ const Input: React.FC<InputProps> = ({
           textAlignVertical={multiline ? "top" : "center"}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholderTextColor="#9CA3AF"
         />
 
         {(rightIcon || secureTextEntry) && (
           <TouchableOpacity
-            className="absolute right-4 top-1/2 transform -translate-y-1/2"
             onPress={secureTextEntry ? handleTogglePassword : onRightIconPress}
             disabled={!secureTextEntry && !onRightIconPress}
+            style={{ paddingLeft: 8 }}
           >
-            <Text
-              style={{ fontFamily: "Outfit_400Regular" }}
-              className="text-white text-lg"
-            >
+            <Text style={{ fontSize: 16 }}>
               {secureTextEntry ? (showPassword ? "👁️" : "🙈") : rightIcon}
             </Text>
           </TouchableOpacity>
@@ -125,8 +137,13 @@ const Input: React.FC<InputProps> = ({
 
       {error && (
         <Text
-          style={{ fontFamily: "Outfit_400Regular" }}
-          className="text-red-500 text-sm mt-1"
+          style={{
+            fontFamily: "Poppins_400Regular",
+            color: "#EF4444",
+            fontSize: 12,
+            marginTop: 4,
+            marginLeft: 2,
+          }}
         >
           {error}
         </Text>

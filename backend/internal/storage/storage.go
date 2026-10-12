@@ -183,6 +183,36 @@ func (s *Store) Upload(ctx context.Context, folder, name string, r io.Reader) (s
 	return strings.Join([]string{a.ID, res.FileID, strconv.FormatInt(size, 10), res.FilePath}, refSep), nil
 }
 
+// UploadFile stores r under folder and returns both its reference and public CDN URL.
+func (s *Store) UploadFile(ctx context.Context, folder, name string, r io.Reader) (string, string, error) {
+	ref, err := s.Upload(ctx, folder, name, r)
+	if err != nil {
+		return "", "", err
+	}
+	url, err := s.URL(ref)
+	if err != nil {
+		return ref, "", err
+	}
+	return ref, url, nil
+}
+
+// URL returns the direct (unsigned) CDN URL for ref.
+func (s *Store) URL(ref string) (string, error) {
+	a, _, _, path, err := s.resolve(ref)
+	if err != nil {
+		return "", err
+	}
+
+	url := a.helper.BuildURL(shared.SrcOptionsParam{
+		Src:         path,
+		URLEndpoint: a.URLEndpoint,
+	})
+	if url == "" {
+		return "", fmt.Errorf("storage: could not build a url for %q", ref)
+	}
+	return url, nil
+}
+
 // SignedURL returns a URL for ref that stops working after ttl. Signing is a
 // local HMAC, so this makes no network call and needs no context.
 func (s *Store) SignedURL(ref string, ttl time.Duration) (string, error) {

@@ -17,3 +17,4 @@ export { default as Carousel } from './interactive/Carousel';
 export { default as StoryCubeViewer } from './interactive/StoryCubeViewer';
 // Display Components
 export { default as EventCard } from './display/EventCard';
+export { default as HeroBanner } from './display/HeroBanner';

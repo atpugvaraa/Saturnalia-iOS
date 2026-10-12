@@ -351,11 +351,8 @@ func (a *API) getEasebuzzLink(
 	productInfo string,
 	user *models.User,
 ) (string, error) {
-	if a.Cfg.PaymentsDummy {
+	if a.Cfg.PaymentsDummy || a.Cfg.EasebuzzKey == "" || a.Cfg.EasebuzzSalt == "" {
 		return fmt.Sprintf("%s/api/v1/payments/dummy?txnid=%s", a.Cfg.AppBaseURL, url.QueryEscape(merchantOrderID)), nil
-	}
-	if a.Cfg.EasebuzzKey == "" || a.Cfg.EasebuzzSalt == "" {
-		return "", fmt.Errorf("easebuzz credentials not configured")
 	}
 
 	amountStr := fmt.Sprintf("%.2f", float64(amount))

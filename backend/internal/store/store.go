@@ -18,6 +18,9 @@ const (
 	ColTeams         = "teamRegistrations"
 	ColVenues        = "venues"
 	ColFaqs          = "faqs"
+	ColBanners       = "banners"
+	ColReels         = "reels"
+	ColStories       = "stories"
 )
 
 var (
