@@ -28,6 +28,7 @@ services:
     env_file:
         - ./backend/.env
     volumes:
+      - ./backend/imagekit.json:/app/imagekit.json:ro
       - ./backend/serviceAccountKey.json:/app/serviceAccountKey.json:ro
     ports:
       - "6767:6767"
