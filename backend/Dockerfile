@@ -11,6 +11,5 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /api /app/api
 COPY --from=builder /imagekit.json /app/imagekit.json
-COPY --from=builder /serviceAccountKey.json /app/serviceAccountKey.json
 EXPOSE 8080
 CMD ["/app/api"]
