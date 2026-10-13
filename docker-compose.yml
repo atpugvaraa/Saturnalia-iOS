@@ -18,3 +18,13 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
+
+  api:
+    image: ghcr.io/stktyagi/Sat-app-26:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+    ports:
+      - "6767:6767"
