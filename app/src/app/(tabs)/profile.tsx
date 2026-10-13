@@ -458,6 +458,12 @@ const ProfileScreen = () => {
         )}
 
         <ProfileMenuItem
+          icon="restaurant-outline"
+          label="Meal Pass"
+          onPress={() => router.push("/profile/MealPass" as any)}
+        />
+
+        <ProfileMenuItem
           icon="calendar-outline"
           label="My Events"
           onPress={() => router.push("/profile/UserEvents")}

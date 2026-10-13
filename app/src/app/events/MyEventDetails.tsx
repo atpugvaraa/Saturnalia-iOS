@@ -142,14 +142,9 @@ const MyEventDetailsScreen: React.FC = () => {
       return;
     }
 
-    if (eventData.customFields && eventData.customFields.length > 0) {
-      setIsSubmissionModalVisible(true);
-      return;
-    }
-
     showAlert(
       "Complete Registration",
-      "Are you satisfied with your team? Once confirmed, registration will be finalized.",
+      "Are you satisfied with your team? Once confirmed, your team registration will be finalized.",
       [
         { text: "Cancel", style: "cancel" },
         {

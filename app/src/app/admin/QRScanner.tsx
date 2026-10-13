@@ -18,14 +18,12 @@ import {
 } from "@/api/admin";
 import GateUserModal from "@/components/qr/GateUserModal";
 import HostelUserModal from "@/components/qr/HostelUserModal";
-import FoodUserModal from "@/components/qr/FoodUserModal";
 import { showAlert } from "@/components";
 import {
   ArrowLeft,
   QrCode,
   Home,
   Building,
-  UtensilsCrossed,
   Calendar,
 } from "lucide-react-native";
 import { useUserStore } from "@/state/userStore";
@@ -46,7 +44,6 @@ export default function QRScanner({
 }: { setShowBottomNav?: (show: boolean) => void }) {
   const navigation = useAdminNavigation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedMeal, setSelectedMeal] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [cameraKey, setCameraKey] = useState(Date.now());
@@ -54,7 +51,6 @@ export default function QRScanner({
   const [showUserModal, setShowUserModal] = useState(false);
   const [showGateModal, setShowGateModal] = useState(false);
   const [showHostelModal, setShowHostelModal] = useState(false);
-  const [showFoodModal, setShowFoodModal] = useState(false);
   const [userData, setUserData] = useState<UserRegistrationData | null>(null);
   const [gateUserData, setGateUserData] = useState<UserGateData | null>(null);
   const [hostelUserData, setHostelUserData] = useState<UserGateData | null>(
@@ -78,15 +74,6 @@ export default function QRScanner({
     "hospitality_member",
   ];
 
-  const foodAllowedRoles = [
-    "admin",
-    "hospitality_admin",
-    "hospitality_member",
-    "event_admin",
-    "outreach_admin",
-    "outreach_member",
-  ];
-
   const eventAllowedRoles = [
     "admin",
     "event_admin",
@@ -99,10 +86,6 @@ export default function QRScanner({
 
   const isHostelAccessAllowed = userProfile?.roles
     ? userProfile.roles.some((role) => hostelAllowedRoles.includes(role))
-    : false;
-
-  const isFoodAccessAllowed = userProfile?.roles
-    ? userProfile.roles.some((role) => foodAllowedRoles.includes(role))
     : false;
 
   const isGateAccessAllowed = userProfile?.roles
@@ -118,7 +101,6 @@ export default function QRScanner({
     React.useCallback(() => {
       // When screen comes into focus
       setSelectedCategory(null);
-      setSelectedMeal(null);
       setScanned(false);
       setShowCategorySelection(true);
 
@@ -175,16 +157,6 @@ export default function QRScanner({
       isAllowed: isHostelAccessAllowed,
     },
     {
-      id: "food",
-      name: "Food",
-      icon: UtensilsCrossed,
-      color: "#F59E0B",
-      bgColor: "bg-amber-500/20",
-      borderColor: "border-amber-500/30",
-      description: "Track meal distribution and consumption",
-      isAllowed: isFoodAccessAllowed,
-    },
-    {
       id: "event",
       name: "Event",
       icon: Calendar,
@@ -200,7 +172,6 @@ export default function QRScanner({
 
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategory(categoryId);
-    setSelectedMeal(null);
     setScanned(false);
     setShowCategorySelection(false);
   };
@@ -208,14 +179,8 @@ export default function QRScanner({
   const handleBackToSelection = () => {
     setShowCategorySelection(true);
     setSelectedCategory(null);
-    setSelectedMeal(null);
     setScanned(false);
     setCameraReady(false);
-  };
-
-  const handleMealSelect = (mealType: string) => {
-    setSelectedMeal(mealType);
-    setScanned(false);
   };
 
   const handleCheckIn = async () => {
@@ -278,7 +243,6 @@ export default function QRScanner({
     setShowUserModal(false);
     setShowGateModal(false);
     setShowHostelModal(false);
-    setShowFoodModal(false);
     setUserData(null);
     setGateUserData(null);
     setHostelUserData(null);
@@ -287,16 +251,6 @@ export default function QRScanner({
 
   const handleBarcodeScanned = async ({ data }: { type: string; data: string }) => {
     if (scanned || !selectedCategory) return;
-
-    // For food category, require meal selection
-    if (selectedCategory === "food" && !selectedMeal) {
-      showAlert(
-        "Meal Selection Required",
-        "Please select a meal type (Breakfast, Lunch, or Dinner) before scanning.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
 
     setScanned(true);
     setLoading(true);
@@ -311,9 +265,6 @@ export default function QRScanner({
         } else if (selectedCategory === "hostel") {
           setHostelUserData(result.data as UserGateData);
           setShowHostelModal(true);
-        } else if (selectedCategory === "food") {
-          setGateUserData(result.data as UserGateData);
-          setShowFoodModal(true);
         } else {
           setUserData(result.data as UserRegistrationData);
           setShowUserModal(true);
@@ -653,89 +604,11 @@ export default function QRScanner({
             >
               {selectedCategory?.toUpperCase()} Scanner
             </Text>
-            {selectedCategory === "food" && selectedMeal && (
-              <Text
-                style={{ fontFamily: "Outfit_400Regular" }}
-                className="text-[#EEB170] text-sm"
-              >
-                {selectedMeal.toUpperCase()}
-              </Text>
-            )}
           </View>
 
           {/* Invisible spacer to balance the layout */}
           <View style={{ width: 56 }} pointerEvents="none" />
         </View>
-
-        {/* Status Messages */}
-        {selectedCategory === "food" && !selectedMeal && (
-          <View
-            className="absolute bottom-60 left-4 right-4"
-            pointerEvents="none"
-          >
-            <View className="bg-black/70 rounded-xl px-4 py-3">
-              <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#0C3572] text-center text-base"
-              >
-                Select a meal type to start scanning
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {selectedCategory === "food" && selectedMeal && !scanned && (
-          <View
-            className="absolute bottom-60 left-4 right-4"
-            pointerEvents="none"
-          >
-            <View className="bg-black/70 rounded-xl px-4 py-3">
-              <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#0C3572] text-center text-base"
-              >
-                Ready to scan for {selectedMeal}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Meal Selection UI - Only show when Food category is selected */}
-        {selectedCategory === "food" && (
-          <View className="absolute bottom-32 left-4 right-4">
-            <View className="bg-black/80 rounded-2xl border border-white/20 px-4 py-3">
-              <Text
-                style={{ fontFamily: "Outfit_500Medium" }}
-                className="text-[#0C3572] text-center text-sm mb-3"
-              >
-                Select Meal Type:
-              </Text>
-              <View className="flex-row justify-between items-center">
-                {["breakfast", "lunch", "dinner"].map((meal) => (
-                  <TouchableOpacity
-                    key={meal}
-                    className={`flex-1 items-center justify-center py-3 mx-1 rounded-xl ${
-                      selectedMeal === meal ? "bg-[#EEB170]" : "bg-white/10"
-                    }`}
-                    onPress={() => handleMealSelect(meal)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className={`text-sm capitalize ${
-                        selectedMeal === meal
-                          ? "text-[#121212]"
-                          : "text-[#0C3572]"
-                      }`}
-                    >
-                      {meal}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-        )}
       </View>
 
       {/* User Information Modal */}
@@ -930,15 +803,6 @@ export default function QRScanner({
         onClose={closeModal}
         userData={hostelUserData}
         onUserDataUpdate={(updatedData) => setHostelUserData(updatedData)}
-      />
-
-      {/* Food User Information Modal */}
-      <FoodUserModal
-        visible={showFoodModal}
-        onClose={closeModal}
-        userData={gateUserData}
-        selectedMeal={selectedMeal}
-        onUserDataUpdate={(updatedData) => setGateUserData(updatedData)}
       />
     </View>
   );

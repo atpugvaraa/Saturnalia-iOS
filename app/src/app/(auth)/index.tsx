@@ -7,18 +7,25 @@ import {
   ActivityIndicator,
   Image,
   Platform,
+  StatusBar,
+  Linking,
 } from "react-native";
-import { useUserStore } from '@/state/userStore';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useUserStore } from "@/state/userStore";
 import { showAlert } from "../../components";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { Linking } from "react-native";
-import { requestNotificationPermission } from '@/utils/fcm';
-
-import { useRouter } from 'expo-router';
-import { handleGoogleSignIn, handleAppleSignIn, initializeGoogleSignIn } from '@/api/auth';
+import { useRouter } from "expo-router";
+import {
+  handleGoogleSignIn,
+  handleAppleSignIn,
+  initializeGoogleSignIn,
+} from "@/api/auth";
 
 const LoginScreen = () => {
-  const { isSigningIn, setSigningIn, setUserData, setAuthUser } = useUserStore();
+  const insets = useSafeAreaInsets();
+  const { isSigningIn, setSigningIn, setUserData, setAuthUser } =
+    useUserStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -33,12 +40,15 @@ const LoginScreen = () => {
       setUserData(result.profile);
     }
 
-    if (result.isFirstTime || (result.profile && !result.profile.fullyRegistered)) {
+    if (
+      result.isFirstTime ||
+      (result.profile && !result.profile.fullyRegistered)
+    ) {
       console.log(`User needs to complete profile (${provider})`);
-      router.replace('/(auth)/UserProfileFormScreen');
+      router.replace("/(auth)/UserProfileFormScreen");
     } else {
       console.log(`User fully registered, proceeding to tabs (${provider})`);
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
     }
   };
 
@@ -46,11 +56,11 @@ const LoginScreen = () => {
     setSigningIn(true);
     try {
       const result = await handleGoogleSignIn();
-      handleSignInSuccess(result, 'Google');
+      handleSignInSuccess(result, "Google");
     } catch (error: any) {
       if (error?.message !== "SIGN_IN_CANCELLED") {
-        showAlert('Error', 'An error occurred during sign in. Please try again.');
-        console.error('Google Login error:', error);
+        showAlert("Error", "An error occurred during sign in. Please try again.");
+        console.error("Google Login error:", error);
       }
     } finally {
       setSigningIn(false);
@@ -61,11 +71,11 @@ const LoginScreen = () => {
     setSigningIn(true);
     try {
       const result = await handleAppleSignIn();
-      handleSignInSuccess(result, 'Apple');
+      handleSignInSuccess(result, "Apple");
     } catch (error: any) {
       if (error?.message !== "SIGN_IN_CANCELLED") {
-        showAlert('Error', 'An error occurred during sign in. Please try again.');
-        console.error('Apple Login error:', error);
+        showAlert("Error", "An error occurred during sign in. Please try again.");
+        console.error("Apple Login error:", error);
       }
     } finally {
       setSigningIn(false);
@@ -73,78 +83,207 @@ const LoginScreen = () => {
   };
 
   return (
-    <View className="relative h-screen flex-1 items-center">
+    <View style={{ flex: 1, backgroundColor: "#131316" }}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+      {/* Full screen artwork poster */}
       <Image
         source={require("@/assets/background.png")}
-        className="absolute h-full w-full"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: "100%",
+          height: "100%",
+        }}
+        resizeMode="cover"
       />
-      <View className="flex-1 flex-col justify-end pb-40 items-center px-4 w-full">
-        <View className="w-full flex-col items-center">
-          <View className="w-full flex-row items-center gap-3">
+
+      {/* Subtle top bar branding pill */}
+      <View
+        style={{
+          paddingTop: Math.max(insets.top + 12, 44),
+          paddingHorizontal: 20,
+          alignItems: "center",
+        }}
+      >
+        
+      </View>
+
+      {/* Bottom Auth Card */}
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "flex-end",
+          paddingHorizontal: 16,
+          paddingBottom: Math.max(insets.bottom + 16, 24),
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: "rgba(22, 22, 27, 0.92)",
+            borderRadius: 28,
+            borderWidth: 1,
+            borderColor: "rgba(255, 255, 255, 0.12)",
+            paddingHorizontal: 20,
+            paddingTop: 24,
+            paddingBottom: 20,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.45,
+            shadowRadius: 16,
+            elevation: 10,
+          }}
+        >
+          
+
+          {/* Action Buttons */}
+          <View style={{ width: "100%", gap: 10 }}>
+            {/* Google Sign-in */}
             <TouchableOpacity
-              className="bg-[#352C06] flex-1 border-2 border-[#FDCE04] rounded-lg flex-row items-center justify-center"
-              style={{ height: 52, flex: 1, minWidth: '45%' }}
+              activeOpacity={0.82}
               onPress={onGoogleSignIn}
               disabled={isSigningIn}
+              style={{
+                width: "100%",
+                height: 52,
+                borderRadius: 16,
+                backgroundColor: "rgba(28, 28, 32, 0.95)",
+                borderWidth: 1.5,
+                borderColor: "#FFBA00",
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: "#FFBA00",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18,
+                shadowRadius: 6,
+                elevation: 2,
+              }}
             >
               {isSigningIn ? (
-                <ActivityIndicator size="small" color="#FDCE04" />
+                <ActivityIndicator size="small" color="#FFBA00" />
               ) : (
-                <View className="flex-row items-center">
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Image
                     source={require("@/assets/google.png")}
-                    className="h-6 w-6 mr-3"
+                    style={{ width: 22, height: 22, marginRight: 12 }}
                     resizeMode="contain"
                   />
                   <Text
-                    style={{ fontFamily: "Outfit_600SemiBold" }}
-                    className="text-[#FDCE04]"
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      fontSize: 15,
+                      color: "#FFBA00",
+                    }}
                   >
-                    Sign in with Google
+                    Continue with Google
                   </Text>
                 </View>
               )}
             </TouchableOpacity>
 
+            {/* Apple Sign-in (iOS only) */}
             {Platform.OS === "ios" && (
-              <View className="flex-1" style={{ flex: 1, minWidth: '45%' }}>
+              <View style={{ width: "100%", height: 52 }}>
                 {isSigningIn ? (
-                  <View className="bg-black border-2 border-white rounded-lg flex-row items-center justify-center" style={{ width: "100%", height: 52 }}>
+                  <View
+                    style={{
+                      width: "100%",
+                      height: 52,
+                      backgroundColor: "#000000",
+                      borderWidth: 1,
+                      borderColor: "rgba(255, 255, 255, 0.2)",
+                      borderRadius: 16,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   </View>
                 ) : (
                   <AppleAuthentication.AppleAuthenticationButton
-                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                    style={{ width: "100%", height: 52, borderRadius: 12 }}
-                    cornerRadius={12}
+                    buttonType={
+                      AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+                    }
+                    buttonStyle={
+                      AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                    }
+                    style={{ width: "100%", height: 52, borderRadius: 16 }}
+                    cornerRadius={16}
                     onPress={onAppleSignIn}
                   />
                 )}
               </View>
             )}
           </View>
-          <Text
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-            className="text-white mt-5 text-sm"
+
+          {/* Thapar student note pill */}
+          <View
+            style={{
+              backgroundColor: "rgba(65, 184, 240, 0.12)",
+              borderWidth: 1,
+              borderColor: "rgba(65, 184, 240, 0.25)",
+              borderRadius: 14,
+              paddingVertical: 9,
+              paddingHorizontal: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              marginTop: 16,
+            }}
           >
-            Thapar Students Kindly Sign in with Thapar gmail Account
-          </Text>
-          <Text
-            style={{ fontFamily: "Outfit_600SemiBold" }}
-            className="text-white text-sm mt-4 text-center"
-          >
-            By signing in, you agree to our{" "}
+            <Ionicons
+              name="school-outline"
+              size={18}
+              color="#41B8F0"
+              style={{ marginRight: 9 }}
+            />
             <Text
-              style={{ color: "#FDCE04", textDecorationLine: "underline" }}
+              style={{
+                fontFamily: "Poppins_500Medium",
+                fontSize: 12,
+                color: "#FFFFFF",
+                flex: 1,
+                lineHeight: 16,
+              }}
+            >
+              Thapar students, kindly sign in using your Thapar Google account (@thapar.edu)
+            </Text>
+          </View>
+
+          {/* Terms & Privacy */}
+          <Text
+            style={{
+              fontFamily: "Poppins_400Regular",
+              fontSize: 11.5,
+              color: "rgba(255, 255, 255, 0.65)",
+              textAlign: "center",
+              lineHeight: 17,
+              marginTop: 14,
+            }}
+          >
+            By continuing, you agree to our{" "}
+            <Text
+              style={{ color: "#FFBA00", textDecorationLine: "underline" }}
               onPress={() => Linking.openURL("https://saturnalia.in/policies")}
             >
-              Terms of Service and Privacy Policy
+              Terms of Service
+            </Text>{" "}
+            and{" "}
+            <Text
+              style={{ color: "#FFBA00", textDecorationLine: "underline" }}
+              onPress={() => Linking.openURL("https://saturnalia.in/policies")}
+            >
+              Privacy Policy
             </Text>
+            .
           </Text>
         </View>
       </View>
     </View>
   );
 };
+
 export default LoginScreen;

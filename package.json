@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "fetch:events": "node scripts/fetch_events_to_txt.js"
+  },
   "dependencies": {
     "firebase-admin": "^14.3.0"
   }
