@@ -23,7 +23,7 @@ services:
     image: ghcr.io/stktyagi/sat-app-26:latest
     restart: unless-stopped
     depends_on:
-      db:
+      redis:
         condition: service_healthy
     env_file:
         - ./backend/.env
