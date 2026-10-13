@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   api:
-    image: ghcr.io/stktyagi/Sat-app-26:latest
+    image: ghcr.io/stktyagi/sat-app-26:latest
     restart: unless-stopped
     depends_on:
       db:

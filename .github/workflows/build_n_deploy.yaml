@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
+  IMAGE: ghcr.io/stktyagi/sat-app-26
 
 jobs:
   build:
@@ -30,8 +30,8 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-backend:latest
-            ghcr.io/${{ github.repository }}-backend:${{ github.sha }}
+            ghcr.io/stktyagi/sat-app-26:latest
+            ghcr.io/stktyagi/sat-app-26:${{ github.sha }}
 
   deploy:
     needs: build
