@@ -25,6 +25,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    environment:
+    env_file:
+        - ./backend/.env
     ports:
       - "6767:6767"
