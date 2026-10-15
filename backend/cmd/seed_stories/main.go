@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"backend/internal/cache"
+	"backend/internal/config"
 	"backend/internal/models"
 	"backend/internal/storage"
 
@@ -19,9 +20,18 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Initialize ImageKit storage
-	mem := cache.NewMemory()
-	store, err := storage.New("imagekit.json", mem)
+	// Initialize ImageKit storage against the same Redis counters the API uses,
+	// so seeded bytes count toward each account's quota.
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
+	counters, err := cache.NewRedis(ctx, cfg.RedisURL, cfg.RedisNamespace)
+	if err != nil {
+		log.Fatalf("redis: %v", err)
+	}
+	defer counters.Close()
+	store, err := storage.New("imagekit.json", counters)
 	if err != nil {
 		log.Fatalf("failed to init imagekit storage: %v", err)
 	}

@@ -150,7 +150,7 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	// Payments: initiate creates a Easebuzz checkout link; callback receives
 	// the Easebuzz redirect/webhook; status lets the app poll outcome.
 	authed.POST("/payments/initiate", api.InitiatePayment)
-	v1.POST("/payments/callback", api.PaymentCallback) // open: Easebuzz hits this
+	v1.POST("/payments/callback", api.PaymentCallback)
 	if cfg.PaymentsDummy || cfg.EasebuzzKey == "" || cfg.EasebuzzSalt == "" {
 		v1.GET("/payments/dummy", api.DummyPayment) // open: local test bypass, never in prod
 	}

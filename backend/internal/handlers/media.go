@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -93,4 +95,39 @@ func (a *API) DeleteMedia(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// settleMedia deletes the ImageKit files a write left unreferenced. If the
+// write landed (saved), that is every ref in before that is gone from after:
+// replaced or removed. If it did not, it is every ref after added: fresh
+// uploads that now belong to nothing. Call it deferred, with before captured
+// ahead of any upload, so every early return is covered.
+//
+// Deletion is background and best effort; a failure only strands a file.
+func (a *API) settleMedia(saved bool, before, after []string) {
+	drop := missingRefs(after, before)
+	if saved {
+		drop = missingRefs(before, after)
+	}
+	if a.Storage == nil || len(drop) == 0 {
+		return
+	}
+	go func() {
+		for _, ref := range drop {
+			if err := a.Storage.Delete(context.Background(), ref); err != nil {
+				log.Printf("storage: deleting unreferenced media %q: %v", ref, err)
+			}
+		}
+	}()
+}
+
+// missingRefs returns the non-empty refs in from that are not in in.
+func missingRefs(from, in []string) []string {
+	var out []string
+	for _, r := range from {
+		if r != "" && !slices.Contains(in, r) {
+			out = append(out, r)
+		}
+	}
+	return out
 }

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -86,6 +85,8 @@ func (a *API) CreateStory(c *gin.Context) {
 
 	story := &models.Story{}
 	applyStoryBody(story, &body)
+	saved := false
+	defer func() { a.settleMedia(saved, nil, storyRefs(story)) }()
 
 	// If images were uploaded in multipart form, upload each to ImageKit
 	if isMultipart {
@@ -105,6 +106,7 @@ func (a *API) CreateStory(c *gin.Context) {
 		apierr.Respond(c, apierr.Internal("could not create story"))
 		return
 	}
+	saved = true
 	a.Stories.Invalidate()
 
 	c.JSON(http.StatusCreated, gin.H{"story": story})
@@ -120,6 +122,9 @@ func (a *API) UpdateStory(c *gin.Context) {
 		respondStoryLookup(c, err)
 		return
 	}
+	before := storyRefs(story)
+	saved := false
+	defer func() { a.settleMedia(saved, before, storyRefs(story)) }()
 
 	var body storyBody
 	contentType := c.ContentType()
@@ -164,6 +169,7 @@ func (a *API) UpdateStory(c *gin.Context) {
 		apierr.Respond(c, apierr.Internal("could not update story"))
 		return
 	}
+	saved = true
 	a.Stories.Invalidate()
 
 	c.JSON(http.StatusOK, gin.H{"story": story})
@@ -187,24 +193,7 @@ func (a *API) DeleteStory(c *gin.Context) {
 	}
 	a.Stories.Invalidate()
 
-	// Clean up ImageKit assets if stored with references
-	if len(story.Items) > 0 && a.Storage != nil {
-		refs := make([]string, 0, len(story.Items))
-		for _, it := range story.Items {
-			if it.Ref != "" {
-				refs = append(refs, it.Ref)
-			}
-		}
-		if len(refs) > 0 {
-			go func(toDelete []string) {
-				for _, ref := range toDelete {
-					if err := a.Storage.Delete(context.Background(), ref); err != nil {
-						log.Printf("storage: deleting story image %q: %v", ref, err)
-					}
-				}
-			}(refs)
-		}
-	}
+	a.settleMedia(true, storyRefs(story), nil)
 
 	c.Status(http.StatusNoContent)
 }
@@ -260,6 +249,15 @@ func (a *API) handleStoryFileUploads(c *gin.Context, story *models.Story) *apier
 	return nil
 }
 
+// storyRefs lists the ImageKit files a story owns.
+func storyRefs(st *models.Story) []string {
+	refs := make([]string, 0, len(st.Items))
+	for _, it := range st.Items {
+		refs = append(refs, it.Ref)
+	}
+	return refs
+}
+
 func respondStoryLookup(c *gin.Context, err error) {
 	if errors.Is(err, store.ErrNotFound) {
 		apierr.Respond(c, apierr.NotFound("story_not_found", "no such story"))
@@ -284,9 +282,19 @@ func applyStoryBody(st *models.Story, body *storyBody) int {
 	}
 	if body.Images != nil {
 		st.Images = *body.Images
+		// Keep the existing item for any URL that survives, so its ImageKit
+		// ref is not lost and the file stays deletable.
+		kept := make(map[string]models.StoryItem, len(st.Items))
+		for _, it := range st.Items {
+			kept[it.URL] = it
+		}
 		now := time.Now().UTC()
 		st.Items = make([]models.StoryItem, len(st.Images))
 		for i, img := range st.Images {
+			if it, ok := kept[img]; ok {
+				st.Items[i] = it
+				continue
+			}
 			st.Items[i] = models.StoryItem{
 				ID:         random.Code(12),
 				URL:        img,

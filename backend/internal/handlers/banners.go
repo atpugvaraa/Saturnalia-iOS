@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -98,6 +97,8 @@ func (a *API) CreateBanner(c *gin.Context) {
 
 	banner := &models.Banner{IsActive: true}
 	applyBannerBody(banner, &body)
+	saved := false
+	defer func() { a.settleMedia(saved, nil, []string{banner.ImageRef}) }()
 
 	// If a file was uploaded in multipart form, upload to ImageKit
 	if strings.HasPrefix(contentType, "multipart/form-data") {
@@ -138,6 +139,7 @@ func (a *API) CreateBanner(c *gin.Context) {
 		apierr.Respond(c, apierr.Internal("could not create banner"))
 		return
 	}
+	saved = true
 	a.Banners.Invalidate()
 
 	c.JSON(http.StatusCreated, gin.H{"banner": banner})
@@ -153,6 +155,9 @@ func (a *API) UpdateBanner(c *gin.Context) {
 		respondBannerLookup(c, err)
 		return
 	}
+	before := []string{banner.ImageRef}
+	saved := false
+	defer func() { a.settleMedia(saved, before, []string{banner.ImageRef}) }()
 
 	var body bannerBody
 	contentType := c.ContentType()
@@ -214,6 +219,7 @@ func (a *API) UpdateBanner(c *gin.Context) {
 		apierr.Respond(c, apierr.Internal("could not update banner"))
 		return
 	}
+	saved = true
 	a.Banners.Invalidate()
 
 	c.JSON(http.StatusOK, gin.H{"banner": banner})
@@ -237,14 +243,7 @@ func (a *API) DeleteBanner(c *gin.Context) {
 	}
 	a.Banners.Invalidate()
 
-	// Clean up ImageKit asset if stored with reference
-	if banner.ImageRef != "" && a.Storage != nil {
-		go func(ref string) {
-			if err := a.Storage.Delete(context.Background(), ref); err != nil {
-				log.Printf("storage: deleting banner image %q: %v", ref, err)
-			}
-		}(banner.ImageRef)
-	}
+	a.settleMedia(true, []string{banner.ImageRef}, nil)
 
 	c.Status(http.StatusNoContent)
 }
@@ -269,9 +268,11 @@ func applyBannerBody(b *models.Banner, body *bannerBody) int {
 	}
 	if body.ImageURL != nil {
 		b.ImageURL = strings.TrimSpace(*body.ImageURL)
+		b.ImageRef = ""
 		n++
 	} else if body.ImageLink != nil {
 		b.ImageURL = strings.TrimSpace(*body.ImageLink)
+		b.ImageRef = ""
 		n++
 	}
 	if body.Link != nil {

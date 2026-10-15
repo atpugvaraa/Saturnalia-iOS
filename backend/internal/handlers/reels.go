@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -119,6 +120,8 @@ func (a *API) CreateReel(c *gin.Context) {
 
 	reel := &models.Reel{}
 	applyReelBody(reel, &body)
+	saved := false
+	defer func() { a.settleMedia(saved, nil, reelRefs(reel)) }()
 
 	// If a video or thumbnail file was uploaded in multipart form, upload to ImageKit
 	if strings.HasPrefix(contentType, "multipart/form-data") {
@@ -141,6 +144,7 @@ func (a *API) CreateReel(c *gin.Context) {
 		apierr.Respond(c, apierr.Internal("could not create reel"))
 		return
 	}
+	saved = true
 	a.Reels.Invalidate()
 
 	c.JSON(http.StatusCreated, gin.H{"reel": reel})
@@ -156,6 +160,9 @@ func (a *API) UpdateReel(c *gin.Context) {
 		respondReelLookup(c, err)
 		return
 	}
+	before := reelRefs(reel)
+	saved := false
+	defer func() { a.settleMedia(saved, before, reelRefs(reel)) }()
 
 	var body reelBody
 	contentType := c.ContentType()
@@ -178,7 +185,7 @@ func (a *API) UpdateReel(c *gin.Context) {
 			apierr.Respond(c, uploadErr)
 			return
 		}
-		if reel.VideoRef != "" {
+		if !slices.Equal(before, reelRefs(reel)) {
 			n++
 		}
 	}
@@ -203,6 +210,7 @@ func (a *API) UpdateReel(c *gin.Context) {
 		apierr.Respond(c, apierr.Internal("could not update reel"))
 		return
 	}
+	saved = true
 	a.Reels.Invalidate()
 
 	c.JSON(http.StatusOK, gin.H{"reel": reel})
@@ -226,14 +234,7 @@ func (a *API) DeleteReel(c *gin.Context) {
 	}
 	a.Reels.Invalidate()
 
-	// Clean up ImageKit asset if stored with reference
-	if reel.VideoRef != "" && a.Storage != nil {
-		go func(ref string) {
-			if err := a.Storage.Delete(context.Background(), ref); err != nil {
-				log.Printf("storage: deleting reel video %q: %v", ref, err)
-			}
-		}(reel.VideoRef)
-	}
+	a.settleMedia(true, reelRefs(reel), nil)
 
 	c.Status(http.StatusNoContent)
 }
@@ -275,12 +276,13 @@ func (a *API) handleReelFileUploads(c *gin.Context, reel *models.Reel) *apierr.E
 		}
 		defer file.Close()
 
-		_, url, err := a.Storage.UploadFile(c.Request.Context(), "reels/thumbnails", thumbHeader.Filename, file)
+		ref, url, err := a.Storage.UploadFile(c.Request.Context(), "reels/thumbnails", thumbHeader.Filename, file)
 		if err != nil {
 			log.Printf("ImageKit thumbnail upload error: %v", err)
 			return apierr.Internal("failed to upload thumbnail to ImageKit")
 		}
 		reel.ThumbnailURL = url
+		reel.ThumbnailRef = ref
 	}
 
 	return nil
@@ -305,6 +307,11 @@ func (a *API) resolveReelEvent(ctx context.Context, reel *models.Reel) {
 	}
 }
 
+// reelRefs lists the ImageKit files a reel owns.
+func reelRefs(r *models.Reel) []string {
+	return []string{r.VideoRef, r.ThumbnailRef}
+}
+
 func respondReelLookup(c *gin.Context, err error) {
 	if errors.Is(err, store.ErrNotFound) {
 		apierr.Respond(c, apierr.NotFound("reel_not_found", "no such reel"))
@@ -325,13 +332,16 @@ func applyReelBody(r *models.Reel, body *reelBody) int {
 	}
 	if body.VideoURL != nil {
 		r.VideoURL = strings.TrimSpace(*body.VideoURL)
+		r.VideoRef = ""
 		n++
 	} else if body.VideoLink != nil {
 		r.VideoURL = strings.TrimSpace(*body.VideoLink)
+		r.VideoRef = ""
 		n++
 	}
 	if body.ThumbnailURL != nil {
 		r.ThumbnailURL = strings.TrimSpace(*body.ThumbnailURL)
+		r.ThumbnailRef = ""
 		n++
 	}
 	if body.EventID != nil {

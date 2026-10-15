@@ -18,6 +18,7 @@ type Reel struct {
 	VideoURL     string         `json:"videoUrl"              firestore:"videoUrl"`
 	VideoRef     string         `json:"videoRef,omitempty"    firestore:"videoRef,omitempty"`
 	ThumbnailURL string         `json:"thumbnailUrl,omitempty" firestore:"thumbnailUrl,omitempty"`
+	ThumbnailRef string         `json:"thumbnailRef,omitempty" firestore:"thumbnailRef,omitempty"`
 	EventID      string         `json:"eventId,omitempty"     firestore:"eventId,omitempty"`
 	Event        *ReelEventInfo `json:"event,omitempty"       firestore:"event,omitempty"`
 	Duration     int            `json:"duration,omitempty"    firestore:"duration,omitempty"` // seconds

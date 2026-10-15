@@ -43,13 +43,13 @@ func main() {
 
 	var mediaStore *storage.Store
 	if cfg.ImageKitAccountsFile != "" {
+		// Fatal on purpose: a broken accounts file should stop the deploy, not
+		// surface later as every upload failing with storage_not_configured.
 		ms, err := storage.New(cfg.ImageKitAccountsFile, provider)
 		if err != nil {
-			log.Printf("imagekit storage init warning: %v", err)
-		} else {
-			mediaStore = ms
-			log.Printf("imagekit storage initialized successfully")
+			log.Fatalf("imagekit storage: %v", err)
 		}
+		mediaStore = ms
 	}
 
 	st := store.New(clients.FS, cfg)

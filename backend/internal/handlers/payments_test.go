@@ -167,3 +167,37 @@ func TestStayCharge(t *testing.T) {
 		t.Errorf("an unknown day must be rejected, got %q", bad)
 	}
 }
+
+func TestEasebuzzInitiateParsingAndCleaning(t *testing.T) {
+	key := strings.Repeat("ab", 32)
+	if got, err := parseEasebuzzInitiate([]byte(`{"status":1,"data":"` + key + `"}`)); err != nil || got != key {
+		t.Errorf("success reply: got %q, %v", got, err)
+	}
+	for _, bad := range []string{`{"status":0,"error_desc":"x","data":"Parameter validation failed"}`, key, `{"status":1,"data":"../x"}`} {
+		if _, err := parseEasebuzzInitiate([]byte(bad)); err == nil {
+			t.Errorf("accepted %s", bad)
+		}
+	}
+	if got := ebClean("Robo Wars: 2.0 & Hack@Sat!", ebProductInfoBad, 45, "Payment"); got != "Robo Wars 2 0 Hack Sat" {
+		t.Errorf("productinfo: %q", got)
+	}
+	if got := ebClean("यश", ebFirstnameBad, 150, "Participant"); got != "Participant" {
+		t.Errorf("firstname fallback: %q", got)
+	}
+}
+
+func TestPickRetrieveEntry(t *testing.T) {
+	two := `{"status":true,"msg":[{"txnid":"T1","status":"userCancelled"},{"txnid":"T1","status":"success","amount":"100.0"}]}`
+	if e := pickRetrieveEntry([]byte(two)); e == nil || e["status"] != "success" {
+		t.Errorf("want the successful attempt, got %v", e)
+	}
+	one := `{"status":true,"msg":[{"txnid":"T1","status":"failure"}]}`
+	if e := pickRetrieveEntry([]byte(one)); e == nil || e["status"] != "failure" {
+		t.Errorf("want the only attempt, got %v", e)
+	}
+	for _, none := range []string{`{"status":false,"msg":"Transaction not found"}`, `{"status":true,"msg":[]}`, `oops`} {
+		if e := pickRetrieveEntry([]byte(none)); e != nil {
+			t.Errorf("%s: want nil, got %v", none, e)
+		}
+	}
+}

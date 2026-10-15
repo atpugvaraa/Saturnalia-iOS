@@ -209,39 +209,29 @@ export default function AccommodationScreen() {
         food: foodToPay,
       });
 
-      let orderId = res.merchantOrderId;
-      let urlStatus: string | null = null;
+      // Only the backend's record decides the outcome; the redirect URL is not trusted.
+      const orderId = res.merchantOrderId;
       let browserResultType = 'success';
 
       if (res.paymentUrl.includes('/payments/dummy')) {
         setPhase('verifying');
         try {
           await fetch(res.paymentUrl, { headers: { Accept: 'application/json' } });
-          urlStatus = 'success';
         } catch (e) {
-          const redirectUrl = 'app://profile/Accommodation';
+          const redirectUrl = 'app://payment';
           const result = await WebBrowser.openAuthSessionAsync(res.paymentUrl, redirectUrl);
           browserResultType = result.type;
         }
       } else {
         setPhase('opening');
-        const redirectUrl = 'app://profile/Accommodation';
+        const redirectUrl = 'app://payment';
         const result = await WebBrowser.openAuthSessionAsync(res.paymentUrl, redirectUrl);
         browserResultType = result.type;
-
-        if (result.type === 'success' && result.url) {
-          try {
-            const redirectedUrl = new URL(result.url);
-            urlStatus = redirectedUrl.searchParams.get('status');
-            const paramId = redirectedUrl.searchParams.get('merchantOrderId');
-            if (paramId) orderId = paramId;
-          } catch (e) {}
-        }
       }
 
       setPhase('verifying');
       const payment = await pollPaymentStatusWithRetry(orderId);
-      const status = payment?.status || urlStatus || 'pending';
+      const status = payment?.status || 'pending';
 
       setPhase('select');
 

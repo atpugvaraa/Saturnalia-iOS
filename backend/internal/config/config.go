@@ -42,13 +42,12 @@ type Config struct {
 	AppBaseURL string
 
 	// FrontendDeepLinkBase is the custom scheme used to redirect the mobile app
-	// after payment completes. e.g. "saturnalia://payment"
+	// after payment completes. e.g. "app://payment" (the app's scheme is "app")
 	FrontendDeepLinkBase string
 
 	// ImageKitAccountsFile points at the JSON array of ImageKit accounts that
-	// internal/storage spreads uploads across. Optional: nothing constructs a
-	// storage.Store yet, and an API with no file uploads wired up should still
-	// boot without credentials for them.
+	// internal/storage spreads uploads across. Optional: without it the API
+	// still boots, and the upload endpoints answer storage_not_configured.
 	ImageKitAccountsFile string
 
 	UseEmulator bool
@@ -74,7 +73,7 @@ func Load() (*Config, error) {
 		EasebuzzSalt:         os.Getenv("EASEBUZZ_SALT"),
 		EasebuzzEnv:          env("EASEBUZZ_ENV", "test"),
 		AppBaseURL:           env("APP_BASE_URL", "http://localhost:6767"),
-		FrontendDeepLinkBase: env("FRONTEND_DEEP_LINK_BASE", "saturnalia://payment"),
+		FrontendDeepLinkBase: env("FRONTEND_DEEP_LINK_BASE", "app://payment"),
 	}
 
 	ttl, err := time.ParseDuration(env("EVENT_CACHE_TTL", "24h"))

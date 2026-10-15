@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha512"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -12,6 +13,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,6 +39,20 @@ func (a *API) easebuzzBaseURL() string {
 	return "https://testpay.easebuzz.in"
 }
 
+// gatewayLive reports whether payments go through Easebuzz rather than the
+// dummy checkout.
+func (a *API) gatewayLive() bool {
+	return !a.Cfg.PaymentsDummy && a.Cfg.EasebuzzKey != "" && a.Cfg.EasebuzzSalt != ""
+}
+
+// easebuzzRetrieveURL is the Transaction API, which lives on the dashboard host.
+func (a *API) easebuzzRetrieveURL() string {
+	if a.Cfg.EasebuzzEnv == "prod" {
+		return "https://dashboard.easebuzz.in/transaction/v2.1/retrieve"
+	}
+	return "https://testdashboard.easebuzz.in/transaction/v2.1/retrieve"
+}
+
 // easebuzzInitiateURL is the server-to-server initiation endpoint.
 func (a *API) easebuzzInitiateURL() string {
 	return a.easebuzzBaseURL() + "/payment/initiateLink"
@@ -58,6 +74,28 @@ func verifyEasebuzzHash(received, salt, status, txnid, amount, productinfo, firs
 	plain := salt + "|" + status + strings.Repeat("|", 11) + email + "|" + firstname + "|" + productinfo + "|" + amount + "|" + txnid + "|" + key
 	computed := fmt.Sprintf("%x", sha512.Sum512([]byte(plain)))
 	return subtle.ConstantTimeCompare([]byte(computed), []byte(strings.ToLower(received))) == 1
+}
+
+// Easebuzz rejects initiate requests whose fields fall outside these patterns
+// (taken from its official SDK's validation), so values are cleaned to fit.
+var (
+	ebProductInfoBad = regexp.MustCompile(`[^a-zA-Z0-9\- |]+`)
+	ebFirstnameBad   = regexp.MustCompile(`[^a-zA-Z0-9&'\-._ ()/,@]+`)
+	ebNonDigit       = regexp.MustCompile(`\D`)
+	ebAccessKey      = regexp.MustCompile(`^[a-f0-9]{64}$`)
+)
+
+// ebClean replaces disallowed runs with a space, trims, caps the length and
+// falls back to def when nothing usable remains.
+func ebClean(s string, bad *regexp.Regexp, maxLen int, def string) string {
+	s = strings.Join(strings.Fields(bad.ReplaceAllString(s, " ")), " ")
+	if len(s) > maxLen {
+		s = strings.TrimSpace(s[:maxLen])
+	}
+	if s == "" {
+		return def
+	}
+	return s
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -356,19 +394,16 @@ func (a *API) getEasebuzzLink(
 	productInfo string,
 	user *models.User,
 ) (string, error) {
-	if a.Cfg.PaymentsDummy || a.Cfg.EasebuzzKey == "" || a.Cfg.EasebuzzSalt == "" {
+	if !a.gatewayLive() {
 		return fmt.Sprintf("%s/api/v1/payments/dummy?txnid=%s", a.Cfg.AppBaseURL, url.QueryEscape(merchantOrderID)), nil
 	}
 
 	amountStr := fmt.Sprintf("%.2f", float64(amount))
-	productinfo := productInfo
-	firstname := user.DisplayName
-	if firstname == "" {
-		firstname = "Participant"
-	}
+	productinfo := ebClean(productInfo, ebProductInfoBad, 45, "Payment")
+	firstname := ebClean(user.DisplayName, ebFirstnameBad, 150, "Participant")
 	email := user.Email
-	phone := user.PhoneNumber
-	if phone == "" {
+	phone := ebNonDigit.ReplaceAllString(user.PhoneNumber, "")
+	if len(phone) < 10 {
 		phone = "9999999999"
 	}
 
@@ -397,16 +432,28 @@ func (a *API) getEasebuzzLink(
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	bodyStr := strings.TrimSpace(string(body))
-
-	if resp.StatusCode != http.StatusOK || bodyStr == "" {
-		return "", fmt.Errorf("easebuzz returned %d: %s", resp.StatusCode, bodyStr)
+	accessKey, err := parseEasebuzzInitiate(body)
+	if resp.StatusCode != http.StatusOK || err != nil {
+		return "", fmt.Errorf("easebuzz returned %d: %v", resp.StatusCode, err)
 	}
+	return a.easebuzzBaseURL() + "/pay/" + accessKey, nil
+}
 
-	// Easebuzz returns just the access key / payment URL in the body.
-	// The checkout page is at: {base}/pay/{accessKey}
-	checkoutURL := a.easebuzzBaseURL() + "/pay/" + bodyStr
-	return checkoutURL, nil
+// parseEasebuzzInitiate reads the initiateLink reply, {"status":1,"data":"<access key>"};
+// on failure status is 0 and data carries the error.
+func parseEasebuzzInitiate(body []byte) (string, error) {
+	var r struct {
+		Status int `json:"status"`
+		Data   any `json:"data"`
+	}
+	if err := json.Unmarshal(body, &r); err != nil {
+		return "", fmt.Errorf("bad response %q", body)
+	}
+	key, _ := r.Data.(string)
+	if r.Status != 1 || !ebAccessKey.MatchString(key) {
+		return "", fmt.Errorf("initiate rejected: %s", body)
+	}
+	return key, nil
 }
 
 // DummyPayment is a mock checkout that settles a payment without a gateway. The
@@ -473,27 +520,123 @@ func (a *API) PaymentCallback(c *gin.Context) {
 		return
 	}
 
+	// A storage failure returns 500 so the gateway retries the webhook.
+	stored, err := a.applyGatewayStatus(c.Request.Context(), payment, status, f)
+	if err != nil {
+		log.Printf("[payment] could not apply %q to %s: %v", status, txnid, err)
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	a.redirectToApp(c, txnid, stored)
+}
+
+// applyGatewayStatus records a verified Easebuzz outcome and returns the status
+// now stored. f reads the gateway's fields. Settling and failing are both
+// idempotent, so the redirect, the webhook and reconcilePayment can all report
+// the same payment, in any order.
+func (a *API) applyGatewayStatus(ctx context.Context, p *models.Payment, status string, f func(string) string) (string, error) {
 	switch strings.ToLower(status) {
 	case "success":
 		fees := 0
 		if net, err := strconv.ParseFloat(f("net_amount_debit"), 64); err == nil {
-			fees = max(int(math.Round(net-float64(payment.FinalAmount))), 0)
+			fees = max(int(math.Round(net-float64(p.FinalAmount))), 0)
 		}
-		a.finishPayment(c, txnid, true, store.SettleInfo{
+		already, err := a.Store.SettlePayment(ctx, p.MerchantOrderID, store.SettleInfo{
 			TxnID:          f("easepayid"),
 			NetAmountDebit: f("net_amount_debit"),
 			Fees:           fees,
 		})
-	case "pending":
-		a.redirectToApp(c, txnid, models.PaymentStatusPending)
+		if err != nil {
+			return "", err
+		}
+		if !already {
+			a.Cache.Invalidate()
+		}
+		return models.PaymentStatusSuccess, nil
 	case "failure", "failed", "usercancelled", "dropped", "bounced":
-		a.finishPayment(c, txnid, false, store.SettleInfo{TxnID: f("easepayid")})
+		if err := a.Store.MarkPaymentFailed(ctx, p.MerchantOrderID, f("easepayid"), ""); err != nil {
+			return "", err
+		}
+		// MarkPaymentFailed leaves a paid payment alone, so report what is stored.
+		if q, err := a.Store.GetPayment(ctx, p.MerchantOrderID); err == nil {
+			return q.Status, nil
+		}
+		return models.PaymentStatusFailure, nil
 	default:
-		// An in-flight status we don't know (e.g. "initiated") must not fail
-		// the payment: a failure unlocks the team and frees the checkout.
-		log.Printf("[payment] %s: unrecognised gateway status %q, leaving pending", txnid, status)
-		a.redirectToApp(c, txnid, models.PaymentStatusPending)
+		// An in-flight status (pending, initiated, ...) must not fail the
+		// payment: a failure unlocks the team and frees the checkout.
+		if !strings.EqualFold(status, "pending") {
+			log.Printf("[payment] %s: unrecognised gateway status %q, leaving pending", p.MerchantOrderID, status)
+		}
+		return models.PaymentStatusPending, nil
 	}
+}
+
+// reconcilePayment asks Easebuzz directly for a pending payment's outcome and
+// applies it, so the result never depends on the redirect or webhook reaching
+// us (the user closing the browser early, a missed webhook).
+func (a *API) reconcilePayment(ctx context.Context, p *models.Payment) (string, error) {
+	form := url.Values{}
+	form.Set("key", a.Cfg.EasebuzzKey)
+	form.Set("txnid", p.MerchantOrderID)
+	form.Set("hash", fmt.Sprintf("%x", sha512.Sum512([]byte(a.Cfg.EasebuzzKey+"|"+p.MerchantOrderID+"|"+a.Cfg.EasebuzzSalt))))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.easebuzzRetrieveURL(), strings.NewReader(form.Encode()))
+	if err != nil {
+		return p.Status, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return p.Status, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	entry := pickRetrieveEntry(body)
+	if entry == nil { // not attempted yet, or an error reply: nothing to apply
+		return p.Status, nil
+	}
+	f := func(k string) string {
+		if v, ok := entry[k]; ok && v != nil {
+			return fmt.Sprint(v)
+		}
+		return ""
+	}
+	if f("txnid") != p.MerchantOrderID || !amountMatches(f("amount"), p.FinalAmount) {
+		return p.Status, fmt.Errorf("retrieve mismatch: txnid %q amount %q", f("txnid"), f("amount"))
+	}
+	return a.applyGatewayStatus(ctx, p, f("status"), f)
+}
+
+// pickRetrieveEntry reads a Transaction API reply, {"status":true,"msg":[{...}]},
+// one entry per attempt. A successful attempt wins; otherwise the first. It
+// returns nil when there is no transaction (msg is then an error string).
+func pickRetrieveEntry(body []byte) map[string]any {
+	var r struct {
+		Msg json.RawMessage `json:"msg"`
+	}
+	if json.Unmarshal(body, &r) != nil {
+		return nil
+	}
+	var entries []map[string]any
+	if json.Unmarshal(r.Msg, &entries) != nil {
+		var one map[string]any
+		if json.Unmarshal(r.Msg, &one) != nil || one == nil {
+			return nil
+		}
+		entries = []map[string]any{one}
+	}
+	for _, e := range entries {
+		if s, _ := e["status"].(string); strings.EqualFold(s, "success") {
+			return e
+		}
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	return entries[0]
 }
 
 // amountMatches compares the amount Easebuzz reports with the amount charged.
@@ -594,6 +737,16 @@ func (a *API) GetPayment(c *gin.Context) {
 	if payment.UserID != user.UserID && !user.IsAdmin() {
 		apierr.Respond(c, apierr.Forbidden("not_yours", "this payment belongs to someone else"))
 		return
+	}
+
+	// The app only trusts this endpoint, so a pending payment is checked with
+	// Easebuzz itself rather than waiting on the callback.
+	if payment.Status == models.PaymentStatusPending && a.gatewayLive() {
+		if _, err := a.reconcilePayment(ctx, payment); err != nil {
+			log.Printf("[payment] reconcile %s: %v", payment.MerchantOrderID, err)
+		} else if p, err := a.Store.GetPayment(ctx, payment.MerchantOrderID); err == nil {
+			payment = p
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"payment": payment})
