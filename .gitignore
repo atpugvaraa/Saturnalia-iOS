@@ -77,3 +77,4 @@ node_modules/
 serviceAccountKey.json
 export-schema.js
 *.md
+backend/imagekit.json
