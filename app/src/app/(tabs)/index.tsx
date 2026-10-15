@@ -353,7 +353,7 @@ export default function HomeScreen({ setShowBottomNav }: { setShowBottomNav?: (x
               marginBottom: 18,
             }}
           >
-            Lorem Ipsum Dolor Sit Amet, Lorem Ipsum
+            Explore headline competitions and showcases
           </Text>
 
           {/* Category Filters with transparent background and 41B8F0 border */}

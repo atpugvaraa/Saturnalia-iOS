@@ -123,18 +123,18 @@ const LoginScreen = () => {
       >
         <View
           style={{
-            backgroundColor: "rgba(22, 22, 27, 0.92)",
-            borderRadius: 28,
-            borderWidth: 1,
-            borderColor: "rgba(255, 255, 255, 0.12)",
+            // backgroundColor: "rgba(22, 22, 27, 0.92)",
+            // borderRadius: 28,
+            // borderWidth: 1,
+            // borderColor: "rgba(255, 255, 255, 0.12)",
             paddingHorizontal: 20,
             paddingTop: 24,
             paddingBottom: 20,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.45,
-            shadowRadius: 16,
-            elevation: 10,
+            // shadowColor: "#000",
+            // shadowOffset: { width: 0, height: 8 },
+            // shadowOpacity: 0.45,
+            // shadowRadius: 16,
+            // elevation: 10,
           }}
         >
           
@@ -223,9 +223,9 @@ const LoginScreen = () => {
           {/* Thapar student note pill */}
           <View
             style={{
-              backgroundColor: "rgba(65, 184, 240, 0.12)",
-              borderWidth: 1,
-              borderColor: "rgba(65, 184, 240, 0.25)",
+              backgroundColor: "rgba(13, 80, 112, 1)",
+              // borderWidth: 1,
+              borderColor: "rgba(65, 184, 240, 0.8)",
               borderRadius: 14,
               paddingVertical: 9,
               paddingHorizontal: 12,

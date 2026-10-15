@@ -37,8 +37,8 @@ export const useEventsSearch = (searchText: string) => {
   const filteredEvents = searchText.trim() === ''
     ? events
     : events.filter(event =>
-        event.title.toLowerCase().includes(searchText.toLowerCase()) ||
-        event.category.toLowerCase().includes(searchText.toLowerCase()) ||
+        (event.title || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        (event.category || '').toLowerCase().includes(searchText.toLowerCase()) ||
         (event.venueName && event.venueName.toLowerCase().includes(searchText.toLowerCase())) ||
         (event.description && event.description.toLowerCase().includes(searchText.toLowerCase())) ||
         (event.shortDescription && event.shortDescription.toLowerCase().includes(searchText.toLowerCase()))

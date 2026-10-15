@@ -22,7 +22,6 @@ import { useThemeStore } from "@/state/themeStore";
 import { useAdminDrawerStore } from "@/state/adminDrawerStore";
 import { Reel } from '@/types/models';
 import { showAlert } from "../../components";
-import { MOCK_REELS } from "@/mocks/reels";
 import { API_BASE_URL } from "@/config/api";
 import { useReels } from "@/hooks/useReels";
 

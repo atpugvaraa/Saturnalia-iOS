@@ -27,30 +27,31 @@ export const FeaturedEventCard: React.FC<FeaturedEventCardProps> = ({ event, onP
   };
 
   const getFormattedDate = () => {
-    const raw = event.dateTime || event.startDateTime;
-    if (!raw) return '21 Nov';
+    const raw = event?.dateTime || event?.startDateTime;
+    if (!raw) return 'TBA';
     const d = new Date(raw);
-    if (isNaN(d.getTime())) return '21 Nov';
+    if (isNaN(d.getTime())) return 'TBA';
     const day = d.getDate();
     const month = d.toLocaleDateString('en-US', { month: 'short' });
     return `${day} ${month}`;
   };
 
   const dateBadge = getFormattedDate();
-  const coverSource = event.coverImage ? { uri: event.coverImage } : require('@/assets/event.jpg');
+  const coverSource = event?.coverImage ? { uri: event.coverImage } : require('@/assets/event.jpg');
 
   const formatPrize = () => {
-    const raw = event.shortPrizes || event.prizes;
-    if (!raw) return '1,50,000';
+    const raw = event?.shortPrizes || event?.prizes;
+    if (!raw) return 'TBA';
     const clean = raw.replace(/[*#_~]/g, '').trim();
+    if (!clean) return 'TBA';
     const match = clean.match(/(\d[\d,]*000|\d[\d,]*\s*(?:k|lakh)?)/i);
     if (match) return match[1].replace(/^₹\s*/, '').replace(/^Rs\.?\s*/i, '');
     if (clean.length <= 15) return clean.replace(/^₹\s*/, '').replace(/^Rs\.?\s*/i, '');
-    return '1,50,000';
+    return clean.slice(0, 15);
   };
 
   const prizeDisplay = formatPrize();
-  const venueDisplay = event.venueName || 'CSED';
+  const venueDisplay = event?.venueName || 'Campus';
 
   return (
     <TouchableOpacity
@@ -128,7 +129,7 @@ export const FeaturedEventCard: React.FC<FeaturedEventCardProps> = ({ event, onP
             }}
             numberOfLines={1}
           >
-            {event.title}
+            {event?.title || 'Event'}
           </Text>
         </View>
 
@@ -190,7 +191,7 @@ export const FeaturedEventCard: React.FC<FeaturedEventCardProps> = ({ event, onP
           }}
           numberOfLines={2}
         >
-          {event.shortDescription || event.description || 'Lorem Ipsum Dolor Sit Amet, Lorem Ipsum'}
+          {event?.shortDescription || event?.description || 'No description available'}
         </Text>
 
         {/* Metadata Row: Trophy Prize & Venue */}

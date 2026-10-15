@@ -39,95 +39,7 @@ const BENTO_CONFIG = [
   { height: 110, bgColor: '#C04B6A' }, // Bottom-Right
 ];
 
-const FALLBACK_BENTO_EVENTS: FirebaseEvent[] = [
-  {
-    eventId: 'mock-bento-1',
-    title: 'Code Relay',
-    category: 'Technical',
-    isFeatured: true,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-bento-2',
-    title: 'Battle of Bands',
-    category: 'Cultural',
-    isFeatured: true,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-bento-3',
-    title: 'Design Sprint',
-    category: 'Technical',
-    isFeatured: true,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-bento-4',
-    title: 'Pitch Tank',
-    category: 'Business',
-    isFeatured: true,
-  } as FirebaseEvent,
-];
 
-const FALLBACK_HYPED_EVENTS: FirebaseEvent[] = [
-  {
-    eventId: 'mock-hype-1',
-    title: 'SatHack 2026',
-    category: 'Hackathon',
-    registeredCount: 1200,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-2',
-    title: 'Robowars',
-    category: 'Robotics',
-    registeredCount: 100,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-3',
-    title: 'Star Night',
-    category: 'Cultural',
-    registeredCount: 3200,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-4',
-    title: 'Gaming Arena',
-    category: 'Informal',
-    registeredCount: 850,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-5',
-    title: 'Nukkad Natak',
-    category: 'Cultural',
-    registeredCount: 450,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-6',
-    title: 'Battle of the Bands',
-    category: 'Cultural',
-    registeredCount: 950,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-7',
-    title: 'Code Relay',
-    category: 'Technical',
-    registeredCount: 780,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-8',
-    title: 'Fashion Walk',
-    category: 'Cultural',
-    registeredCount: 620,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-9',
-    title: 'Robo Soccer',
-    category: 'Robotics',
-    registeredCount: 510,
-  } as FirebaseEvent,
-  {
-    eventId: 'mock-hype-10',
-    title: 'Design Sprint',
-    category: 'Technical',
-    registeredCount: 420,
-  } as FirebaseEvent,
-];
 
 function getOrdinalSuffix(day: number): string {
   if (day >= 11 && day <= 13) return `${day}th`;
@@ -203,10 +115,8 @@ export default function EventsTabScreen() {
   // Featured events for Spotlight Bento Box
   const featuredEvents = useMemo(() => {
     const list = events.filter((e) => e.isFeatured === true);
-    if (list.length >= 4) return list;
-    if (events.length >= 4) return events;
-    if (events.length > 0) return [...events, ...FALLBACK_BENTO_EVENTS].slice(0, 4);
-    return FALLBACK_BENTO_EVENTS;
+    if (list.length > 0) return list;
+    return events;
   }, [events]);
 
   // Group featured events into bento pages of 4 items each
@@ -221,15 +131,9 @@ export default function EventsTabScreen() {
 
   // Top 10 Hyped Events sorted by registrations
   const hypedEvents = useMemo(() => {
-    if (events.length >= 10) {
-      const sorted = [...events].sort((a, b) => (b.registeredCount || 0) - (a.registeredCount || 0));
-      return sorted.slice(0, 10);
-    }
-    if (events.length > 0) {
-      const sorted = [...events].sort((a, b) => (b.registeredCount || 0) - (a.registeredCount || 0));
-      return [...sorted, ...FALLBACK_HYPED_EVENTS].slice(0, 10);
-    }
-    return FALLBACK_HYPED_EVENTS.slice(0, 10);
+    if (events.length === 0) return [];
+    const sorted = [...events].sort((a, b) => (b.registeredCount || 0) - (a.registeredCount || 0));
+    return sorted.slice(0, 10);
   }, [events]);
 
   // Timeline groups for each date — ONLY includes dates with actual scheduled events
@@ -572,8 +476,8 @@ export default function EventsTabScreen() {
               </View>
             ) : (
               <View style={{ width: '100%' }}>
-                {filteredResults.map((evt) => (
-                  <FeaturedEventCard key={evt.eventId} event={evt} />
+                {filteredResults.map((evt, idx) => (
+                  <FeaturedEventCard key={`filter-${evt.eventId || idx}-${idx}`} event={evt} />
                 ))}
               </View>
             )}
@@ -581,6 +485,7 @@ export default function EventsTabScreen() {
         ) : (
           <>
             {/* "In the Spotlight" Bento Box Section */}
+            {(loading || featuredEvents.length > 0) && (
             <View style={{ marginBottom: 30 }}>
               <View style={{ paddingHorizontal: 20, marginBottom: 14 }}>
                 <Text
@@ -663,7 +568,7 @@ export default function EventsTabScreen() {
                                 }}
                                 numberOfLines={2}
                               >
-                                {c1.title}
+                                {c1.title || 'Event'}
                               </Text>
                             </TouchableOpacity>
                           ) : (
@@ -697,7 +602,7 @@ export default function EventsTabScreen() {
                                 }}
                                 numberOfLines={3}
                               >
-                                {c2.title}
+                                {c2.title || 'Event'}
                               </Text>
                             </TouchableOpacity>
                           ) : (
@@ -734,7 +639,7 @@ export default function EventsTabScreen() {
                                 }}
                                 numberOfLines={3}
                               >
-                                {c3.title}
+                                {c3.title || 'Event'}
                               </Text>
                             </TouchableOpacity>
                           ) : (
@@ -768,7 +673,7 @@ export default function EventsTabScreen() {
                                 }}
                                 numberOfLines={2}
                               >
-                                {c4.title}
+                                {c4.title || 'Event'}
                               </Text>
                             </TouchableOpacity>
                           ) : (
@@ -781,8 +686,10 @@ export default function EventsTabScreen() {
                 </ScrollView>
               )}
             </View>
+            )}
 
             {/* "Hyped Events" Section */}
+            {hypedEvents.length > 0 && (
             <View style={{ marginBottom: 20 }}>
               <View style={{ paddingHorizontal: 20, marginBottom: 14 }}>
                 <Text
@@ -815,7 +722,7 @@ export default function EventsTabScreen() {
 
                   return (
                     <TouchableOpacity
-                      key={evt.eventId || `hyped-${idx}`}
+                      key={`hyped-${evt.eventId || idx}-${idx}`}
                       onPress={() => handleEventPress(evt)}
                       activeOpacity={0.92}
                       style={{
@@ -900,6 +807,7 @@ export default function EventsTabScreen() {
                 })}
               </ScrollView>
             </View>
+            )}
 
             {/* "Timeline" Section */}
             <View style={{ marginBottom: 30 }}>
@@ -917,7 +825,11 @@ export default function EventsTabScreen() {
               </View>
 
               {/* Timeline date groups */}
-              {timelineGroups.length === 0 ? (
+              {loading && events.length === 0 ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#38BDF8" />
+                </View>
+              ) : timelineGroups.length === 0 ? (
                 <View
                   style={{
                     paddingVertical: 28,
@@ -968,7 +880,7 @@ export default function EventsTabScreen() {
 
                     return (
                       <View
-                        key={group.dateKey || `tl-group-${groupIdx}`}
+                        key={`tl-group-${group.dateKey || groupIdx}-${groupIdx}`}
                         style={{
                           flexDirection: 'row',
                           marginBottom: isLast ? 10 : ROW_GAP,
@@ -1041,7 +953,7 @@ export default function EventsTabScreen() {
 
                             return (
                               <TouchableOpacity
-                                key={evt.eventId || `tl-card-${groupIdx}-${cardIdx}`}
+                                key={`tl-card-${groupIdx}-${evt.eventId || cardIdx}-${cardIdx}`}
                                 onPress={() => handleEventPress(evt)}
                                 activeOpacity={0.9}
                                 style={{

@@ -4,7 +4,7 @@ import { apiFetch, readError } from "./client";
 const toFirebaseEvent = (raw: any): FirebaseEvent => {
   const e = raw ?? {};
   return {
-  eventId: e.eventId || e.id || "",
+  eventId: e.id || e.eventId || "",
   title: e.title ?? "",
   description: e.description ?? "",
   shortDescription: e.shortDescription ?? "",

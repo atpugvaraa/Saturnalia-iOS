@@ -322,7 +322,7 @@ export default function SearchEventsScreen() {
             <FlatList
               data={filteredEvents}
               renderItem={renderEventItem}
-              keyExtractor={(item) => item.eventId}
+              keyExtractor={(item, index) => item.eventId ? `${item.eventId}-${index}` : `event-${index}`}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
             />
