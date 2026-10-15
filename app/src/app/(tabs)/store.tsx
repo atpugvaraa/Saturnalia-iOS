@@ -15,6 +15,8 @@ import { useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { useThemeStore } from '@/state/themeStore';
 import { useAdminDrawerStore } from '@/state/adminDrawerStore';
+import { useUserStore } from '@/state/userStore';
+import { isUserAdmin } from '@/utils/roles';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CENTER_CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.58, 226);
@@ -114,6 +116,8 @@ const StoreScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { isDark } = useThemeStore();
   const { openDrawer } = useAdminDrawerStore();
+  const { userData } = useUserStore();
+  const canSeeAdmin = isUserAdmin(userData);
   const [searchQuery, setSearchQuery] = useState('');
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
@@ -152,28 +156,30 @@ const StoreScreen: React.FC = () => {
           gap: 12,
         }}
       >
-        {/* Hamburger Menu */}
-        <TouchableOpacity
-          onPress={openDrawer}
-          activeOpacity={0.75}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
-            borderWidth: 1,
-            borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: isDark ? 0.25 : 0.06,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
-        >
-          <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
-        </TouchableOpacity>
+        {/* Hamburger Menu - only for admin/staff */}
+        {canSeeAdmin && (
+          <TouchableOpacity
+            onPress={openDrawer}
+            activeOpacity={0.75}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: isDark ? 0.25 : 0.06,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+          </TouchableOpacity>
+        )}
 
         {/* Search Item Pill */}
         <View

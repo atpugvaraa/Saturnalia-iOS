@@ -10,6 +10,12 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { showAlert } from "../index";
+import { useThemeStore } from "@/state/themeStore";
+import {
+  UserGateData,
+  updateGateFestStatus,
+  getUserRegisteredEvents,
+} from "@/api/admin";
 
 interface GateUserModalProps {
   visible: boolean;
@@ -24,9 +30,14 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
   userData,
   onUserDataUpdate,
 }) => {
+  const { isDark } = useThemeStore();
   const [loading, setLoading] = useState(false);
-  /* Removed API call */
-  /* Removed API call */
+  const [currentUserData, setCurrentUserData] = useState<UserGateData | null>(
+    userData
+  );
+  const [userEvents, setUserEvents] = useState<any[]>(
+    userData?.userEvents || []
+  );
   const [showEventsList, setShowEventsList] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [remark, setRemark] = useState("");
@@ -34,10 +45,18 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  const modalBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const modalBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const cardBg = isDark ? "#131316" : "#F3F4F6";
+  const cardBorder = isDark ? "#2A2A30" : "#E5E7EB";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#9CA3AF" : "#6B7280";
+  const inputBg = isDark ? "#18181C" : "#FFFFFF";
+
   // Update local state when userData prop changes
   React.useEffect(() => {
     setCurrentUserData(userData);
-    // Set remark from existing data if available
+    setUserEvents(userData?.userEvents || []);
     if (userData?.checkInStatus?.remark) {
       setRemark(userData.checkInStatus.remark);
     } else {
@@ -47,17 +66,39 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
   }, [userData]);
 
   // Fetch user events when modal opens
-  /* Removed API call */
+  React.useEffect(() => {
+    const fetchEvents = async () => {
+      if (
+        visible &&
+        userData?.userId &&
+        (!userData.userEvents || userData.userEvents.length === 0)
+      ) {
+        setLoadingEvents(true);
+        try {
+          const events = await getUserRegisteredEvents(userData.userId);
+          setUserEvents(events);
+        } catch (e) {
+          console.error("Failed to load user events:", e);
+        } finally {
+          setLoadingEvents(false);
+        }
+      }
+    };
+    fetchEvents();
+  }, [visible, userData?.userId]);
 
   if (!currentUserData) return null;
 
   const handleFestStatusUpdate = async (newStatus: boolean) => {
     setLoading(true);
     try {
-      /* Removed API call */
+      const result = await updateGateFestStatus(
+        currentUserData.userId,
+        newStatus,
+        remark
+      );
 
       if (result.success) {
-        // Update local state
         const updatedData = {
           ...currentUserData,
           checkInStatus: {
@@ -68,14 +109,12 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
         };
         setCurrentUserData(updatedData);
 
-        // Notify parent component
         if (onUserDataUpdate) {
           onUserDataUpdate(updatedData);
         }
 
         setShowRemarkInput(false);
 
-        // Show success banner instead of alert modal
         setSuccessMessage(
           `Fest entry ${
             newStatus ? "confirmed" : "reverted to pending"
@@ -105,17 +144,46 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
     <Modal
       visible={visible}
       transparent={true}
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-black/50 justify-center items-center px-6">
-        <View className="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-sm border border-[#2C2C2C] max-h-[80%]">
+      <View style={{ flex: 1, backgroundColor: "rgba(0, 0, 0, 0.75)", justifyContent: "center", alignItems: "center", paddingHorizontal: 20 }}>
+        <View
+          style={{
+            backgroundColor: modalBg,
+            borderRadius: 24,
+            padding: 22,
+            width: "100%",
+            maxWidth: 380,
+            borderWidth: 1,
+            borderColor: modalBorder,
+            maxHeight: "84%",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.35,
+            shadowRadius: 16,
+            elevation: 8,
+          }}
+        >
           {/* Success Banner */}
           {updateSuccess && (
-            <View className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mb-4">
+            <View
+              style={{
+                backgroundColor: "rgba(16, 185, 129, 0.15)",
+                borderWidth: 1,
+                borderColor: "rgba(16, 185, 129, 0.35)",
+                borderRadius: 14,
+                padding: 12,
+                marginBottom: 14,
+              }}
+            >
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-green-400 text-center"
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  color: "#10B981",
+                  textAlign: "center",
+                  fontSize: 13,
+                }}
               >
                 ✓ {successMessage}
               </Text>
@@ -124,34 +192,91 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
 
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Header */}
-            <View className="items-center mb-6">
+            <View style={{ alignItems: "center", marginBottom: 20 }}>
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-white text-2xl mb-2 text-center"
+                style={{
+                  fontFamily: "Talina",
+                  color: textPrimary,
+                  fontSize: 22,
+                  textAlign: "center",
+                  marginBottom: 6,
+                }}
               >
-                {currentUserData.displayName}
+                {currentUserData.displayName || currentUserData.name || "User"}
               </Text>
-              <View className="bg-[#2C2C2C] rounded-full px-3 py-1">
-                <Text className="text-gray-300 text-sm">Gate Entry</Text>
+              <View
+                style={{
+                  backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "rgba(65, 184, 240, 0.12)",
+                  borderRadius: 20,
+                  paddingHorizontal: 12,
+                  paddingVertical: 4,
+                  borderWidth: 1,
+                  borderColor: "rgba(65, 184, 240, 0.3)",
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: "#41B8F0",
+                    fontSize: 12,
+                  }}
+                >
+                  Gate Entry Verification
+                </Text>
               </View>
             </View>
 
-            {/* User Information */}
-            <View className="gap-6">
-              {/* Email */}
-
+            {/* Information Cards */}
+            <View style={{ gap: 12 }}>
               {/* College */}
-              <View className="bg-[#2C2C2C] rounded-xl p-5 mx-2">
-                <Text className="text-gray-400 text-sm mb-2">College</Text>
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-white text-base"
+                  style={{
+                    fontFamily: "Poppins_400Regular",
+                    color: textSecondary,
+                    fontSize: 12,
+                    marginBottom: 4,
+                  }}
                 >
-                  {currentUserData.collegeName}
+                  College
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: textPrimary,
+                    fontSize: 15,
+                  }}
+                >
+                  {currentUserData.collegeName || "Not specified"}
                 </Text>
                 {currentUserData.isHostCollegeStudent && (
-                  <View className="bg-[#FFBA00] rounded-full px-3 py-1 mt-3 self-start">
-                    <Text className="text-[#121212] text-xs font-semibold">
+                  <View
+                    style={{
+                      backgroundColor: "rgba(65, 184, 240, 0.15)",
+                      borderRadius: 12,
+                      paddingHorizontal: 10,
+                      paddingVertical: 3,
+                      marginTop: 8,
+                      alignSelf: "flex-start",
+                      borderWidth: 1,
+                      borderColor: "rgba(65, 184, 240, 0.3)",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        color: "#41B8F0",
+                        fontSize: 11,
+                      }}
+                    >
                       Host College
                     </Text>
                   </View>
@@ -159,64 +284,87 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
               </View>
 
               {/* Fest Entry Status & Actions */}
-              <View className="bg-[#2C2C2C] rounded-xl p-5 mx-2">
-                <Text className="text-gray-400 text-sm mb-4">
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: textPrimary,
+                    fontSize: 14,
+                    marginBottom: 12,
+                  }}
+                >
                   Fest Entry Status
                 </Text>
 
-                {/* Fest Check-in Status */}
-                <View className="flex-row items-center justify-between mb-4">
-                  <Text className="text-white text-sm">Current Status</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                    Current Status:
+                  </Text>
                   <View
-                    className={`px-3 py-1 rounded-full ${
-                      currentUserData.checkInStatus.fest
-                        ? "bg-green-500/20"
-                        : "bg-gray-500/20"
-                    }`}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 20,
+                      backgroundColor: currentUserData.checkInStatus.fest
+                        ? "rgba(16, 185, 129, 0.2)"
+                        : "rgba(234, 179, 8, 0.2)",
+                    }}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        currentUserData.checkInStatus.fest
-                          ? "text-green-400"
-                          : "text-gray-400"
-                      }`}
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        fontSize: 12,
+                        color: currentUserData.checkInStatus.fest ? "#10B981" : "#FBBF24",
+                      }}
                     >
-                      {currentUserData.checkInStatus.fest
-                        ? "Confirmed"
-                        : "Pending"}
+                      {currentUserData.checkInStatus.fest ? "Confirmed" : "Pending"}
                     </Text>
                   </View>
                 </View>
 
                 {/* Action Buttons */}
-                <View className="flex-row gap-3">
+                <View style={{ flexDirection: "row", gap: 10 }}>
                   {!currentUserData.checkInStatus.fest ? (
                     <TouchableOpacity
-                      className={`flex-1 py-3 rounded-xl ${
-                        currentUserData.checkInStatus.fest
-                          ? "bg-gray-600"
-                          : "bg-green-600"
-                      }`}
+                      style={{
+                        flex: 1,
+                        backgroundColor: "#10B981",
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
                       onPress={() => handleFestStatusUpdate(true)}
-                      disabled={loading || currentUserData.checkInStatus.fest}
+                      disabled={loading}
                       activeOpacity={0.7}
                     >
-                      <Text className="text-white text-center font-semibold text-sm">
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 13 }}>
                         {loading ? "Updating..." : "Confirm Entry"}
                       </Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
-                      className={`flex-1 py-3 rounded-xl ${
-                        !currentUserData.checkInStatus.fest
-                          ? "bg-gray-600"
-                          : "bg-red-600"
-                      }`}
+                      style={{
+                        flex: 1,
+                        backgroundColor: "#EF4444",
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
                       onPress={() => handleFestStatusUpdate(false)}
-                      disabled={loading || !currentUserData.checkInStatus.fest}
+                      disabled={loading}
                       activeOpacity={0.7}
                     >
-                      <Text className="text-white text-center font-semibold text-sm">
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 13 }}>
                         {loading ? "Updating..." : "Revert to Pending"}
                       </Text>
                     </TouchableOpacity>
@@ -225,15 +373,28 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
               </View>
 
               {/* Remark Section */}
-              <View className="bg-[#2C2C2C] rounded-xl p-5 mx-2">
-                <View className="flex-row items-center justify-between mb-4">
-                  <Text className="text-gray-400 text-sm">Remark</Text>
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 14 }}>
+                    Admin Remark
+                  </Text>
                   {currentUserData.checkInStatus.remark && !showRemarkInput && (
                     <TouchableOpacity
                       onPress={() => setShowRemarkInput(true)}
                       activeOpacity={0.7}
+                      style={{
+                        padding: 4,
+                      }}
                     >
-                      <Ionicons name="pencil" size={16} color="#FFBA00" />
+                      <Ionicons name="pencil" size={16} color="#41B8F0" />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -241,30 +402,55 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
                 {showRemarkInput ? (
                   <>
                     <TextInput
-                      className="bg-[#1a1a1a] text-white p-3 rounded-xl mb-3 text-sm"
+                      style={{
+                        backgroundColor: inputBg,
+                        color: textPrimary,
+                        padding: 12,
+                        borderRadius: 12,
+                        marginBottom: 10,
+                        fontSize: 13,
+                        fontFamily: "Poppins_400Regular",
+                        minHeight: 70,
+                        borderWidth: 1,
+                        borderColor: cardBorder,
+                        textAlignVertical: "top",
+                      }}
                       placeholder="Enter remark (optional)..."
-                      placeholderTextColor="#666"
+                      placeholderTextColor={textSecondary}
                       value={remark}
                       onChangeText={setRemark}
                       multiline
                       numberOfLines={3}
-                      style={{ fontFamily: "Outfit_400Regular", minHeight: 80 }}
                     />
-                    <View className="flex-row gap-3">
+                    <View style={{ flexDirection: "row", gap: 10 }}>
                       <TouchableOpacity
-                        className="flex-1 bg-gray-600 py-2 rounded-xl"
+                        style={{
+                          flex: 1,
+                          backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)",
+                          paddingVertical: 10,
+                          borderRadius: 10,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
                         onPress={() => {
                           setRemark(currentUserData.checkInStatus.remark || "");
                           setShowRemarkInput(false);
                         }}
                         activeOpacity={0.7}
                       >
-                        <Text className="text-white text-center font-semibold text-xs">
+                        <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 12 }}>
                           Cancel
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        className="flex-1 bg-[#FFBA00] py-2 rounded-xl"
+                        style={{
+                          flex: 1,
+                          backgroundColor: "#41B8F0",
+                          paddingVertical: 10,
+                          borderRadius: 10,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
                         onPress={() =>
                           handleFestStatusUpdate(
                             currentUserData.checkInStatus.fest
@@ -273,7 +459,7 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
                         disabled={loading}
                         activeOpacity={0.7}
                       >
-                        <Text className="text-[#121212] text-center font-semibold text-xs">
+                        <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 12 }}>
                           {loading ? "Saving..." : "Save Remark"}
                         </Text>
                       </TouchableOpacity>
@@ -283,26 +469,44 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
                   <>
                     {currentUserData.checkInStatus.remark ? (
                       <Text
-                        style={{ fontFamily: "Outfit_400Regular" }}
-                        className="text-white text-sm mb-3"
+                        style={{
+                          fontFamily: "Poppins_400Regular",
+                          color: textPrimary,
+                          fontSize: 13,
+                          marginBottom: 8,
+                        }}
                       >
                         {currentUserData.checkInStatus.remark}
                       </Text>
                     ) : (
-                      <Text className="text-gray-500 text-sm italic mb-3">
+                      <Text
+                        style={{
+                          fontFamily: "Poppins_400Regular",
+                          color: textSecondary,
+                          fontSize: 13,
+                          fontStyle: "italic",
+                          marginBottom: 8,
+                        }}
+                      >
                         No remark added
                       </Text>
                     )}
                     {!currentUserData.checkInStatus.fest && (
                       <TouchableOpacity
-                        className="bg-[#3B82F6] py-2 rounded-xl"
+                        style={{
+                          backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "rgba(65, 184, 240, 0.12)",
+                          paddingVertical: 8,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: "rgba(65, 184, 240, 0.3)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
                         onPress={() => setShowRemarkInput(true)}
                         activeOpacity={0.7}
                       >
-                        <Text className="text-white text-center font-semibold text-xs">
-                          {currentUserData.checkInStatus.remark
-                            ? "Edit Remark"
-                            : "Add Remark"}
+                        <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 12 }}>
+                          {currentUserData.checkInStatus.remark ? "Edit Remark" : "Add Remark"}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -310,9 +514,15 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
                 )}
               </View>
 
-              {/* User Events */}
+              {/* User Events Accordion */}
               <TouchableOpacity
-                className="bg-[#2C2C2C] rounded-xl p-5 mx-2"
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
                 onPress={() => {
                   if (userEvents.length > 0) {
                     setShowEventsList(!showEventsList);
@@ -321,39 +531,38 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
                 disabled={userEvents.length === 0}
                 activeOpacity={userEvents.length > 0 ? 0.7 : 1}
               >
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-gray-400 text-sm">
-                    Events User Participated
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 14 }}>
+                    Events Registered
                   </Text>
-                  <View className="flex-row items-center gap-2">
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     {loadingEvents ? (
-                      <ActivityIndicator size="small" color="#FFBA00" />
+                      <ActivityIndicator size="small" color="#41B8F0" />
                     ) : (
                       <>
                         <View
-                          className={`px-3 py-1 rounded-full ${
-                            userEvents.length > 0
-                              ? "bg-[#FFBA00]/20"
-                              : "bg-gray-500/20"
-                          }`}
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 2,
+                            borderRadius: 12,
+                            backgroundColor: userEvents.length > 0 ? "rgba(65, 184, 240, 0.15)" : "rgba(107, 114, 128, 0.15)",
+                          }}
                         >
                           <Text
-                            className={`text-xs font-semibold ${
-                              userEvents.length > 0
-                                ? "text-[#FFBA00]"
-                                : "text-gray-400"
-                            }`}
+                            style={{
+                              fontFamily: "Poppins_600SemiBold",
+                              fontSize: 12,
+                              color: userEvents.length > 0 ? "#41B8F0" : textSecondary,
+                            }}
                           >
                             {userEvents.length}
                           </Text>
                         </View>
                         {userEvents.length > 0 && (
                           <Ionicons
-                            name={
-                              showEventsList ? "chevron-up" : "chevron-down"
-                            }
+                            name={showEventsList ? "chevron-up" : "chevron-down"}
                             size={16}
-                            color="#FFBA00"
+                            color="#41B8F0"
                           />
                         )}
                       </>
@@ -361,26 +570,22 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
                   </View>
                 </View>
 
-                {/* Events List */}
                 {showEventsList && userEvents.length > 0 && (
-                  <View className="mt-4 pt-4 border-t border-gray-600">
+                  <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: cardBorder, gap: 8 }}>
                     {userEvents.map((event, index) => (
                       <View
-                        key={event.eventId}
-                        className={`py-2 ${
-                          index !== userEvents.length - 1
-                            ? "border-b border-gray-700"
-                            : ""
-                        }`}
+                        key={event.eventId || index}
+                        style={{
+                          paddingVertical: 6,
+                          borderBottomWidth: index !== userEvents.length - 1 ? 1 : 0,
+                          borderBottomColor: cardBorder,
+                        }}
                       >
-                        <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-white text-sm"
-                        >
+                        <Text style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 13 }}>
                           {event.eventName}
                         </Text>
-                        <Text className="text-white text-xs mt-1">
-                          Registation Status : {event.status}
+                        <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11, marginTop: 2 }}>
+                          Status: {event.status} {event.checkingStatus ? `(${event.checkingStatus})` : ""}
                         </Text>
                       </View>
                     ))}
@@ -389,67 +594,84 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
               </TouchableOpacity>
 
               {/* Accommodation Status */}
-              <View className="bg-[#2C2C2C] rounded-xl p-5 mx-2">
-                <Text className="text-gray-400 text-sm mb-4">
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: textPrimary,
+                    fontSize: 14,
+                    marginBottom: 12,
+                  }}
+                >
                   Accommodation Details
                 </Text>
 
-                {/* Accommodation Needed */}
-                <View className="flex-row items-center justify-between mb-3">
-                  <Text
-                    style={{ fontFamily: "Outfit_500Medium" }}
-                    className="text-white text-sm"
-                  >
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
                     Accommodation Needed
                   </Text>
                   <View
-                    className={`px-3 py-1 rounded-full ${
-                      currentUserData.accommodationNeeded
-                        ? "bg-green-500/20"
-                        : "bg-red-500/20"
-                    }`}
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
+                      borderRadius: 12,
+                      backgroundColor: currentUserData.accommodationNeeded
+                        ? "rgba(16, 185, 129, 0.2)"
+                        : "rgba(239, 68, 68, 0.2)",
+                    }}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        currentUserData.accommodationNeeded
-                          ? "text-green-400"
-                          : "text-red-400"
-                      }`}
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        fontSize: 11,
+                        color: currentUserData.accommodationNeeded ? "#10B981" : "#EF4444",
+                      }}
                     >
                       {currentUserData.accommodationNeeded ? "Yes" : "No"}
                     </Text>
                   </View>
                 </View>
 
-                {/* Accommodation Check-in Status */}
-                <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-white text-sm">Check-in Status</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: currentUserData.checkInStatus.Hostel ? 10 : 0 }}>
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                    Check-in Status
+                  </Text>
                   <View
-                    className={`px-3 py-1 rounded-full ${
-                      currentUserData.checkInStatus.accommodation
-                        ? "bg-green-500/20"
-                        : "bg-gray-500/20"
-                    }`}
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
+                      borderRadius: 12,
+                      backgroundColor: currentUserData.checkInStatus.accommodation
+                        ? "rgba(16, 185, 129, 0.2)"
+                        : "rgba(107, 114, 128, 0.2)",
+                    }}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        currentUserData.checkInStatus.accommodation
-                          ? "text-green-400"
-                          : "text-gray-400"
-                      }`}
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        fontSize: 11,
+                        color: currentUserData.checkInStatus.accommodation ? "#10B981" : textSecondary,
+                      }}
                     >
-                      {currentUserData.checkInStatus.accommodation
-                        ? "Confirmed"
-                        : "Pending"}
+                      {currentUserData.checkInStatus.accommodation ? "Confirmed" : "Pending"}
                     </Text>
                   </View>
                 </View>
 
-                {/* Hostel Assignment */}
                 {currentUserData.checkInStatus.Hostel && (
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-white text-sm">Assigned Hostel</Text>
-                    <Text className="text-[#FFBA00] text-sm font-semibold">
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                      Assigned Hostel
+                    </Text>
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 13 }}>
                       {currentUserData.checkInStatus.Hostel}
                     </Text>
                   </View>
@@ -459,14 +681,24 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
 
             {/* Close Button */}
             <TouchableOpacity
-              className="bg-[#FFBA00] py-4 rounded-xl mt-8 mx-2"
+              style={{
+                backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+                paddingVertical: 14,
+                borderRadius: 14,
+                marginTop: 20,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
               onPress={onClose}
               activeOpacity={0.7}
               disabled={loading}
             >
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#121212] text-center text-base"
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  color: textPrimary,
+                  fontSize: 14,
+                }}
               >
                 Close
               </Text>
@@ -475,9 +707,23 @@ const GateUserModal: React.FC<GateUserModalProps> = ({
 
           {/* Loading Overlay */}
           {loading && (
-            <View className="absolute inset-0 bg-black/50 rounded-2xl items-center justify-center">
-              <ActivityIndicator size="large" color="#FFBA00" />
-              <Text className="text-white text-sm mt-2">Updating...</Text>
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: "rgba(0, 0, 0, 0.6)",
+                borderRadius: 24,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <ActivityIndicator size="large" color="#41B8F0" />
+              <Text style={{ fontFamily: "Poppins_500Medium", color: "#FFFFFF", fontSize: 13, marginTop: 8 }}>
+                Updating...
+              </Text>
             </View>
           )}
         </View>

@@ -1,7 +1,7 @@
 package models
 
 import (
-	"slices"
+	"strings"
 
 	"backend/internal/email"
 	"backend/internal/isotime"
@@ -34,6 +34,7 @@ type User struct {
 	Accommodation               map[string]bool `json:"accommodation"               firestore:"accommodation"`
 	Food                        map[string]bool `json:"food"                        firestore:"food"`
 	AccommodationTransactionIds []string        `json:"accommodationTransactionIds" firestore:"accommodationTransactionIds"`
+	CheckInStatus               CheckInStatus   `json:"checkInStatus"               firestore:"checkInStatus"`
 	ReferralCode                string          `json:"referralCode"                firestore:"referralCode"`
 	ReferredBy                  string          `json:"referredBy"                  firestore:"referredBy"`
 	Coins                       int             `json:"coins"                       firestore:"coins"`
@@ -46,6 +47,13 @@ type User struct {
 	// actually presenting the request, and this value decides both pricing and
 	// the sameCollegeOnly gate.
 	IsHostCollegeStudent bool `json:"isHostCollegeStudent" firestore:"-"`
+}
+
+type CheckInStatus struct {
+	Fest          bool   `json:"fest"                    firestore:"fest"`
+	Remark        string `json:"remark,omitempty"        firestore:"remark"`
+	Accommodation bool   `json:"accommodation"           firestore:"accommodation"`
+	Hostel        string `json:"Hostel,omitempty"        firestore:"Hostel"`
 }
 
 // NewUser is the document written at first sign-in. Everything else the profile
@@ -64,9 +72,35 @@ func NewUser(uid, address, displayName, referralCode string) *User {
 	}
 }
 
-func (u *User) IsAdmin() bool { return u != nil && slices.Contains(u.Roles, RoleAdmin) }
+func (u *User) IsAdmin() bool {
+	if u == nil {
+		return false
+	}
+	for _, r := range u.Roles {
+		rLower := strings.ToLower(strings.TrimSpace(r))
+		switch rLower {
+		case RoleAdmin, "super_admin", "superadmin", "dev", "event_admin",
+			"event_coordinator", "hospitality_admin", "hospitality_member",
+			"outreach_admin", "outreach_member", "executive_committee",
+			"core_member", "finance", "media", "eb_member":
+			return true
+		}
+	}
+	return false
+}
 
-func (u *User) HasRole(role string) bool { return u != nil && slices.Contains(u.Roles, role) }
+func (u *User) HasRole(role string) bool {
+	if u == nil {
+		return false
+	}
+	target := strings.ToLower(strings.TrimSpace(role))
+	for _, r := range u.Roles {
+		if strings.ToLower(strings.TrimSpace(r)) == target {
+			return true
+		}
+	}
+	return false
+}
 
 // PublicProfile is what one participant may see of another: enough to render a
 // team roster and nothing more. Avatars are generated client-side from the

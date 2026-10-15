@@ -87,14 +87,23 @@ const AdminDrawer: React.FC<AdminDrawerProps> = ({ visible, onClose, userRoles =
   }, [visible, slideAnim, fadeAnim]);
 
   const visibleItems = useMemo(() => {
-    // If no roles specified or admin/dev, show all items
-    if (!userRoles || userRoles.length === 0 || userRoles.includes('admin') || userRoles.includes('dev')) {
+    const normalized = (Array.isArray(userRoles) ? userRoles : []).map((r) =>
+      typeof r === 'string' ? r.toLowerCase().trim() : ''
+    );
+
+    // If super admin / admin / dev, show all items
+    if (
+      normalized.some((r) =>
+        ['admin', 'super_admin', 'superadmin', 'dev'].includes(r)
+      )
+    ) {
       return ALL_ITEMS;
     }
-    const filtered = ALL_ITEMS.filter((item) =>
-      item.requiredRoles.some((r) => userRoles.includes(r))
+
+    // Filter items based on user's roles
+    return ALL_ITEMS.filter((item) =>
+      item.requiredRoles.some((r) => normalized.includes(r.toLowerCase()))
     );
-    return filtered.length > 0 ? filtered : ALL_ITEMS;
   }, [userRoles]);
 
   const navigate = (route: string) => {

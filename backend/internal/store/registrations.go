@@ -115,3 +115,11 @@ func (s *Store) ListRegistrationsByTeam(ctx context.Context, teamID string) ([]*
 	q := s.FS.Collection(ColRegistrations).Where("teamId", "==", teamID)
 	return s.collectRegistrations(ctx, q)
 }
+
+// UpdateRegistrationCheckingStatus flips the on-site check-in state on a registration document.
+func (s *Store) UpdateRegistrationCheckingStatus(ctx context.Context, id, status string) error {
+	_, err := s.FS.Collection(ColRegistrations).Doc(id).Update(ctx, []firestore.Update{
+		{Path: "checkingStatus", Value: status},
+	})
+	return wrap(err)
+}

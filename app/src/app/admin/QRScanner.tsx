@@ -30,6 +30,7 @@ import { useUserStore } from "@/state/userStore";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
 import { useThemeStore } from "@/state/themeStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getUserRoles } from "@/utils/roles";
 
 // Dimensions available if needed
 // const { width, height } = Dimensions.get("window");
@@ -84,17 +85,19 @@ export default function QRScanner({
     "executive_committee",
   ];
 
-  const isHostelAccessAllowed = userProfile?.roles
-    ? userProfile.roles.some((role) => hostelAllowedRoles.includes(role))
-    : false;
+  const roles = getUserRoles(userProfile);
+  const isSuperOrAdmin = roles.some((r) =>
+    ["admin", "super_admin", "superadmin", "dev"].includes(r)
+  );
 
-  const isGateAccessAllowed = userProfile?.roles
-    ? userProfile.roles.some((role) => gateAllowedRoles.includes(role))
-    : false;
+  const isHostelAccessAllowed =
+    isSuperOrAdmin || roles.some((role) => hostelAllowedRoles.includes(role));
 
-  const isEventAccessAllowed = userProfile?.roles
-    ? userProfile.roles.some((role) => eventAllowedRoles.includes(role))
-    : false;
+  const isGateAccessAllowed =
+    isSuperOrAdmin || roles.some((role) => gateAllowedRoles.includes(role));
+
+  const isEventAccessAllowed =
+    isSuperOrAdmin || roles.some((role) => eventAllowedRoles.includes(role));
 
   // Manage navbar and reset states when screen is focused/unfocused
   useFocusEffect(
@@ -543,7 +546,9 @@ export default function QRScanner({
 
   // Camera Scanner Screen
   return (
-    <View className="flex-1 bg-black">
+    <View style={{ flex: 1, backgroundColor: "#000000" }}>
+      <StatusBar barStyle="light-content" />
+
       {/* Full Screen Camera */}
       {cameraReady ? (
         <CameraView
@@ -556,11 +561,15 @@ export default function QRScanner({
           }}
         />
       ) : (
-        <View className="flex-1 bg-black items-center justify-center">
-          <ActivityIndicator size="large" color="#EEB170" />
+        <View style={{ flex: 1, backgroundColor: "#000000", alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color="#41B8F0" />
           <Text
-            style={{ fontFamily: "Outfit_500Medium" }}
-            className="text-[#0C3572] text-base mt-4"
+            style={{
+              fontFamily: "Poppins_500Medium",
+              color: "#FFFFFF",
+              fontSize: 14,
+              marginTop: 14,
+            }}
           >
             Initializing camera...
           </Text>
@@ -569,79 +578,187 @@ export default function QRScanner({
 
       {/* Scanner Frame - Absolutely Positioned */}
       {cameraReady && (
-        <View className="absolute inset-0 items-center justify-center" pointerEvents="none">
-          <View className="relative">
-            <View
-              className="rounded-2xl bg-transparent"
-              style={{ width: 250, height: 250 }}
-            >
-              {/* Corner indicators */}
-              <View className="absolute -top-1 -left-1 w-8 h-8 border-l-4 border-t-4 border-[#EEB170] rounded-tl-lg" />
-              <View className="absolute -top-1 -right-1 w-8 h-8 border-r-4 border-t-4 border-[#EEB170] rounded-tr-lg" />
-              <View className="absolute -bottom-1 -left-1 w-8 h-8 border-l-4 border-b-4 border-[#EEB170] rounded-bl-lg" />
-              <View className="absolute -bottom-1 -right-1 w-8 h-8 border-r-4 border-b-4 border-[#EEB170] rounded-br-lg" />
-            </View>
+        <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, alignItems: "center", justifyContent: "center" }} pointerEvents="none">
+          <View style={{ width: 250, height: 250, borderRadius: 20, position: "relative" }}>
+            {/* Corner indicators in neon cyan */}
+            <View style={{ position: "absolute", top: -2, left: -2, width: 34, height: 34, borderLeftWidth: 4, borderTopWidth: 4, borderColor: "#41B8F0", borderTopLeftRadius: 16 }} />
+            <View style={{ position: "absolute", top: -2, right: -2, width: 34, height: 34, borderRightWidth: 4, borderTopWidth: 4, borderColor: "#41B8F0", borderTopRightRadius: 16 }} />
+            <View style={{ position: "absolute", bottom: -2, left: -2, width: 34, height: 34, borderLeftWidth: 4, borderBottomWidth: 4, borderColor: "#41B8F0", borderBottomLeftRadius: 16 }} />
+            <View style={{ position: "absolute", bottom: -2, right: -2, width: 34, height: 34, borderRightWidth: 4, borderBottomWidth: 4, borderColor: "#41B8F0", borderBottomRightRadius: 16 }} />
           </View>
         </View>
       )}
 
-      {/* Absolute Overlay Container - All UI elements */}
-      <View className="absolute inset-0" pointerEvents="box-none">
-        {/* Header Row - Back Button and Title */}
-        <View className="absolute top-12 left-6 right-6 flex-row items-center">
-          <TouchableOpacity
-            onPress={handleBackToSelection}
-            className="bg-black/70 rounded-full p-3 mr-4"
-            activeOpacity={0.7}
+      {/* Absolute Overlay Container - Header */}
+      <View
+        style={{
+          position: "absolute",
+          top: Math.max(insets.top + 8, 16),
+          left: 16,
+          right: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          zIndex: 30,
+        }}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity
+          onPress={handleBackToSelection}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: "rgba(0, 0, 0, 0.65)",
+            borderWidth: 1,
+            borderColor: "rgba(255, 255, 255, 0.18)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 20,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            borderWidth: 1,
+            borderColor: "rgba(65, 184, 240, 0.4)",
+          }}
+          pointerEvents="none"
+        >
+          <Text
+            style={{
+              fontFamily: "Poppins_600SemiBold",
+              color: "#FFFFFF",
+              fontSize: 13,
+              letterSpacing: 0.8,
+            }}
           >
-            <ArrowLeft size={24} color="white" />
-          </TouchableOpacity>
-
-          <View className="flex-1 items-center" pointerEvents="none">
-            <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-[#0C3572] text-xl"
-            >
-              {selectedCategory?.toUpperCase()} Scanner
-            </Text>
-          </View>
-
-          {/* Invisible spacer to balance the layout */}
-          <View style={{ width: 56 }} pointerEvents="none" />
+            {selectedCategory?.toUpperCase()} VERIFICATION
+          </Text>
         </View>
+
+        <View style={{ width: 44 }} pointerEvents="none" />
       </View>
 
-      {/* User Information Modal */}
+      {/* Bottom Hint Pill */}
+      {cameraReady && (
+        <View
+          style={{
+            position: "absolute",
+            bottom: Math.max(insets.bottom + 36, 48),
+            left: 24,
+            right: 24,
+            alignItems: "center",
+          }}
+          pointerEvents="none"
+        >
+          <View
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.75)",
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.12)",
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Poppins_500Medium",
+                color: "#E2E8F0",
+                fontSize: 13,
+                textAlign: "center",
+              }}
+            >
+              Align QR code within the frame to verify
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* User Information Modal (Event Verification) */}
       <Modal
         visible={showUserModal}
         transparent={true}
-        animationType="slide"
+        animationType="fade"
         onRequestClose={closeModal}
       >
-        <View className="flex-1 bg-black/50 justify-center items-center px-6">
-          <View className="bg-[#FFFFFF66] rounded-2xl p-6 w-full max-w-sm border border-[#A0B3D0]">
+        <View style={{ flex: 1, backgroundColor: "rgba(0, 0, 0, 0.75)", justifyContent: "center", alignItems: "center", paddingHorizontal: 20 }}>
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 24,
+              padding: 24,
+              width: "100%",
+              maxWidth: 380,
+              borderWidth: 1,
+              borderColor: cardBorder,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.35,
+              shadowRadius: 16,
+              elevation: 8,
+            }}
+          >
             {userData && (
               <>
                 {/* User Info Header */}
-                <View className="items-center mb-6">
+                <View style={{ alignItems: "center", marginBottom: 20 }}>
                   <Text
-                    style={{ fontFamily: "Outfit_700Bold" }}
-                    className="text-[#0C3572] text-2xl mb-2"
+                    style={{
+                      fontFamily: "Talina",
+                      color: textPrimary,
+                      fontSize: 22,
+                      textAlign: "center",
+                      marginBottom: 8,
+                    }}
                   >
                     {userData.name || (userData as any).displayName || "Unknown User"}
                   </Text>
-                  <View className="bg-[#EEB170] rounded-xl px-4 py-2 mb-2">
+
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "rgba(65, 184, 240, 0.12)",
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 6,
+                      borderWidth: 1,
+                      borderColor: "rgba(65, 184, 240, 0.3)",
+                      marginBottom: 8,
+                    }}
+                  >
                     <Text
-                      style={{ fontFamily: "Outfit_600SemiBold" }}
-                      className="text-[#121212] text-lg"
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        color: "#41B8F0",
+                        fontSize: 15,
+                        textAlign: "center",
+                      }}
                     >
                       {userData.eventName}
                     </Text>
                   </View>
-                  <View className="bg-[#FFFFFF66] rounded-full px-3 py-1">
+
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)",
+                      borderRadius: 20,
+                      paddingHorizontal: 12,
+                      paddingVertical: 4,
+                    }}
+                  >
                     <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#2175C0] text-sm"
+                      style={{
+                        fontFamily: "Poppins_500Medium",
+                        color: textSecondary,
+                        fontSize: 12,
+                      }}
                     >
                       Event Registration
                     </Text>
@@ -649,67 +766,111 @@ export default function QRScanner({
                 </View>
 
                 {/* Status Information */}
-                <View className="mb-6">
-                  <View className="flex-row justify-between items-center mb-3">
+                <View style={{ gap: 10, marginBottom: 20 }}>
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "#131316" : "#F3F4F6",
+                      borderRadius: 14,
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      borderWidth: 1,
+                      borderColor: cardBorder,
+                    }}
+                  >
                     <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#2175C0] text-base"
+                      style={{
+                        fontFamily: "Poppins_400Regular",
+                        color: textSecondary,
+                        fontSize: 13,
+                      }}
                     >
-                      Status:
+                      Registration Status:
                     </Text>
                     <View
-                      className={`px-3 py-1 rounded-full ${
-                        userData.status === "confirmed"
-                          ? "bg-green-500/20"
-                          : userData.status === "payment pending"
-                          ? "bg-yellow-500/20"
-                          : userData.status === "rejected"
-                          ? "bg-red-500/20"
-                          : "bg-gray-500/20"
-                      }`}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 20,
+                        backgroundColor:
+                          userData.status === "confirmed"
+                            ? "rgba(16, 185, 129, 0.2)"
+                            : userData.status === "payment pending"
+                            ? "rgba(234, 179, 8, 0.2)"
+                            : userData.status === "rejected"
+                            ? "rgba(239, 68, 68, 0.2)"
+                            : "rgba(107, 114, 128, 0.2)",
+                      }}
                     >
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className={`text-sm capitalize ${
-                          userData.status === "confirmed"
-                            ? "text-green-400"
-                            : userData.status === "payment pending"
-                            ? "text-yellow-400"
-                            : userData.status === "rejected"
-                            ? "text-red-400"
-                            : "text-[#2175C0]"
-                        }`}
+                        style={{
+                          fontFamily: "Poppins_600SemiBold",
+                          fontSize: 12,
+                          textTransform: "capitalize",
+                          color:
+                            userData.status === "confirmed"
+                              ? "#10B981"
+                              : userData.status === "payment pending"
+                              ? "#FBBF24"
+                              : userData.status === "rejected"
+                              ? "#EF4444"
+                              : textSecondary,
+                        }}
                       >
                         {userData.status}
                       </Text>
                     </View>
                   </View>
 
-                  <View className="flex-row justify-between items-center">
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "#131316" : "#F3F4F6",
+                      borderRadius: 14,
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      borderWidth: 1,
+                      borderColor: cardBorder,
+                    }}
+                  >
                     <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-[#2175C0] text-base"
+                      style={{
+                        fontFamily: "Poppins_400Regular",
+                        color: textSecondary,
+                        fontSize: 13,
+                      }}
                     >
                       Check-in Status:
                     </Text>
                     <View
-                      className={`px-3 py-1 rounded-full ${
-                        userData.checkingStatus === "checked in"
-                          ? "bg-green-500/20"
-                          : userData.checkingStatus === "rejected"
-                          ? "bg-red-500/20"
-                          : "bg-yellow-500/20"
-                      }`}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 20,
+                        backgroundColor:
+                          userData.checkingStatus === "checked in"
+                            ? "rgba(16, 185, 129, 0.2)"
+                            : userData.checkingStatus === "rejected"
+                            ? "rgba(239, 68, 68, 0.2)"
+                            : "rgba(234, 179, 8, 0.2)",
+                      }}
                     >
                       <Text
-                        style={{ fontFamily: "Outfit_600SemiBold" }}
-                        className={`text-sm capitalize ${
-                          userData.checkingStatus === "checked in"
-                            ? "text-green-400"
-                            : userData.checkingStatus === "rejected"
-                            ? "text-red-400"
-                            : "text-yellow-400"
-                        }`}
+                        style={{
+                          fontFamily: "Poppins_600SemiBold",
+                          fontSize: 12,
+                          textTransform: "capitalize",
+                          color:
+                            userData.checkingStatus === "checked in"
+                              ? "#10B981"
+                              : userData.checkingStatus === "rejected"
+                              ? "#EF4444"
+                              : "#FBBF24",
+                        }}
                       >
                         {userData.checkingStatus}
                       </Text>
@@ -719,44 +880,76 @@ export default function QRScanner({
 
                 {/* Action Buttons */}
                 {userData.checkingStatus === "pending" && (
-                  <View className="mb-4">
+                  <View style={{ marginBottom: 14 }}>
                     {userData.status === "confirmed" ? (
-                      <View className="flex-row gap-3">
+                      <View style={{ flexDirection: "row", gap: 10 }}>
                         <TouchableOpacity
-                          className="flex-1 bg-green-600 py-3 rounded-xl"
+                          style={{
+                            flex: 1,
+                            backgroundColor: "#10B981",
+                            paddingVertical: 13,
+                            borderRadius: 14,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
                           onPress={handleCheckIn}
                           disabled={loading}
                           activeOpacity={0.7}
                         >
                           <Text
-                            style={{ fontFamily: "Outfit_600SemiBold" }}
-                            className="text-[#0C3572] text-center"
+                            style={{
+                              fontFamily: "Poppins_600SemiBold",
+                              color: "#FFFFFF",
+                              fontSize: 14,
+                            }}
                           >
                             {loading ? "Processing..." : "Check In"}
                           </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                          className="flex-1 bg-red-600 py-3 rounded-xl"
+                          style={{
+                            flex: 1,
+                            backgroundColor: "#EF4444",
+                            paddingVertical: 13,
+                            borderRadius: 14,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
                           onPress={handleReject}
                           disabled={loading}
                           activeOpacity={0.7}
                         >
                           <Text
-                            style={{ fontFamily: "Outfit_600SemiBold" }}
-                            className="text-[#0C3572] text-center"
+                            style={{
+                              fontFamily: "Poppins_600SemiBold",
+                              color: "#FFFFFF",
+                              fontSize: 14,
+                            }}
                           >
                             {loading ? "Processing..." : "Reject"}
                           </Text>
                         </TouchableOpacity>
                       </View>
                     ) : (
-                      <View className="bg-yellow-500/20 p-3 rounded-xl border border-yellow-500/30">
+                      <View
+                        style={{
+                          backgroundColor: "rgba(234, 179, 8, 0.15)",
+                          padding: 12,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: "rgba(234, 179, 8, 0.3)",
+                        }}
+                      >
                         <Text
-                          style={{ fontFamily: "Outfit_400Regular" }}
-                          className="text-yellow-400 text-center text-sm"
+                          style={{
+                            fontFamily: "Poppins_400Regular",
+                            color: "#FBBF24",
+                            textAlign: "center",
+                            fontSize: 13,
+                          }}
                         >
-                          Cannot check in: User status is "{userData.status}"
+                          Cannot check in: Status is "{userData.status}"
                         </Text>
                       </View>
                     )}
@@ -765,13 +958,22 @@ export default function QRScanner({
 
                 {/* Close Button */}
                 <TouchableOpacity
-                  className="bg-[#FFFFFF66] py-3 rounded-xl"
+                  style={{
+                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+                    paddingVertical: 13,
+                    borderRadius: 14,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                   onPress={closeModal}
                   activeOpacity={0.7}
                 >
                   <Text
-                    style={{ fontFamily: "Outfit_600SemiBold" }}
-                    className="text-[#0C3572] text-center"
+                    style={{
+                      fontFamily: "Poppins_600SemiBold",
+                      color: textPrimary,
+                      fontSize: 14,
+                    }}
                   >
                     Close
                   </Text>
@@ -779,8 +981,20 @@ export default function QRScanner({
 
                 {/* Loading Overlay */}
                 {loading && (
-                  <View className="absolute inset-0 bg-black/50 rounded-2xl items-center justify-center">
-                    <ActivityIndicator size="large" color="#EEB170" />
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      backgroundColor: "rgba(0, 0, 0, 0.6)",
+                      borderRadius: 24,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <ActivityIndicator size="large" color="#41B8F0" />
                   </View>
                 )}
               </>

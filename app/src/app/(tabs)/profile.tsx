@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUserStore } from "@/state/userStore";
 import { useThemeStore } from "@/state/themeStore";
 import { useAdminDrawerStore } from "@/state/adminDrawerStore";
+import { isUserAdmin } from "@/utils/roles";
 import UserQRCodeModal from "@/components/profile/UserQRCodeModal";
 import { getAppVersion } from "@/utils/appVersion";
 import { setStringAsync } from "expo-clipboard";
@@ -28,6 +29,7 @@ const ProfileScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { userData: userProfile } = useUserStore();
+  const canSeeAdmin = isUserAdmin(userProfile);
   const { isDark, toggleTheme } = useThemeStore();
   const { openDrawer } = useAdminDrawerStore();
   const [showQRModal, setShowQRModal] = useState(false);
@@ -255,27 +257,29 @@ const ProfileScreen = () => {
         }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <TouchableOpacity
-            onPress={openDrawer}
-            activeOpacity={0.75}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: isDark ? 0.25 : 0.06,
-              shadowRadius: 4,
-              elevation: 2,
-            }}
-          >
-            <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
-          </TouchableOpacity>
+          {canSeeAdmin && (
+            <TouchableOpacity
+              onPress={openDrawer}
+              activeOpacity={0.75}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: isDark ? 0.25 : 0.06,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+            >
+              <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+            </TouchableOpacity>
+          )}
           <Text
             style={{
               fontFamily: 'Talina',

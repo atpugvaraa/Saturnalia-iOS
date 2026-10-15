@@ -128,6 +128,16 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	admin.DELETE("/admin/users/by-email/:email", api.AdminDeleteUser)
 	admin.GET("/admin/users/by-email/:email/registrations", api.AdminGetUserEvents)
 	admin.GET("/admin/users/:id", api.AdminGetUserByID)
+	admin.GET("/admin/users/:id/events", api.AdminGetUserEventsByID)
+
+	// Admin QR Scanner routes
+	admin.POST("/admin/qr/scan", api.AdminQRScan)
+	admin.POST("/admin/qr/gate-checkin", api.AdminGateCheckIn)
+	admin.PATCH("/admin/qr/gate/:userId", api.AdminGateCheckIn)
+	admin.POST("/admin/qr/hostel-checkin", api.AdminHostelCheckIn)
+	admin.PATCH("/admin/qr/hostel/:userId", api.AdminHostelCheckIn)
+	admin.POST("/admin/qr/event-checkin", api.AdminEventCheckIn)
+	admin.PATCH("/admin/qr/registrations/:id/status", api.AdminEventCheckIn)
 
 	// App configuration: links, maintenance, versions
 	admin.GET("/admin/app", api.AdminGetAppConfig)

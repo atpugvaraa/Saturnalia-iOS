@@ -30,7 +30,7 @@ const UserCard: React.FC<UserCardProps> = ({
   const handleToggleAmbassador = async () => {
     setLoading(true);
     try {
-      /* Removed API call */
+      const result = { success: true, error: "" };
 
       if (result.success) {
         const updatedUser = { ...user, isAmbassador: !user.isAmbassador };

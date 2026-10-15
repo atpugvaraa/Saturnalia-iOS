@@ -20,6 +20,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { TouchableOpacity } from "react-native";
 import { useThemeStore } from "@/state/themeStore";
 import { useAdminDrawerStore } from "@/state/adminDrawerStore";
+import { useUserStore } from "@/state/userStore";
+import { isUserAdmin } from "@/utils/roles";
 import { Reel } from '@/types/models';
 import { showAlert } from "../../components";
 import { API_BASE_URL } from "@/config/api";
@@ -536,6 +538,8 @@ const ReelsScreen: React.FC = () => {
   const router = useRouter();
   const { isDark } = useThemeStore();
   const { openDrawer } = useAdminDrawerStore();
+  const { userData } = useUserStore();
+  const canSeeAdmin = isUserAdmin(userData);
   const { reels, loading: isLoading, refresh: refreshReels } = useReels();
   const [isMuted, setIsMuted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -695,37 +699,39 @@ const ReelsScreen: React.FC = () => {
           paddingHorizontal: 24,
         }}
       >
-        {/* Floating Hamburger Menu */}
-        <View
-          style={{
-            position: 'absolute',
-            top: Math.max(insets.top + 8, 16),
-            left: 16,
-            zIndex: 20,
-          }}
-        >
-          <TouchableOpacity
-            onPress={openDrawer}
-            activeOpacity={0.75}
+        {/* Floating Hamburger Menu - only for admin/staff */}
+        {canSeeAdmin && (
+          <View
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: isDark ? 0.25 : 0.06,
-              shadowRadius: 4,
-              elevation: 2,
+              position: 'absolute',
+              top: Math.max(insets.top + 8, 16),
+              left: 16,
+              zIndex: 20,
             }}
           >
-            <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              onPress={openDrawer}
+              activeOpacity={0.75}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: isDark ? '#1C1C20' : '#FFFFFF',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.1)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: isDark ? 0.25 : 0.06,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+            >
+              <Ionicons name="menu" size={22} color={isDark ? '#FFFFFF' : '#000000'} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text
           style={{
@@ -775,37 +781,39 @@ const ReelsScreen: React.FC = () => {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000000' }}>
-      {/* Top Left Floating Hamburger Menu */}
-      <View
-        style={{
-          position: 'absolute',
-          top: Math.max(insets.top + 8, 16),
-          left: 16,
-          zIndex: 20,
-        }}
-      >
-        <TouchableOpacity
-          onPress={openDrawer}
-          activeOpacity={0.75}
+      {/* Top Left Floating Hamburger Menu - only for admin/staff */}
+      {canSeeAdmin && (
+        <View
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: 'rgba(0, 0, 0, 0.45)',
-            borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.2)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.35,
-            shadowRadius: 4,
-            elevation: 4,
+            position: 'absolute',
+            top: Math.max(insets.top + 8, 16),
+            left: 16,
+            zIndex: 20,
           }}
         >
-          <Ionicons name="menu" size={22} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            onPress={openDrawer}
+            activeOpacity={0.75}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: 'rgba(0, 0, 0, 0.45)',
+              borderWidth: 1,
+              borderColor: 'rgba(255, 255, 255, 0.2)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.35,
+              shadowRadius: 4,
+              elevation: 4,
+            }}
+          >
+            <Ionicons name="menu" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <FlatList
         ref={flatListRef}

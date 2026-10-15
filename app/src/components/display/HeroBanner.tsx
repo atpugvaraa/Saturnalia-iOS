@@ -17,6 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useThemeStore } from '@/state/themeStore';
 import { useAdminDrawerStore } from '@/state/adminDrawerStore';
+import { useUserStore } from '@/state/userStore';
+import { isUserAdmin } from '@/utils/roles';
 import { UserProfile } from '@/types/models';
 
 export interface BannerItem {
@@ -52,6 +54,8 @@ export default function HeroBanner({
   const insets = useSafeAreaInsets();
   const { isDark, colors, toggleTheme } = useThemeStore();
   const { openDrawer } = useAdminDrawerStore();
+  const { userData } = useUserStore();
+  const canSeeAdmin = isUserAdmin(userProfile ?? userData);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -182,23 +186,25 @@ export default function HeroBanner({
         }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
-          {/* Hamburger Menu on the left of Welcome, name */}
-          <TouchableOpacity
-            onPress={openDrawer}
-            activeOpacity={0.75}
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 21,
-              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.08)',
-              borderWidth: 1,
-              borderColor: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.1)',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Ionicons name="menu" size={22} color={colors.text} />
-          </TouchableOpacity>
+          {/* Hamburger Menu on the left of Welcome, name - only for admin/staff */}
+          {canSeeAdmin && (
+            <TouchableOpacity
+              onPress={openDrawer}
+              activeOpacity={0.75}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 21,
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.08)',
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.1)',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="menu" size={22} color={colors.text} />
+            </TouchableOpacity>
+          )}
 
           {/* Welcome [Name] */}
           <Text

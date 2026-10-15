@@ -727,20 +727,176 @@ export const updateOrderStatus = async (_id: string, _status: string) => ({ succ
 export const getAllOrders = async () => [] as any[];
 export type UserOrder = any;
 
-export const handleQRScan = async (_data: string, _role: string): Promise<any> => ({
-  success: true,
-  data: null,
-});
-export const updateUserCheckingStatus = async (_userId: string, _field: string, _value?: any): Promise<any> => {
-  console.log('[mock] updateUserCheckingStatus');
-  return { success: true };
+export interface UserRegistrationData {
+  registrationId: string;
+  userId: string;
+  eventId: string;
+  eventName: string;
+  name?: string;
+  displayName?: string;
+  email?: string;
+  phoneNumber?: string;
+  status: string;
+  checkingStatus: string;
+  paymentStatus?: string;
+  teamId?: string;
+}
+
+export interface UserGateData {
+  userId: string;
+  displayName: string;
+  name?: string;
+  email: string;
+  phoneNumber?: string;
+  collegeName: string;
+  isHostCollegeStudent: boolean;
+  accommodationNeeded: boolean;
+  accommodation?: Record<string, boolean>;
+  food?: Record<string, boolean>;
+  checkInStatus: {
+    fest: boolean;
+    remark?: string | null;
+    accommodation: boolean;
+    Hostel?: string | null;
+  };
+  userEvents?: {
+    eventId: string;
+    eventName: string;
+    status: string;
+    checkingStatus?: string;
+  }[];
+}
+
+export const handleQRScan = async (
+  data: string,
+  category: string
+): Promise<{ success: boolean; data?: any; error?: string; message?: string }> => {
+  try {
+    const res = await apiFetch('/admin/qr/scan', {
+      method: 'POST',
+      body: JSON.stringify({ data, category }),
+    }, 'required');
+
+    if (!res.ok) {
+      const err = await readError(res, 'Scan processing failed');
+      return { success: false, error: err, message: err };
+    }
+    const json = await res.json();
+    return { success: true, data: json.data };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Scan failed',
+      message: error.message || 'Scan failed',
+    };
+  }
 };
-export type UserRegistrationData = any;
-export type UserGateData = any;
+
+export const updateUserCheckingStatus = async (
+  registrationId: string,
+  status: string
+): Promise<{ success: boolean; error?: string; message?: string }> => {
+  try {
+    const res = await apiFetch('/admin/qr/event-checkin', {
+      method: 'POST',
+      body: JSON.stringify({ registrationId, status }),
+    }, 'required');
+
+    if (!res.ok) {
+      const err = await readError(res, 'Failed to update check-in status');
+      return { success: false, error: err, message: err };
+    }
+    return { success: true };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to update check-in status',
+      message: error.message || 'Failed to update check-in status',
+    };
+  }
+};
+
+export const updateGateFestStatus = async (
+  userId: string,
+  fest: boolean,
+  remark?: string
+): Promise<{ success: boolean; error?: string; message?: string; data?: any }> => {
+  try {
+    const res = await apiFetch(`/admin/qr/gate/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fest, remark }),
+    }, 'required');
+
+    if (!res.ok) {
+      const err = await readError(res, 'Failed to update fest entry status');
+      return { success: false, error: err, message: err };
+    }
+    const json = await res.json();
+    return { success: true, data: json.data };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to update fest entry status',
+      message: error.message || 'Failed to update fest entry status',
+    };
+  }
+};
+
+export const updateHostelStatus = async (
+  userId: string,
+  accommodation: boolean,
+  hostel?: string
+): Promise<{ success: boolean; error?: string; message?: string; data?: any }> => {
+  try {
+    const res = await apiFetch(`/admin/qr/hostel/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ accommodation, hostel }),
+    }, 'required');
+
+    if (!res.ok) {
+      const err = await readError(res, 'Failed to update accommodation status');
+      return { success: false, error: err, message: err };
+    }
+    const json = await res.json();
+    return { success: true, data: json.data };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to update accommodation status',
+      message: error.message || 'Failed to update accommodation status',
+    };
+  }
+};
+
+export const getUserRegisteredEvents = async (
+  userId: string
+): Promise<{ eventId: string; eventName: string; status: string; checkingStatus?: string }[]> => {
+  try {
+    const res = await apiFetch(`/admin/users/${userId}/events`, {
+      method: 'GET',
+    }, 'required');
+
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.events || [];
+  } catch {
+    return [];
+  }
+};
 
 export const getCurrentEventDay = () => 'day1';
-export const updateUserMealStatus = async (_userId: string, _mealKey: string, _value: boolean) => {
-  console.log('[mock] updateUserMealStatus');
+export const updateUserMealStatus = async (
+  _userId?: string,
+  _day?: string,
+  _mealIndex?: number
+): Promise<{ success: boolean; error?: string; message?: string }> => {
+  return { success: true };
 };
-export const checkMealAvailability = async (_mealKey: string) => true;
+export const checkMealAvailability = async (
+  _userId?: string,
+  _day?: string,
+  _mealIndex?: number
+): Promise<{ available: boolean; message: string }> => {
+  return { available: true, message: 'Meal available' };
+};
 

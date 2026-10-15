@@ -10,6 +10,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { showAlert } from "../index";
+import { useThemeStore } from "@/state/themeStore";
+import {
+  UserGateData,
+  updateHostelStatus,
+  getUserRegisteredEvents,
+  getCurrentEventDay,
+} from "@/api/admin";
 
 interface HostelUserModalProps {
   visible: boolean;
@@ -18,30 +25,18 @@ interface HostelUserModalProps {
   onUserDataUpdate?: (updatedData: UserGateData) => void;
 }
 
-// Type for valid day codes
 type DayCode = "day00" | "day0" | "day1" | "day2" | "day3" | "day4";
 
-// Helper function to convert day code to readable date
-const getDayDate = (dayCode: string): string => {
-  const day00Date = new Date("2025-11-12");
-  const dayMap: { [key: string]: number } = {
-    day00: 0,
-    day0: 1,
-    day1: 2,
-    day2: 3,
-    day3: 4,
-    day4: 5,
+const getDayLabel = (dayCode: string): string => {
+  const dayLabels: { [key: string]: string } = {
+    day00: "Day 00 (Pre-Fest)",
+    day0: "Day 0",
+    day1: "Day 1",
+    day2: "Day 2",
+    day3: "Day 3",
+    day4: "Day 4",
   };
-
-  const daysToAdd = dayMap[dayCode] ?? 0;
-  const targetDate = new Date(day00Date);
-  targetDate.setDate(targetDate.getDate() + daysToAdd);
-
-  return targetDate.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return dayLabels[dayCode] || dayCode.toUpperCase();
 };
 
 const HostelUserModal: React.FC<HostelUserModalProps> = ({
@@ -50,30 +45,62 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
   userData,
   onUserDataUpdate,
 }) => {
+  const { isDark } = useThemeStore();
   const [loading, setLoading] = useState(false);
   const [showHostelInput, setShowHostelInput] = useState(false);
   const [hostelName, setHostelName] = useState("");
-  /* Removed API call */
-  /* Removed API call */
+  const [currentUserData, setCurrentUserData] = useState<UserGateData | null>(
+    userData
+  );
+  const [userEvents, setUserEvents] = useState<any[]>(
+    userData?.userEvents || []
+  );
   const [showEventsList, setShowEventsList] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  const modalBg = isDark ? "#1C1C20" : "#FFFFFF";
+  const modalBorder = isDark ? "#2A2A30" : "#D5D5D5";
+  const cardBg = isDark ? "#131316" : "#F3F4F6";
+  const cardBorder = isDark ? "#2A2A30" : "#E5E7EB";
+  const textPrimary = isDark ? "#FFFFFF" : "#111827";
+  const textSecondary = isDark ? "#9CA3AF" : "#6B7280";
+  const inputBg = isDark ? "#18181C" : "#FFFFFF";
+
   // Update local state when userData prop changes
   React.useEffect(() => {
     setCurrentUserData(userData);
+    setUserEvents(userData?.userEvents || []);
     setShowHostelInput(false);
     setHostelName("");
   }, [userData]);
 
   // Fetch user events when modal opens
-  /* Removed API call */
+  React.useEffect(() => {
+    const fetchEvents = async () => {
+      if (
+        visible &&
+        userData?.userId &&
+        (!userData.userEvents || userData.userEvents.length === 0)
+      ) {
+        setLoadingEvents(true);
+        try {
+          const events = await getUserRegisteredEvents(userData.userId);
+          setUserEvents(events);
+        } catch (e) {
+          console.error("Failed to load user events:", e);
+        } finally {
+          setLoadingEvents(false);
+        }
+      }
+    };
+    fetchEvents();
+  }, [visible, userData?.userId]);
 
   if (!currentUserData) return null;
 
-  // Get current day as typed value
-  /* Removed API call */
+  const currentDay: DayCode = (getCurrentEventDay() as DayCode) || "day1";
 
   const handleHostelCheckin = async () => {
     if (!hostelName.trim()) {
@@ -83,10 +110,13 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
 
     setLoading(true);
     try {
-      /* Removed API call */
+      const result = await updateHostelStatus(
+        currentUserData.userId,
+        true,
+        hostelName.trim()
+      );
 
       if (result.success) {
-        // Update local state
         const updatedData = {
           ...currentUserData,
           checkInStatus: {
@@ -97,7 +127,6 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
         };
         setCurrentUserData(updatedData);
 
-        // Notify parent component
         if (onUserDataUpdate) {
           onUserDataUpdate(updatedData);
         }
@@ -105,8 +134,7 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
         setShowHostelInput(false);
         setHostelName("");
 
-        // Show success banner
-        setSuccessMessage("Accommodation check-in confirmed successfully!");
+        setSuccessMessage("Hostel check-in confirmed successfully!");
         setUpdateSuccess(true);
         setTimeout(() => setUpdateSuccess(false), 3000);
       } else {
@@ -128,10 +156,13 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
   const handleRevertCheckin = async () => {
     setLoading(true);
     try {
-      /* Removed API call */
+      const result = await updateHostelStatus(
+        currentUserData.userId,
+        false,
+        ""
+      );
 
       if (result.success) {
-        // Update local state
         const updatedData = {
           ...currentUserData,
           checkInStatus: {
@@ -142,13 +173,11 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
         };
         setCurrentUserData(updatedData);
 
-        // Notify parent component
         if (onUserDataUpdate) {
           onUserDataUpdate(updatedData);
         }
 
-        // Show success banner
-        setSuccessMessage("Accommodation check-in reverted to pending!");
+        setSuccessMessage("Hostel check-in reverted to pending!");
         setUpdateSuccess(true);
         setTimeout(() => setUpdateSuccess(false), 3000);
       } else {
@@ -167,21 +196,62 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
     }
   };
 
+  const bookedDays = Object.entries(currentUserData.accommodation || {})
+    .filter(([_, booked]) => Boolean(booked))
+    .map(([dayKey]) => dayKey);
+
   return (
     <Modal
       visible={visible}
       transparent={true}
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-black/50 justify-center items-center px-6">
-        <View className="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-sm border border-[#2C2C2C] max-h-[80%]">
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0, 0, 0, 0.75)",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: 20,
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: modalBg,
+            borderRadius: 24,
+            padding: 22,
+            width: "100%",
+            maxWidth: 380,
+            borderWidth: 1,
+            borderColor: modalBorder,
+            maxHeight: "84%",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.35,
+            shadowRadius: 16,
+            elevation: 8,
+          }}
+        >
           {/* Success Banner */}
           {updateSuccess && (
-            <View className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mb-4">
+            <View
+              style={{
+                backgroundColor: "rgba(16, 185, 129, 0.15)",
+                borderWidth: 1,
+                borderColor: "rgba(16, 185, 129, 0.35)",
+                borderRadius: 14,
+                padding: 12,
+                marginBottom: 14,
+              }}
+            >
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-green-400 text-center"
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  color: "#10B981",
+                  textAlign: "center",
+                  fontSize: 13,
+                }}
               >
                 ✓ {successMessage}
               </Text>
@@ -190,96 +260,189 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
 
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Header */}
-            <View className="items-center mb-6">
-      
+            <View style={{ alignItems: "center", marginBottom: 20 }}>
               <Text
-                style={{ fontFamily: "Outfit_700Bold" }}
-                className="text-white text-2xl mb-2 text-center"
+                style={{
+                  fontFamily: "Talina",
+                  color: textPrimary,
+                  fontSize: 22,
+                  textAlign: "center",
+                  marginBottom: 6,
+                }}
               >
-                {currentUserData.displayName}
+                {currentUserData.displayName || currentUserData.name || "User"}
               </Text>
-              <View className="bg-[#2C2C2C] rounded-full px-3 py-1">
-                <Text className="text-gray-300 text-sm">Hostel Check-in</Text>
+              <View
+                style={{
+                  backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "rgba(65, 184, 240, 0.12)",
+                  borderRadius: 20,
+                  paddingHorizontal: 12,
+                  paddingVertical: 4,
+                  borderWidth: 1,
+                  borderColor: "rgba(65, 184, 240, 0.3)",
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: "#41B8F0",
+                    fontSize: 12,
+                  }}
+                >
+                  Hostel Accommodation
+                </Text>
               </View>
             </View>
 
-            {/* User Information */}
-            <View className="gap-6">
-              {/* Email */}
-        
-
+            {/* Information Cards */}
+            <View style={{ gap: 12 }}>
               {/* College */}
-              <View className="bg-[#2C2C2C] rounded-xl p-5 mx-2">
-                <Text className="text-gray-400 text-sm mb-2">College</Text>
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
                 <Text
-                  style={{ fontFamily: "Outfit_500Medium" }}
-                  className="text-white text-base"
+                  style={{
+                    fontFamily: "Poppins_400Regular",
+                    color: textSecondary,
+                    fontSize: 12,
+                    marginBottom: 4,
+                  }}
                 >
-                  {currentUserData.collegeName}
+                  College
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: textPrimary,
+                    fontSize: 15,
+                  }}
+                >
+                  {currentUserData.collegeName || "Not specified"}
                 </Text>
                 {currentUserData.isHostCollegeStudent && (
-                  <View className="bg-[#FFBA00] rounded-full px-3 py-1 mt-3 self-start">
-                    <Text className="text-[#121212] text-xs font-semibold">
-                      Host College
+                  <View
+                    style={{
+                      backgroundColor: "rgba(65, 184, 240, 0.15)",
+                      borderRadius: 12,
+                      paddingHorizontal: 10,
+                      paddingVertical: 3,
+                      marginTop: 8,
+                      alignSelf: "flex-start",
+                      borderWidth: 1,
+                      borderColor: "rgba(65, 184, 240, 0.3)",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        color: "#41B8F0",
+                        fontSize: 11,
+                      }}
+                    >
+                      Host College Student
                     </Text>
                   </View>
                 )}
               </View>
 
-              {/* Fest Entry Status */}
-              <View className="bg-[#2C2C2C] rounded-xl p-5 mx-2">
-                <Text className="text-gray-400 text-sm mb-4">
-                  Fest Entry Status
+              {/* Fest Gate Entry Status */}
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: textPrimary,
+                    fontSize: 14,
+                    marginBottom: 10,
+                  }}
+                >
+                  Fest Gate Entry
                 </Text>
 
-                <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-white text-sm">Gate Entry</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                    Gate Verification:
+                  </Text>
                   <View
-                    className={`px-3 py-1 rounded-full ${
-                      currentUserData.checkInStatus.fest
-                        ? "bg-green-500/20"
-                        : "bg-red-500/20"
-                    }`}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 20,
+                      backgroundColor: currentUserData.checkInStatus.fest
+                        ? "rgba(16, 185, 129, 0.2)"
+                        : "rgba(239, 68, 68, 0.2)",
+                    }}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        currentUserData.checkInStatus.fest
-                          ? "text-green-400"
-                          : "text-red-400"
-                      }`}
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        fontSize: 12,
+                        color: currentUserData.checkInStatus.fest ? "#10B981" : "#EF4444",
+                      }}
                     >
-                      {currentUserData.checkInStatus.fest
-                        ? "Confirmed"
-                        : "Not Confirmed"}
+                      {currentUserData.checkInStatus.fest ? "Confirmed" : "Not Entered"}
                     </Text>
                   </View>
                 </View>
 
-                {/* Gate Remark */}
                 {currentUserData.checkInStatus.remark && (
-                  <View className="bg-[#1a1a1a] rounded-xl p-3 mb-3">
-                    <Text className="text-gray-400 text-xs mb-1">Gate Remark:</Text>
-                    <Text
-                      style={{ fontFamily: "Outfit_400Regular" }}
-                      className="text-white text-sm"
-                    >
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+                      borderRadius: 10,
+                      padding: 10,
+                      marginTop: 10,
+                    }}
+                  >
+                    <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 11 }}>
+                      Gate Remark:
+                    </Text>
+                    <Text style={{ fontFamily: "Poppins_400Regular", color: textPrimary, fontSize: 12, marginTop: 2 }}>
                       {currentUserData.checkInStatus.remark}
                     </Text>
                   </View>
                 )}
 
                 {!currentUserData.checkInStatus.fest && (
-                  <View className="bg-red-500/20 p-3 rounded-xl">
-                    <Text className="text-red-400 text-center text-xs">
-                      ⚠️ User has not entered through the gate
+                  <View
+                    style={{
+                      backgroundColor: "rgba(239, 68, 68, 0.12)",
+                      borderWidth: 1,
+                      borderColor: "rgba(239, 68, 68, 0.25)",
+                      borderRadius: 10,
+                      padding: 10,
+                      marginTop: 10,
+                    }}
+                  >
+                    <Text style={{ fontFamily: "Poppins_500Medium", color: "#EF4444", fontSize: 12, textAlign: "center" }}>
+                      ⚠️ User must enter through the gate first
                     </Text>
                   </View>
                 )}
               </View>
 
-              {/* User Events */}
+              {/* User Events Accordion */}
               <TouchableOpacity
-                className="bg-[#2C2C2C] rounded-xl p-5 mx-2"
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
                 onPress={() => {
                   if (userEvents.length > 0) {
                     setShowEventsList(!showEventsList);
@@ -288,39 +451,38 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
                 disabled={userEvents.length === 0}
                 activeOpacity={userEvents.length > 0 ? 0.7 : 1}
               >
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-gray-400 text-sm">
-                    Events User Participated
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textPrimary, fontSize: 14 }}>
+                    Events Registered
                   </Text>
-                  <View className="flex-row items-center gap-2">
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     {loadingEvents ? (
-                      <ActivityIndicator size="small" color="#FFBA00" />
+                      <ActivityIndicator size="small" color="#41B8F0" />
                     ) : (
                       <>
                         <View
-                          className={`px-3 py-1 rounded-full ${
-                            userEvents.length > 0
-                              ? "bg-[#FFBA00]/20"
-                              : "bg-gray-500/20"
-                          }`}
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 2,
+                            borderRadius: 12,
+                            backgroundColor: userEvents.length > 0 ? "rgba(65, 184, 240, 0.15)" : "rgba(107, 114, 128, 0.15)",
+                          }}
                         >
                           <Text
-                            className={`text-xs font-semibold ${
-                              userEvents.length > 0
-                                ? "text-[#FFBA00]"
-                                : "text-gray-400"
-                            }`}
+                            style={{
+                              fontFamily: "Poppins_600SemiBold",
+                              fontSize: 12,
+                              color: userEvents.length > 0 ? "#41B8F0" : textSecondary,
+                            }}
                           >
                             {userEvents.length}
                           </Text>
                         </View>
                         {userEvents.length > 0 && (
                           <Ionicons
-                            name={
-                              showEventsList ? "chevron-up" : "chevron-down"
-                            }
+                            name={showEventsList ? "chevron-up" : "chevron-down"}
                             size={16}
-                            color="#FFBA00"
+                            color="#41B8F0"
                           />
                         )}
                       </>
@@ -328,26 +490,22 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
                   </View>
                 </View>
 
-                {/* Events List */}
                 {showEventsList && userEvents.length > 0 && (
-                  <View className="mt-4 pt-4 border-t border-gray-600">
+                  <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: cardBorder, gap: 8 }}>
                     {userEvents.map((event, index) => (
                       <View
-                        key={event.eventId}
-                        className={`py-2 ${
-                          index !== userEvents.length - 1
-                            ? "border-b border-gray-700"
-                            : ""
-                        }`}
+                        key={event.eventId || index}
+                        style={{
+                          paddingVertical: 6,
+                          borderBottomWidth: index !== userEvents.length - 1 ? 1 : 0,
+                          borderBottomColor: cardBorder,
+                        }}
                       >
-                        <Text
-                          style={{ fontFamily: "Outfit_500Medium" }}
-                          className="text-white text-sm"
-                        >
+                        <Text style={{ fontFamily: "Poppins_500Medium", color: textPrimary, fontSize: 13 }}>
                           {event.eventName}
                         </Text>
-                        <Text className="text-gray-400 text-xs mt-1">
-                          Registration Status: {event.status}
+                        <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 11, marginTop: 2 }}>
+                          Status: {event.status} {event.checkingStatus ? `(${event.checkingStatus})` : ""}
                         </Text>
                       </View>
                     ))}
@@ -356,138 +514,192 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
               </TouchableOpacity>
 
               {/* Accommodation Status & Actions */}
-              <View className="bg-[#2C2C2C] rounded-xl p-5 mx-2">
-                <Text className="text-gray-400 text-sm mb-4">
-                  Accommodation Check-in Status
+              <View
+                style={{
+                  backgroundColor: cardBg,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    color: textPrimary,
+                    fontSize: 14,
+                    marginBottom: 12,
+                  }}
+                >
+                  Accommodation Details
                 </Text>
 
-                {/* Accommodation for Current Day */}
-                <View className="flex-col mb-4">
-                  {/* not in serial order */}
-                  {/* show  days accommodation */}
-                  {/* show for today date also */}
-                  <View
-                    key={currentDay}
-                    className={`flex-row items-center justify-between mb-2`}
-                  >
-                    <Text className="text-white text-sm">
-                      Accommodation - {getDayDate(currentDay)}
+                {/* Day-wise Booking Breakdown */}
+                <View style={{ gap: 8, marginBottom: 12 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                      Today ({getDayLabel(currentDay)}):
                     </Text>
-                    <View className={`px-3 py-1 rounded-full ${
-                      currentUserData.accommodation && currentUserData.accommodation[currentDay] ? "bg-green-500/20" : "bg-red-500/20"
-                    }`}>
-                      <Text className={`text-xs font-semibold ${currentUserData.accommodation && currentUserData.accommodation[currentDay] ? "text-green-400" : "text-red-400"}`}>{currentUserData.accommodation && currentUserData.accommodation[currentDay] ? "Yes" : "No"}</Text>
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 12,
+                        backgroundColor: currentUserData.accommodation?.[currentDay]
+                          ? "rgba(16, 185, 129, 0.2)"
+                          : "rgba(107, 114, 128, 0.15)",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: "Poppins_600SemiBold",
+                          fontSize: 11,
+                          color: currentUserData.accommodation?.[currentDay] ? "#10B981" : textSecondary,
+                        }}
+                      >
+                        {currentUserData.accommodation?.[currentDay] ? "Booked" : "Not Booked"}
+                      </Text>
                     </View>
                   </View>
 
-                  {(Object.keys(currentUserData.accommodation || {}) as DayCode[])
-                    .filter(
-                      (dayKey) =>
-                        currentUserData.accommodation &&
-                        currentUserData.accommodation[dayKey]
-                    )
-                    .map((dayKey) => (
-                      <View
-                        key={dayKey}
-                        className="flex-row items-center justify-between mb-2"
-                      >
-                        <Text className="text-white text-sm">
-                          Accommodation - {getDayDate(dayKey)}
+                  {bookedDays
+                    .filter((day) => day !== currentDay)
+                    .map((day) => (
+                      <View key={day} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                        <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                          {getDayLabel(day)}:
                         </Text>
-                        <View className="px-3 py-1 rounded-full bg-green-500/20">
-                          <Text className="text-xs font-semibold text-green-400">Yes</Text>
+                        <View
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 3,
+                            borderRadius: 12,
+                            backgroundColor: "rgba(16, 185, 129, 0.2)",
+                          }}
+                        >
+                          <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 11, color: "#10B981" }}>
+                            Booked
+                          </Text>
                         </View>
                       </View>
                     ))}
                 </View>
 
-                {/* Check-in Status */}
-                <View className="flex-row items-center justify-between mb-4">
-                  <Text className="text-white text-sm">Current Status</Text>
+                {/* Current Hostel Check-in Status */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                    Check-in Status:
+                  </Text>
                   <View
-                    className={`px-3 py-1 rounded-full ${
-                      currentUserData.checkInStatus.accommodation
-                        ? "bg-green-500/20"
-                        : "bg-gray-500/20"
-                    }`}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 20,
+                      backgroundColor: currentUserData.checkInStatus.accommodation
+                        ? "rgba(16, 185, 129, 0.2)"
+                        : "rgba(234, 179, 8, 0.2)",
+                    }}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        currentUserData.checkInStatus.accommodation
-                          ? "text-green-400"
-                          : "text-gray-400"
-                      }`}
+                      style={{
+                        fontFamily: "Poppins_600SemiBold",
+                        fontSize: 12,
+                        color: currentUserData.checkInStatus.accommodation ? "#10B981" : "#FBBF24",
+                      }}
                     >
-                      {currentUserData.checkInStatus.accommodation
-                        ? "Checked In"
-                        : "Pending"}
+                      {currentUserData.checkInStatus.accommodation ? "Checked In" : "Pending"}
                     </Text>
                   </View>
                 </View>
 
                 {/* Assigned Hostel */}
                 {currentUserData.checkInStatus.Hostel && (
-                  <View className="flex-row items-center justify-between mb-4">
-                    <Text className="text-white text-sm">Assigned Hostel</Text>
-                    <Text className="text-[#FFBA00] text-sm font-semibold">
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <Text style={{ fontFamily: "Poppins_400Regular", color: textSecondary, fontSize: 13 }}>
+                      Assigned Hostel:
+                    </Text>
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 14 }}>
                       {currentUserData.checkInStatus.Hostel}
                     </Text>
                   </View>
                 )}
 
-                {/* Action Buttons */}
-               
-                    {currentUserData.checkInStatus.fest ? (
-                      // User has valid gate entry
-                      <>
-                        {!currentUserData.checkInStatus.accommodation ? (
-                          // Show check-in button if not checked in
-                          <TouchableOpacity
-                            className="bg-[#3B82F6] py-3 rounded-xl mb-3"
-                            onPress={() => setShowHostelInput(true)}
-                            disabled={loading}
-                            activeOpacity={0.7}
-                          >
-                            <Text className="text-white text-center font-semibold text-sm">
-                              Confirm Check-in
-                            </Text>
-                          </TouchableOpacity>
-                        ) : (
-                          // Show revert button if already checked in
-                          <TouchableOpacity
-                            className="bg-red-600 py-3 rounded-xl mb-3"
-                            onPress={handleRevertCheckin}
-                            disabled={loading}
-                            activeOpacity={0.7}
-                          >
-                            <Text className="text-white text-center font-semibold text-sm">
-                              {loading ? "Updating..." : "Revert to Pending"}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </>
-                    ) : (
-                      // User hasn't entered through gate
-                      <View className="bg-red-500/20 p-3 rounded-xl">
-                        <Text className="text-red-400 text-center text-sm">
-                          ❌ Cannot check-in: User must enter through gate first
-                        </Text>
-                      </View>
-                    )}
-
+                {/* Check-in Action Button */}
+                {currentUserData.checkInStatus.fest ? (
+                  !currentUserData.checkInStatus.accommodation ? (
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: "#41B8F0",
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginTop: 4,
+                      }}
+                      onPress={() => setShowHostelInput(true)}
+                      disabled={loading}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 13 }}>
+                        Confirm Hostel Check-in
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: "#EF4444",
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginTop: 4,
+                      }}
+                      onPress={handleRevertCheckin}
+                      disabled={loading}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 13 }}>
+                        {loading ? "Updating..." : "Revert to Pending"}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                ) : (
+                  <View
+                    style={{
+                      backgroundColor: "rgba(239, 68, 68, 0.12)",
+                      borderRadius: 10,
+                      padding: 10,
+                      marginTop: 4,
+                    }}
+                  >
+                    <Text style={{ fontFamily: "Poppins_500Medium", color: "#EF4444", fontSize: 12, textAlign: "center" }}>
+                      ❌ Cannot check-in: User must enter through gate first
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
 
             {/* Close Button */}
             <TouchableOpacity
-              className="bg-[#FFBA00] py-4 rounded-xl mt-8 mx-2"
+              style={{
+                backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+                paddingVertical: 14,
+                borderRadius: 14,
+                marginTop: 20,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
               onPress={onClose}
               activeOpacity={0.7}
               disabled={loading}
             >
               <Text
-                style={{ fontFamily: "Outfit_600SemiBold" }}
-                className="text-[#121212] text-center text-base"
+                style={{
+                  fontFamily: "Poppins_600SemiBold",
+                  color: textPrimary,
+                  fontSize: 14,
+                }}
               >
                 Close
               </Text>
@@ -496,9 +708,23 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
 
           {/* Loading Overlay */}
           {loading && (
-            <View className="absolute inset-0 bg-black/50 rounded-2xl items-center justify-center">
-              <ActivityIndicator size="large" color="#FFBA00" />
-              <Text className="text-white text-sm mt-2">Updating...</Text>
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: "rgba(0, 0, 0, 0.6)",
+                borderRadius: 24,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <ActivityIndicator size="large" color="#41B8F0" />
+              <Text style={{ fontFamily: "Poppins_500Medium", color: "#FFFFFF", fontSize: 13, marginTop: 8 }}>
+                Updating...
+              </Text>
             </View>
           )}
         </View>
@@ -511,46 +737,109 @@ const HostelUserModal: React.FC<HostelUserModalProps> = ({
         animationType="fade"
         onRequestClose={() => setShowHostelInput(false)}
       >
-        <View className="flex-1 bg-black/70 justify-center items-center px-6">
-          <View className="bg-[#1a1a1a] rounded-2xl p-6 w-full max-w-sm border border-[#2C2C2C]">
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: modalBg,
+              borderRadius: 22,
+              padding: 20,
+              width: "100%",
+              maxWidth: 340,
+              borderWidth: 1,
+              borderColor: modalBorder,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.35,
+              shadowRadius: 16,
+              elevation: 8,
+            }}
+          >
             <Text
-              style={{ fontFamily: "Outfit_600SemiBold" }}
-              className="text-white text-xl mb-4 text-center"
+              style={{
+                fontFamily: "Talina",
+                color: textPrimary,
+                fontSize: 20,
+                marginBottom: 6,
+                textAlign: "center",
+              }}
             >
-              Enter Hostel Name
+              Assign Hostel
+            </Text>
+            <Text
+              style={{
+                fontFamily: "Poppins_400Regular",
+                color: textSecondary,
+                fontSize: 12,
+                marginBottom: 16,
+                textAlign: "center",
+              }}
+            >
+              Enter the hostel or room name for this user
             </Text>
 
             <TextInput
-              className="bg-[#2C2C2C] text-white p-4 rounded-xl mb-6 text-base"
-              placeholder="Enter hostel name..."
-              placeholderTextColor="#666"
+              style={{
+                backgroundColor: inputBg,
+                color: textPrimary,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                borderRadius: 12,
+                marginBottom: 16,
+                fontSize: 14,
+                fontFamily: "Poppins_500Medium",
+                borderWidth: 1,
+                borderColor: cardBorder,
+              }}
+              placeholder="e.g. Hostel A - Room 102"
+              placeholderTextColor={textSecondary}
               value={hostelName}
               onChangeText={setHostelName}
               autoFocus={true}
-              style={{ fontFamily: "Outfit_400Regular" }}
             />
 
-            <View className="flex-row gap-3">
+            <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity
-                className="flex-1 bg-gray-600 py-3 rounded-xl"
+                style={{
+                  flex: 1,
+                  backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)",
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
                 onPress={() => {
                   setShowHostelInput(false);
                   setHostelName("");
                 }}
                 activeOpacity={0.7}
               >
-                <Text className="text-white text-center font-semibold">
+                <Text style={{ fontFamily: "Poppins_500Medium", color: textSecondary, fontSize: 13 }}>
                   Cancel
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                className="flex-1 bg-[#3B82F6] py-3 rounded-xl"
+                style={{
+                  flex: 1,
+                  backgroundColor: !hostelName.trim() || loading ? "rgba(65, 184, 240, 0.5)" : "#41B8F0",
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
                 onPress={handleHostelCheckin}
                 disabled={!hostelName.trim() || loading}
                 activeOpacity={0.7}
               >
-                <Text className="text-white text-center font-semibold">
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 13 }}>
                   {loading ? "Confirming..." : "Confirm"}
                 </Text>
               </TouchableOpacity>

@@ -1,6 +1,9 @@
 package store
 
 import (
+	"slices"
+	"strings"
+
 	"cloud.google.com/go/firestore"
 
 	"backend/internal/models"
@@ -20,6 +23,13 @@ func decodeUser(snap *firestore.DocumentSnapshot) (*models.User, error) {
 		return nil, err
 	}
 	u.UserID = snap.Ref.ID
+	data := snap.Data()
+	if roleVal, ok := data["role"].(string); ok && strings.TrimSpace(roleVal) != "" {
+		trimmed := strings.ToLower(strings.TrimSpace(roleVal))
+		if !slices.Contains(u.Roles, trimmed) {
+			u.Roles = append(u.Roles, trimmed)
+		}
+	}
 	if u.Interests == nil {
 		u.Interests = []string{}
 	}

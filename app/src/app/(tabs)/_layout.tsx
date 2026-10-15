@@ -14,6 +14,7 @@ import { useThemeStore } from "@/state/themeStore";
 import { useAdminDrawerStore } from "@/state/adminDrawerStore";
 import { useUserStore } from "@/state/userStore";
 import AdminDrawer from "@/components/layout/AdminDrawer";
+import { getUserRoles } from "@/utils/roles";
 
 const ACTIVE_LOGO_COLOR = "#41B8F0";
 
@@ -238,7 +239,7 @@ export default function TabLayout() {
   const { isOpen, closeDrawer } = useAdminDrawerStore();
   const { userData } = useUserStore();
 
-  const userRoles = Array.isArray(userData?.roles) ? userData.roles : [];
+  const userRoles = getUserRoles(userData);
 
   return (
     <>

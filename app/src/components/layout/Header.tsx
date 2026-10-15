@@ -7,6 +7,7 @@ import { useUserStore } from '@/state/userStore';
 import { useThemeStore } from '@/state/themeStore';
 import { useAdminDrawerStore } from '@/state/adminDrawerStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { isUserAdmin } from '@/utils/roles';
 
 interface HeaderType {
   userProfile?: any;
@@ -21,8 +22,7 @@ const Header: React.FC<HeaderType> = ({ userProfile: userProfileProp }) => {
   const { userData } = useUserStore();
 
   const userProfile = userProfileProp ?? userData;
-  const roles: string[] = Array.isArray(userProfile?.roles) ? userProfile.roles : [];
-  const isAdmin = roles.some((r) => r !== 'user');
+  const isAdmin = isUserAdmin(userProfile);
 
   const bgColor = isDark ? "#131316" : "#E0E0E0";
   const iconColor = isDark ? "#FFFFFF" : "#111827";

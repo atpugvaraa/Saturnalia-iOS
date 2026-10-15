@@ -37,6 +37,7 @@ import { Input } from "@/components";
 import { useUserStore } from "@/state/userStore";
 import { useThemeStore } from "@/state/themeStore";
 import { showAlert } from "@/components";
+import { canUserEditEvent } from "@/utils/roles";
 
 // Phase 3: Custom Field Types
 interface BaseCustomField {
@@ -113,16 +114,7 @@ export default function EventInfo({
 
   // Check if user can edit this event
   const canEdit = () => {
-    if (!userProfile) return false;
-
-    // Check if user is an event_admin
-    if (userProfile.roles?.includes("event_admin") || userProfile.roles?.includes("admin")) return true;
-
-    const isCoordinator = event.coordinators?.some(
-      (coordinator) => coordinator.email === userProfile.email
-    );
-
-    return isCoordinator;
+    return canUserEditEvent(userProfile, event);
   };
   const [editData, setEditData] = useState<any>({});
   const [saving, setSaving] = useState(false);
