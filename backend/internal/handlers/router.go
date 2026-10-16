@@ -180,5 +180,8 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	}
 	authed.GET("/payments/:merchantOrderId", api.GetPayment)
 
+
+	authed.POST("/deleteuser", api.DeleteSelf)
+
 	return r
 }
