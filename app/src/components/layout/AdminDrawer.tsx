@@ -32,7 +32,6 @@ const ALL_ITEMS: DrawerItem[] = [
   { label: 'Story Management', icon: 'film-outline', route: '/admin/StoryManagement', requiredRoles: ['admin', 'media'] },
   { label: 'Reel Management', icon: 'videocam-outline', route: '/admin/ReelsManagement', requiredRoles: ['admin', 'media'] },
   { label: 'Banner Management', icon: 'image-outline', route: '/admin/Banner', requiredRoles: ['admin', 'media'] },
-  { label: 'Store Management', icon: 'cart-outline', route: '/admin/Store', requiredRoles: ['admin', 'eb_member', 'finance', 'event_admin'] },
 ];
 
 interface AdminDrawerProps {

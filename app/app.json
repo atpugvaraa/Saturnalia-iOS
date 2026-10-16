@@ -25,9 +25,9 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff",
-        "foregroundImage": "./assets/logo.png",
-        "monochromeImage": "./assets/logo.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/icons/adaptive-icon.png",
+        "monochromeImage": "./assets/icons/adaptive-icon.png"
       },
       "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
@@ -80,6 +80,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "387c8bcf-40be-477b-af17-b88b14e01379"
+      }
+    },
+    "owner": "gauransharora"
   }
 }

@@ -322,21 +322,9 @@ const UserOrdersScreen: React.FC = () => {
             </Text>
             <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, textAlign: 'center', marginBottom: 24, lineHeight: 22, fontSize: 14 }}>
               {activeFilter === 'all'
-                ? "You haven't placed any merchandise orders yet.\nCheck out the official fest store!"
+                ? "You haven't placed any merchandise orders yet."
                 : `No orders found with status "${activeFilter}".`}
             </Text>
-
-            {activeFilter === 'all' && (
-              <TouchableOpacity 
-                onPress={() => router.push("/store")}
-                style={{ backgroundColor: '#41B8F0', borderRadius: 16, paddingHorizontal: 24, paddingVertical: 14, flexDirection: 'row', alignItems: 'center' }}
-              >
-                <Ionicons name="shirt-outline" size={18} color="#FFFFFF" />
-                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: '#FFFFFF', fontSize: 15, marginLeft: 8 }}>
-                  Visit Merch Store
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
         ) : (
           <View>

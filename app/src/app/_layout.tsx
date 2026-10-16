@@ -22,7 +22,6 @@ import {
 import '../global.css';
 import { BackHandler, StatusBar, ToastAndroid, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { StoreProvider } from '@/state/StoreContext';
 import { useUserStore } from '@/state/userStore';
 import { useAuthListener } from '@/hooks/useAuthListener';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -102,27 +101,24 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: asyncStoragePersister }}>
-        <StoreProvider>
-          <AlertProvider>
-            <ConnectivityWrapper currentVersion={Constants.expoConfig?.version ?? '1.0.0'}>
-              <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
-                <StatusBar
-                  backgroundColor={colors.background}
-                  barStyle={isDark ? "light-content" : "dark-content"}
-                />
-                <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-                  <Stack.Screen name="(tabs)" />
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="admin" />
-                  <Stack.Screen name="events" />
-                  <Stack.Screen name="profile" />
-                  <Stack.Screen name="map" />
-                  <Stack.Screen name="store" />
-                </Stack>
-              </SafeAreaView>
-            </ConnectivityWrapper>
-          </AlertProvider>
-        </StoreProvider>
+        <AlertProvider>
+          <ConnectivityWrapper currentVersion={Constants.expoConfig?.version ?? '1.0.0'}>
+            <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
+              <StatusBar
+                backgroundColor={colors.background}
+                barStyle={isDark ? "light-content" : "dark-content"}
+              />
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="admin" />
+                <Stack.Screen name="events" />
+                <Stack.Screen name="profile" />
+                <Stack.Screen name="map" />
+              </Stack>
+            </SafeAreaView>
+          </ConnectivityWrapper>
+        </AlertProvider>
       </PersistQueryClientProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>

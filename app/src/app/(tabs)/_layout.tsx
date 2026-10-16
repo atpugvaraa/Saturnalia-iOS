@@ -6,7 +6,6 @@ import {
   House,
   CalendarRange as Calendar,
   Play,
-  Store,
   User,
 } from "lucide-react-native";
 import { GlassView } from "expo-glass-effect";
@@ -22,7 +21,6 @@ const TAB_ICONS: Record<string, { label: string; Icon: React.ComponentType<any> 
   index: { label: "Home", Icon: House },
   events: { label: "Events", Icon: Calendar },
   reels: { label: "Reels", Icon: Play },
-  store: { label: "Store", Icon: Store },
   profile: { label: "Profile", Icon: User },
 };
 
@@ -254,7 +252,6 @@ export default function TabLayout() {
         <Tabs.Screen name="index" options={{ title: "Home" }} />
         <Tabs.Screen name="events" options={{ title: "Events" }} />
         <Tabs.Screen name="reels" options={{ title: "Reels" }} />
-        <Tabs.Screen name="store" options={{ title: "Store" }} />
         <Tabs.Screen name="profile" options={{ title: "Profile" }} />
       </Tabs>
 

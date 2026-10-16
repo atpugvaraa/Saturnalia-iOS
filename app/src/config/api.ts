@@ -2,9 +2,11 @@
 
 // Global API Base URL
 // Uses production endpoint in release builds; local server during development
-export const API_BASE_URL = __DEV__
-  ? "http://172.16.212.175:6767/api/v1"
-  : "https://api.saturnalia.in/api/v1";
+// export const API_BASE_URL = __DEV__
+//   ? "http://172.16.212.175:6767/api/v1"
+//   : "https://api.saturnalia.in/api/v1";
+
+export const API_BASE_URL = "https://api.saturnalia.in/api/v1";
 
 
 
