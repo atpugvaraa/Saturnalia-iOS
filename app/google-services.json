@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "427621506808",
+    "project_id": "sat2026-dev",
+    "storage_bucket": "sat2026-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:427621506808:android:ee3d56e2ce5ed931df250d",
+        "android_client_info": {
+          "package_name": "com.gauransh.saturnaliaapp2026"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "427621506808-tthtpvb0mdr9a77u11s87ameg3eq7e84.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gauransh.saturnaliaapp2026",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "427621506808-eqbbc3su0e8k9v005dddai8ua6lf29u5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDToNVpoV59xoPDEMw3-LQ9Nsr61GjLElo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "427621506808-eqbbc3su0e8k9v005dddai8ua6lf29u5.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "427621506808-27df1pi1urua26naeapc53jsc9j21ofv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.gauransh.saturnaliaapp2026"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
