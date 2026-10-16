@@ -260,30 +260,66 @@ export async function adminGetUserRegistrations(email: string): Promise<any[]> {
   return data.items || [];
 }
 
-// ─── Accommodation (mock) ─────────────────────────────────────────────────────
+// ─── Accommodation ──────────────────────────────────────────────────────────
 
-export async function fetchAccommodationStats(_forceRefresh?: boolean): Promise<any> {
-  return [];
+export async function fetchAccommodationStats(
+  _forceRefresh?: boolean
+): Promise<AccommodationStats[]> {
+  const res = await apiFetch('/admin/accommodation/stats', {}, 'required');
+  if (!res.ok) {
+    throw new Error(await readError(res, 'Failed to fetch accommodation stats'));
+  }
+  const data = await res.json();
+  return data.stats || [];
 }
 
-export async function fetchIncomingUsers(..._args: any[]): Promise<UserAccommodation[]> {
-  return [];
+export async function fetchIncomingUsers(
+  day: string,
+  _forceRefresh?: boolean
+): Promise<UserAccommodation[]> {
+  const res = await apiFetch(`/admin/accommodation?day=${day}&type=incoming`, {}, 'required');
+  if (!res.ok) {
+    throw new Error(await readError(res, 'Failed to fetch incoming accommodation users'));
+  }
+  const data = await res.json();
+  return data.users || [];
 }
 
-export async function fetchOutgoingUsers(..._args: any[]): Promise<UserAccommodation[]> {
-  return [];
+export async function fetchOutgoingUsers(
+  day: string,
+  _forceRefresh?: boolean
+): Promise<UserAccommodation[]> {
+  const res = await apiFetch(`/admin/accommodation?day=${day}&type=outgoing`, {}, 'required');
+  if (!res.ok) {
+    throw new Error(await readError(res, 'Failed to fetch outgoing accommodation users'));
+  }
+  const data = await res.json();
+  return data.users || [];
 }
 
 export async function updateAccommodationCheckIn(
-  _userId: string,
-  _day: string,
-  _status: boolean,
+  userId: string,
+  status: boolean,
+  hostel?: string
 ): Promise<void> {
-  console.log('[mock] updateAccommodationCheckIn');
+  const body: Record<string, any> = {
+    userId,
+    accommodation: status,
+  };
+  if (hostel !== undefined) {
+    body.Hostel = hostel;
+  }
+  const res = await apiFetch(`/admin/qr/hostel/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  }, 'required');
+  if (!res.ok) {
+    throw new Error(await readError(res, 'Failed to update accommodation check-in'));
+  }
 }
 
 export async function clearAccommodationCache(): Promise<void> {
-  console.log('[mock] clearAccommodationCache');
+  // Cache invalidation stub
 }
 
 // ─── Venues (mock) ────────────────────────────────────────────────────────────

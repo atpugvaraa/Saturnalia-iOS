@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 	"backend/internal/cache"
 	"backend/internal/models"
+	"backend/internal/slug"
 )
 
 // Shared cache keys. The provider namespaces them, so these stay bare.
@@ -297,9 +299,38 @@ func (c *EventCache) writeShared(ctx context.Context, events []*models.Event, co
 }
 
 func (c *EventCache) populate(events []*models.Event, counts map[string]int) {
-	byID := make(map[string]*models.Event, len(events))
+	byID := make(map[string]*models.Event, len(events)*4)
 	for _, e := range events {
-		byID[e.ID] = e
+		if e.ID != "" {
+			byID[e.ID] = e
+		}
+		if e.EventID != "" {
+			byID[e.EventID] = e
+		}
+		for _, a := range e.Aliases {
+			if a != "" {
+				byID[a] = e
+			}
+		}
+		if sl := slug.Make(e.Title); sl != "" {
+			byID[sl] = e
+		}
+		cleanTitle := strings.ToLower(strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+				return r
+			}
+			return -1
+		}, e.Title))
+		if cleanTitle != "" {
+			byID[cleanTitle] = e
+		}
+		words := strings.Fields(strings.ToLower(e.Title))
+		if len(words) > 0 {
+			cleanFirst := strings.Trim(words[0], "-:,_’' ")
+			if cleanFirst != "" {
+				byID[cleanFirst] = e
+			}
+		}
 	}
 
 	c.mu.Lock()

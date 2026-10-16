@@ -44,9 +44,11 @@ func decodeEvent(snap *firestore.DocumentSnapshot) (*models.Event, error) {
 	if err := snap.DataTo(&e); err != nil {
 		return nil, err
 	}
+	legacyID := e.EventID
 	e.ID = snap.Ref.ID
-	if e.EventID == "" {
-		e.EventID = snap.Ref.ID
+	e.EventID = snap.Ref.ID
+	if legacyID != "" && legacyID != snap.Ref.ID {
+		e.Aliases = append(e.Aliases, legacyID)
 	}
 	e.Normalise()
 	return &e, nil
@@ -118,5 +120,20 @@ func decodeStory(snap *firestore.DocumentSnapshot) (*models.Story, error) {
 	s.ID = snap.Ref.ID
 	s.Normalise()
 	return &s, nil
+}
+
+func decodeStoreItem(snap *firestore.DocumentSnapshot) (*models.StoreItem, error) {
+	var item models.StoreItem
+	if err := snap.DataTo(&item); err != nil {
+		return nil, err
+	}
+	item.ID = snap.Ref.ID
+	if item.Image == "" {
+		if img, ok := snap.Data()["imageUrl"].(string); ok {
+			item.Image = img
+		}
+	}
+	item.Normalise()
+	return &item, nil
 }
 

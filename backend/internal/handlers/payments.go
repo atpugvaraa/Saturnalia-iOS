@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io"
 	"log"
 	"math"
@@ -685,7 +684,7 @@ func (a *API) finishPayment(c *gin.Context, id string, success bool, info store.
 // redirectToApp sends the user back to the app via a deep-link or a simple
 // HTML page that closes the WebView.
 func (a *API) redirectToApp(c *gin.Context, merchantOrderID, status string) {
-	// Return JSON for webhook (server-to-server) calls; HTML for browser redirects.
+	// Return JSON for webhook (server-to-server) calls; direct HTTP redirect for browser.
 	accept := c.GetHeader("Accept")
 	if strings.Contains(accept, "application/json") {
 		c.JSON(http.StatusOK, gin.H{"status": status, "merchantOrderId": merchantOrderID})
@@ -696,24 +695,11 @@ func (a *API) redirectToApp(c *gin.Context, merchantOrderID, status string) {
 	if strings.Contains(a.Cfg.FrontendDeepLinkBase, "?") {
 		sep = "&"
 	}
-	deepLink := html.EscapeString(a.Cfg.FrontendDeepLinkBase + sep +
-		url.Values{"status": {status}, "merchantOrderId": {merchantOrderID}}.Encode())
-	title := html.EscapeString(status)
+	rawDeepLink := a.Cfg.FrontendDeepLinkBase + sep +
+		url.Values{"status": {status}, "merchantOrderId": {merchantOrderID}}.Encode()
 
-	// Every interpolated value is escaped: merchantOrderID can come from a
-	// request, and this page is served on the API's own origin.
-	page := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Payment %s</title>
-<meta http-equiv="refresh" content="0;url=%s">
-</head>
-<body>
-<p>Payment %s. Redirecting back to the app…</p>
-<a href="%s">Tap here if not redirected</a>
-</body>
-</html>`, title, deepLink, title, deepLink)
-
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(page))
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Redirect(http.StatusSeeOther, rawDeepLink)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

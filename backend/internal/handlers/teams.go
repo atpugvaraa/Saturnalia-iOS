@@ -299,6 +299,12 @@ func (a *API) ConfirmTeam(c *gin.Context) {
 		return
 	}
 
+	// If event requires payment and team is not paid, do not allow confirmation.
+	if event != nil && (event.PaymentRequired || event.FeeFor(user.IsHostCollegeStudent) > 0) && !team.Paid {
+		apierr.Respond(c, apierr.Conflict("payment_required", "payment is pending or due for this event. Please complete payment to finalize registration"))
+		return
+	}
+
 	if team.Status == models.TeamStatusConfirmed {
 		a.presentTeam(c, team)
 		return

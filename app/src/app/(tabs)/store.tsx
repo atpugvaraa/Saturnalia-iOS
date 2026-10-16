@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,15 +8,18 @@ import {
   Image,
   Dimensions,
   StatusBar,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { useThemeStore } from '@/state/themeStore';
 import { useAdminDrawerStore } from '@/state/adminDrawerStore';
 import { useUserStore } from '@/state/userStore';
 import { isUserAdmin } from '@/utils/roles';
+import { fetchStoreItems, StoreItem } from '@/api/store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CENTER_CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.58, 226);
@@ -26,37 +29,38 @@ const SIDE_OVERFLOW = 42; // Extends out of the screen
 const SIDE_GAP = 14;
 const SIDE_CARD_WIDTH = Math.max((SCREEN_WIDTH - CENTER_CARD_WIDTH - (SIDE_GAP * 2)) / 2 + SIDE_OVERFLOW, 85);
 
-interface StoreProduct {
+export interface StoreProduct {
   id: string;
   name: string;
   price: number;
   priceText: string;
   description: string;
+  image?: string;
+  imageUrl?: string;
 }
 
-const DEFAULT_PRODUCTS: StoreProduct[] = [
-  {
-    id: 'prod-hoodie',
-    name: 'Hoodie',
-    price: 800,
-    priceText: 'Rs. 800',
-    description: 'Hoodie Curated in a way that you wear to feel the vibes of Saturnalia',
-  },
-  {
-    id: 'prod-idcard-1',
-    name: 'ID Card',
-    price: 150,
-    priceText: 'Rs. 150',
-    description: 'ID Card Curated in a way that you wear to feel the vibes of Saturnalia',
-  },
-  {
-    id: 'prod-tee',
-    name: 'Saturnalia Tee',
-    price: 499,
-    priceText: 'Rs. 499',
-    description: 'Classic Fest T-Shirt curated in a way that you wear to feel the vibes of Saturnalia',
-  },
-];
+const ProductCardImage: React.FC<{ imageUrl?: string }> = ({ imageUrl }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (!imageUrl || hasError) {
+    return (
+      <Image
+        source={require('@/assets/question.png')}
+        style={{ width: '80%', height: '80%', alignSelf: 'center' }}
+        resizeMode="contain"
+      />
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: imageUrl }}
+      style={{ width: '85%', height: '85%', alignSelf: 'center', borderRadius: 14 }}
+      resizeMode="contain"
+      onError={() => setHasError(true)}
+    />
+  );
+};
 
 /**
  * Geometric Jaali / Lattice pattern overlay matching the reference mockup
@@ -118,8 +122,43 @@ const StoreScreen: React.FC = () => {
   const { openDrawer } = useAdminDrawerStore();
   const { userData } = useUserStore();
   const canSeeAdmin = isUserAdmin(userData);
+  const [products, setProducts] = useState<StoreProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+
+  const loadProducts = async () => {
+    try {
+      const items = await fetchStoreItems();
+      const mapped: StoreProduct[] = items.map((it: StoreItem) => ({
+        id: it.id,
+        name: it.name,
+        price: it.price,
+        priceText: `Rs. ${it.price}`,
+        description: it.description,
+        image: it.image || it.imageUrl,
+        imageUrl: it.image || it.imageUrl,
+      }));
+      setProducts(mapped);
+    } catch (e) {
+      console.error('Error fetching store items:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProducts();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadProducts();
+  };
 
   const toggleBookmark = (id: string) => {
     setBookmarkedIds((prev) => {
@@ -134,12 +173,12 @@ const StoreScreen: React.FC = () => {
   };
 
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return DEFAULT_PRODUCTS;
+    if (!searchQuery.trim()) return products;
     const q = searchQuery.toLowerCase().trim();
-    return DEFAULT_PRODUCTS.filter(
+    return products.filter(
       (p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
     );
-  }, [searchQuery]);
+  }, [products, searchQuery]);
 
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#131316' : '#E0E0E0' }}>
@@ -243,6 +282,9 @@ const StoreScreen: React.FC = () => {
         contentContainerStyle={{
           paddingBottom: 110,
         }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38BDF8" />
+        }
       >
         {/* Hero Section: The SAT Store Banner with store1 & store2 graphics */}
         <View
@@ -306,8 +348,25 @@ const StoreScreen: React.FC = () => {
           </Text>
         </View>
 
+        {/* Loading Spinner */}
+        {loading && !refreshing && (
+          <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+            <ActivityIndicator size="large" color="#38BDF8" />
+            <Text
+              style={{
+                fontFamily: 'Poppins_400Regular',
+                color: isDark ? '#9CA3AF' : '#666666',
+                fontSize: 13,
+                marginTop: 10,
+              }}
+            >
+              Loading festival store...
+            </Text>
+          </View>
+        )}
+
         {/* Products List */}
-        {filteredProducts.length === 0 ? (
+        {!loading && filteredProducts.length === 0 ? (
           <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
             <Ionicons name="search-outline" size={48} color="#71717A" />
             <Text
@@ -328,7 +387,7 @@ const StoreScreen: React.FC = () => {
 
               return (
                 <View key={product.id} style={{ alignItems: 'center' }}>
-                  {/* 3-Rectangle Row (Left: Olive, Center: Dark Green / Blank, Right: Magenta) */}
+                  {/* 3-Rectangle Row (Left: Olive, Center: Dark Green / Product, Right: Magenta) */}
                   <View
                     style={{
                       flexDirection: 'row',
@@ -356,11 +415,10 @@ const StoreScreen: React.FC = () => {
                       />
                     </View>
 
-                    {/* Center Main Card (Blank rectangle with price badge & bookmark) */}
+                    {/* Center Main Card (Displays Product Image with question.png fallback) */}
                     <TouchableOpacity
                       activeOpacity={0.9}
                       onPress={() => {
-                        // Navigate to item details if desired
                         router.push({
                           pathname: '/store/ItemDetails',
                           params: { itemId: product.id },
@@ -378,6 +436,8 @@ const StoreScreen: React.FC = () => {
                         shadowOpacity: 0.45,
                         shadowRadius: 10,
                         elevation: 6,
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
                       <JaaliOverlay
@@ -434,7 +494,20 @@ const StoreScreen: React.FC = () => {
                         />
                       </TouchableOpacity>
 
-                      {/* Product area is intentionally left blank as requested */}
+                      {/* Product Image with question.png fallback */}
+                      <View
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          paddingTop: 36,
+                          paddingBottom: 16,
+                          paddingHorizontal: 14,
+                        }}
+                      >
+                        <ProductCardImage imageUrl={product.image || product.imageUrl} />
+                      </View>
                     </TouchableOpacity>
 
                     {/* Right Magenta / Pink Card (shorter & overflows out of screen) */}

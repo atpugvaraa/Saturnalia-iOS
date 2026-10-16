@@ -422,7 +422,7 @@ const ProfileScreen = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* Delete Account Button */}
+            {/* Delete Account Button
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={handleDeleteAccount}
@@ -448,18 +448,16 @@ const ProfileScreen = () => {
               >
                 Delete Account
               </Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
         {/* Menu Items List matching reference UI */}
-        {!isHostCollegeStudent && (
-          <ProfileMenuItem
-            icon="bed-outline"
-            label="Accommodation"
-            onPress={() => router.push("/profile/Accommodation")}
-          />
-        )}
+        <ProfileMenuItem
+          icon="bed-outline"
+          label="Accommodation & Hostel"
+          onPress={() => router.push("/profile/Accommodation")}
+        />
 
         <ProfileMenuItem
           icon="restaurant-outline"

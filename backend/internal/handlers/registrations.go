@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,7 @@ import (
 	"backend/internal/apierr"
 	"backend/internal/middleware"
 	"backend/internal/models"
+	"backend/internal/slug"
 	"backend/internal/store"
 )
 
@@ -81,6 +83,28 @@ func (a *API) Unregister(c *gin.Context) {
 
 	id := models.RegistrationID(event.EventID, user.UserID)
 	reg, err := a.Store.GetRegistration(ctx, id)
+	if err != nil {
+		candidates := append([]string{}, event.Aliases...)
+		if sl := slug.Make(event.Title); sl != "" {
+			candidates = append(candidates, sl)
+		}
+		words := strings.Fields(strings.ToLower(event.Title))
+		if len(words) > 0 {
+			fw := strings.Trim(words[0], "-:,_’' ")
+			if fw != "" {
+				candidates = append(candidates, fw)
+			}
+		}
+		for _, alias := range candidates {
+			aliasID := models.RegistrationID(alias, user.UserID)
+			if r, err2 := a.Store.GetRegistration(ctx, aliasID); err2 == nil {
+				reg = r
+				id = aliasID
+				err = nil
+				break
+			}
+		}
+	}
 	if err != nil {
 		apierr.Respond(c, apierr.NotFound("not_registered", "you are not registered for this event"))
 		return

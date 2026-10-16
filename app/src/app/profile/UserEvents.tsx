@@ -36,10 +36,11 @@ const UserEventsScreen: React.FC = () => {
     }
     
     return {
-      eventId: row.event?.eventId || row.registration?.eventId,
+      ...row.registration,
+      eventId: row.event?.eventId || row.event?.id || row.registration?.eventId,
       eventName: row.event?.title || row.registration?.eventName || 'Unknown Event',
       eventCategory: row.event?.category || row.registration?.eventCategory || 'Uncategorized',
-      ...row.registration,
+      event: row.event,
       status: displayStatus,
     };
   });
@@ -236,11 +237,11 @@ const UserEventsScreen: React.FC = () => {
           </View>
         ) : (
           <View>
-            {filteredEvents.map((event) => {
+            {filteredEvents.map((event, idx) => {
               const badge = getStatusBadge(event.status);
               return (
                 <TouchableOpacity
-                  key={event.eventId}
+                  key={event.eventId || event.registrationId || `evt-${idx}`}
                   onPress={() => router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } })}
                   style={{
                     backgroundColor: cardBg,

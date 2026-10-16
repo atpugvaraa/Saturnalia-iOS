@@ -127,3 +127,38 @@ func (s *Store) UpdateUserAccommodation(ctx context.Context, userID string, need
 	_, err := s.FS.Collection(ColUsers).Doc(userID).Update(ctx, updates)
 	return wrap(err)
 }
+
+// ListAccommodationUsers scans users and returns anyone with accommodation needed or booked.
+func (s *Store) ListAccommodationUsers(ctx context.Context) ([]*models.User, error) {
+	iter := s.FS.Collection(ColUsers).Documents(ctx)
+	defer iter.Stop()
+
+	var users []*models.User
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, wrap(err)
+		}
+		u, err := decodeUser(doc)
+		if err != nil {
+			continue
+		}
+		hasAcc := u.AccommodationNeeded
+		if !hasAcc {
+			for _, v := range u.Accommodation {
+				if v {
+					hasAcc = true
+					break
+				}
+			}
+		}
+		if hasAcc {
+			users = append(users, u)
+		}
+	}
+	return users, nil
+}
+

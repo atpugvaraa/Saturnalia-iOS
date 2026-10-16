@@ -44,6 +44,26 @@ const TeamSubmissionModal: React.FC<TeamSubmissionModalProps> = ({
   if (!event || !teamData) return null;
 
   const handleFinalSubmit = async (formData: Record<string, any>) => {
+    const isHostStudent = !!userData?.isHostCollegeStudent;
+    const requiresPayment =
+      !!event.paymentRequired ||
+      (event.registrationFee &&
+        (isHostStudent
+          ? event.registrationFee.host > 0
+          : event.registrationFee.other > 0));
+    const isPaid =
+      !!(teamData as any)?.paid ||
+      (teamData as any)?.paymentStatus === "completed" ||
+      (teamData as any)?.paymentStatus === "success";
+
+    if (requiresPayment && !isPaid) {
+      showModalAlert(
+        "Payment Required",
+        "Payment is pending or due for this event. Please complete the registration payment before finalizing your team registration."
+      );
+      return;
+    }
+
     try {
       setIsLoading(true);
       await confirmTeam(teamData.teamId);

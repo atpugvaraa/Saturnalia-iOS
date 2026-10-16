@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { showAlert } from "../index";
-import { Copy, Users, Check, Send, CheckCircle2 } from "lucide-react-native";
+import { Copy, Users, Check, Send, CheckCircle2, AlertTriangle, CreditCard } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { FirebaseEvent, TeamRegistrationData } from '@/types/models';
 import TeamMemberItem from "./TeamMemberItem";
@@ -14,6 +14,8 @@ interface TeamDetailsCardProps {
   userId: string;
   isLeader: boolean;
   submittingTeam: boolean;
+  isPaymentDue?: boolean;
+  onPay?: () => void;
   onRemoveMember: (memberUserId: string, memberName: string) => void;
   onSubmitTeam: () => void;
 }
@@ -24,6 +26,8 @@ const TeamDetailsCard: React.FC<TeamDetailsCardProps> = ({
   userId,
   isLeader,
   submittingTeam,
+  isPaymentDue = false,
+  onPay,
   onRemoveMember,
   onSubmitTeam,
 }) => {
@@ -309,47 +313,97 @@ const TeamDetailsCard: React.FC<TeamDetailsCardProps> = ({
             </View>
           )}
 
-          {/* Leader Complete Registration Button */}
+          {/* Leader Complete Registration Button / Payment Required Banner */}
           {isLeader && hasEnoughMembers && (
-            <TouchableOpacity
-              onPress={onSubmitTeam}
-              disabled={submittingTeam}
-              activeOpacity={0.8}
-              style={{
-                backgroundColor: '#10B981',
-                borderRadius: 12,
-                paddingVertical: 12,
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'row',
-                marginBottom: 8,
-                width: '100%',
-                opacity: submittingTeam ? 0.7 : 1,
-              }}
-            >
-              {submittingTeam ? (
-                <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-              ) : (
-                <CheckCircle2 size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-              )}
-              <Text
+            isPaymentDue ? (
+              <View
                 style={{
-                  fontFamily: 'Poppins_700Bold',
-                  fontSize: 13,
-                  color: '#FFFFFF',
-                  letterSpacing: 0.3,
+                  backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FFFBEB',
+                  borderColor: 'rgba(245, 158, 11, 0.3)',
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 8,
                 }}
               >
-                {submittingTeam ? "Completing Registration..." : "Complete Registration"}
-              </Text>
-            </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <AlertTriangle size={15} color="#F59E0B" style={{ marginRight: 6 }} />
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#F59E0B' }}>
+                    Payment Required
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontFamily: 'Poppins_400Regular',
+                    fontSize: 12,
+                    color: textSecondary,
+                    lineHeight: 18,
+                    marginBottom: 10,
+                  }}
+                >
+                  Registration payment is pending. Please complete the entry payment to finalize your team registration.
+                </Text>
+                <TouchableOpacity
+                  onPress={onPay || onSubmitTeam}
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: '#F59E0B',
+                    borderRadius: 10,
+                    paddingVertical: 10,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'row',
+                  }}
+                >
+                  <CreditCard size={15} color="#000000" style={{ marginRight: 6 }} />
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#000000' }}>
+                    Pay & Finalize Registration
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={onSubmitTeam}
+                disabled={submittingTeam}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: '#10B981',
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  marginBottom: 8,
+                  width: '100%',
+                  opacity: submittingTeam ? 0.7 : 1,
+                }}
+              >
+                {submittingTeam ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                ) : (
+                  <CheckCircle2 size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
+                )}
+                <Text
+                  style={{
+                    fontFamily: 'Poppins_700Bold',
+                    fontSize: 13,
+                    color: '#FFFFFF',
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  {submittingTeam ? "Completing Registration..." : "Complete Registration"}
+                </Text>
+              </TouchableOpacity>
+            )
           )}
 
           {hasEnoughMembers && !isLeader && (
             <View
               style={{
-                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.08)',
-                borderColor: 'rgba(16, 185, 129, 0.25)',
+                backgroundColor: isPaymentDue
+                  ? (isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB')
+                  : (isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.08)'),
+                borderColor: isPaymentDue ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.25)',
                 borderWidth: 1,
                 borderRadius: 10,
                 padding: 10,
@@ -359,10 +413,12 @@ const TeamDetailsCard: React.FC<TeamDetailsCardProps> = ({
                 style={{
                   fontFamily: 'Poppins_500Medium',
                   fontSize: 12,
-                  color: '#10B981',
+                  color: isPaymentDue ? '#F59E0B' : '#10B981',
                 }}
               >
-                ✓ Minimum team size met. Waiting for the team leader to complete registration.
+                {isPaymentDue
+                  ? "⚠️ Minimum team size met. Waiting for the team leader to complete payment and finalize registration."
+                  : "✓ Minimum team size met. Waiting for the team leader to complete registration."}
               </Text>
             </View>
           )}

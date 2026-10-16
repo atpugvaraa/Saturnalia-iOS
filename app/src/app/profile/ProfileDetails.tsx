@@ -396,7 +396,7 @@ const ProfileDetailsScreen = () => {
         </View>
 
         {/* Danger Zone */}
-        <View
+        {/* <View
           style={{
             backgroundColor: cardBg,
             borderWidth: 1,
@@ -437,7 +437,7 @@ const ProfileDetailsScreen = () => {
               {isDeleting ? "Deleting Account..." : "Delete My Account"}
             </Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
       </ScrollView>
     </View>
   );

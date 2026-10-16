@@ -58,6 +58,8 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	open.GET("/reels/:id", api.GetReel)
 	open.GET("/stories", api.ListStories)
 	open.GET("/stories/:id", api.GetStory)
+	open.GET("/store", api.ListStoreItems)
+	open.GET("/store/:id", api.GetStoreItem)
 	open.POST("/chatbot/ask", api.Chat)
 
 	// App status, links, maintenance, versions
@@ -118,6 +120,13 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	admin.PATCH("/admin/stories/:id", api.UpdateStory)
 	admin.DELETE("/admin/stories/:id", api.DeleteStory)
 
+	// Store
+	admin.GET("/admin/store", api.AdminListStoreItems)
+	admin.GET("/admin/store/:id", api.AdminGetStoreItem)
+	admin.POST("/admin/store", api.CreateStoreItem)
+	admin.PATCH("/admin/store/:id", api.UpdateStoreItem)
+	admin.DELETE("/admin/store/:id", api.DeleteStoreItem)
+
 	// ImageKit media
 	admin.POST("/admin/media/upload", api.UploadMedia)
 	admin.DELETE("/admin/media", api.DeleteMedia)
@@ -138,6 +147,11 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	admin.PATCH("/admin/qr/hostel/:userId", api.AdminHostelCheckIn)
 	admin.POST("/admin/qr/event-checkin", api.AdminEventCheckIn)
 	admin.PATCH("/admin/qr/registrations/:id/status", api.AdminEventCheckIn)
+
+	// Admin accommodation management
+	admin.GET("/admin/accommodation", api.AdminListAccommodation)
+	admin.GET("/admin/accommodation/stats", api.AdminAccommodationStats)
+	admin.POST("/admin/accommodation/checkin", api.AdminHostelCheckIn)
 
 	// App configuration: links, maintenance, versions
 	admin.GET("/admin/app", api.AdminGetAppConfig)

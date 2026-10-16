@@ -12,6 +12,7 @@ import (
 	"backend/internal/apierr"
 	"backend/internal/middleware"
 	"backend/internal/models"
+	"backend/internal/slug"
 )
 
 const (
@@ -142,6 +143,26 @@ func (a *API) GetEvent(c *gin.Context) {
 		event.EffectiveFee = &fee
 
 		reg, err := a.Store.GetRegistration(c.Request.Context(), models.RegistrationID(event.EventID, user.UserID))
+		if err != nil {
+			candidates := append([]string{}, event.Aliases...)
+			if sl := slug.Make(event.Title); sl != "" {
+				candidates = append(candidates, sl)
+			}
+			words := strings.Fields(strings.ToLower(event.Title))
+			if len(words) > 0 {
+				fw := strings.Trim(words[0], "-:,_’' ")
+				if fw != "" {
+					candidates = append(candidates, fw)
+				}
+			}
+			for _, alias := range candidates {
+				if r, err2 := a.Store.GetRegistration(c.Request.Context(), models.RegistrationID(alias, user.UserID)); err2 == nil {
+					reg = r
+					err = nil
+					break
+				}
+			}
+		}
 		if err == nil {
 			reg.QRToken = a.QR.Sign(reg.ID)
 			body["myRegistration"] = reg

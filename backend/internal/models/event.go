@@ -41,6 +41,7 @@ type Event struct {
 	// EventID is the same value, kept as a real field because registrations
 	// query on it and their document IDs are built by concatenating it.
 	EventID              string           `json:"eventId"              firestore:"eventId"`
+	Aliases              []string         `json:"aliases,omitempty"    firestore:"-"`
 	Title                string           `json:"title"                firestore:"title"`
 	Description          string           `json:"description"          firestore:"description"`
 	ShortDescription     string           `json:"shortDescription"     firestore:"shortDescription"`

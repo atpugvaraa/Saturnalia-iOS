@@ -1,10 +1,10 @@
 // src/config/api.ts
 
 // Global API Base URL
-// Change this to your local IP or production URL
-// export const API_BASE_URL = "http://172.22.128.140:6767/api/v1";
-export const API_BASE_URL = "http://172.16.211.166:6767/api/v1";
-// export const API_BASE_URL = "https://api.saturnalia.in/api/v1";
+// Uses production endpoint in release builds; local server during development
+export const API_BASE_URL = __DEV__
+  ? "http://172.16.212.175:6767/api/v1"
+  : "https://api.saturnalia.in/api/v1";
 
 
 

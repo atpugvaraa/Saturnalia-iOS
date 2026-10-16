@@ -170,6 +170,7 @@ export type Reel = {
 
 // Firebase Event model that matches the backend structure
 export interface FirebaseEvent {
+  id?: string;
   eventId: string;
   title: string;
   description: string;

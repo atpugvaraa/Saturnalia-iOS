@@ -19,6 +19,7 @@ const (
 	KeyBanners = "banners:all"
 	KeyReels   = "reels:all"
 	KeyStories = "stories:all"
+	KeyStore   = "store:all"
 )
 
 // ListCache holds a whole small collection in L2 only.

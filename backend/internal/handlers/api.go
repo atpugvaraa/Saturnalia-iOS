@@ -17,18 +17,19 @@ import (
 
 // API carries the dependencies every handler needs.
 type API struct {
-	Store   *store.Store
-	Cache   *store.EventCache
-	Faqs    *store.ListCache[*models.Faq]
-	Venues  *store.ListCache[*models.Venue]
-	Banners *store.ListCache[*models.Banner]
-	Reels   *store.ListCache[*models.Reel]
-	Stories *store.ListCache[*models.Story]
-	QR      *qr.Signer
-	Cfg     *config.Config
-	Chatbot *chatbot.Service
-	Clients *fb.Clients
-	Storage *storage.Store
+	Store      *store.Store
+	Cache      *store.EventCache
+	Faqs       *store.ListCache[*models.Faq]
+	Venues     *store.ListCache[*models.Venue]
+	Banners    *store.ListCache[*models.Banner]
+	Reels      *store.ListCache[*models.Reel]
+	Stories    *store.ListCache[*models.Story]
+	StoreItems *store.ListCache[*models.StoreItem]
+	QR         *qr.Signer
+	Cfg        *config.Config
+	Chatbot    *chatbot.Service
+	Clients    *fb.Clients
+	Storage    *storage.Store
 }
 
 func New(
@@ -39,6 +40,7 @@ func New(
 	banners *store.ListCache[*models.Banner],
 	reels *store.ListCache[*models.Reel],
 	stories *store.ListCache[*models.Story],
+	storeItems *store.ListCache[*models.StoreItem],
 	signer *qr.Signer,
 	cfg *config.Config,
 	cb *chatbot.Service,
@@ -46,18 +48,19 @@ func New(
 	stg *storage.Store,
 ) *API {
 	return &API{
-		Store:   s,
-		Cache:   cache,
-		Faqs:    faqs,
-		Venues:  venues,
-		Banners: banners,
-		Reels:   reels,
-		Stories: stories,
-		QR:      signer,
-		Cfg:     cfg,
-		Chatbot: cb,
-		Clients: clients,
-		Storage: stg,
+		Store:      s,
+		Cache:      cache,
+		Faqs:       faqs,
+		Venues:     venues,
+		Banners:    banners,
+		Reels:      reels,
+		Stories:    stories,
+		StoreItems: storeItems,
+		QR:         signer,
+		Cfg:        cfg,
+		Chatbot:    cb,
+		Clients:    clients,
+		Storage:    stg,
 	}
 }
 

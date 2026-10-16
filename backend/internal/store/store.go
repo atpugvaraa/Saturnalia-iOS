@@ -22,6 +22,7 @@ const (
 	ColReels         = "reels"
 	ColStories       = "stories"
 	ColApp           = "app"
+	ColStore         = "store"
 )
 
 var (

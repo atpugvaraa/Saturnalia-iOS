@@ -61,7 +61,8 @@ func main() {
 	banners := store.NewListCache(provider, store.KeyBanners, cfg.EventCacheTTL, st.AllBanners)
 	reels := store.NewListCache(provider, store.KeyReels, cfg.EventCacheTTL, st.AllReels)
 	stories := store.NewListCache(provider, store.KeyStories, cfg.EventCacheTTL, st.AllStories)
-	api := handlers.New(st, events, faqs, venues, banners, reels, stories, qr.New(cfg.QRSecret), cfg, cb, clients, mediaStore)
+	storeItems := store.NewListCache(provider, store.KeyStore, cfg.EventCacheTTL, st.AllStoreItems)
+	api := handlers.New(st, events, faqs, venues, banners, reels, stories, storeItems, qr.New(cfg.QRSecret), cfg, cb, clients, mediaStore)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -114,6 +115,11 @@ func main() {
 			log.Printf("cache warm: stories: %v", err)
 		} else {
 			log.Printf("cache warm: stories ready")
+		}
+		if _, err := storeItems.All(wctx); err != nil {
+			log.Printf("cache warm: store items: %v", err)
+		} else {
+			log.Printf("cache warm: store items ready")
 		}
 		if err := st.EnsureAppDefaults(wctx); err != nil {
 			log.Printf("app config defaults init error: %v", err)

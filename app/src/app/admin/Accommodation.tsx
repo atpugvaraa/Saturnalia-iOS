@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TextInput,
   StatusBar,
+  Alert,
 } from "react-native";
 import {
   ArrowLeft,
@@ -31,6 +32,7 @@ import {
   fetchAccommodationStats,
   fetchIncomingUsers,
   fetchOutgoingUsers,
+  updateAccommodationCheckIn,
   clearAccommodationCache,
 } from "@/api/admin";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
@@ -73,12 +75,87 @@ const Accommodation: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [searchMode, setSearchMode] = useState<"normal" | "hostel">("normal");
+  const [editingHostelUser, setEditingHostelUser] = useState<{ [userId: string]: string }>({});
+  const [updatingUser, setUpdatingUser] = useState<string | null>(null);
 
   const bgColor = isDark ? "#131316" : "#E0E0E0";
   const cardBg = isDark ? "#1C1C20" : "#FFFFFF";
   const cardBorder = isDark ? "#2A2A30" : "#D5D5D5";
   const textPrimary = isDark ? "#FFFFFF" : "#111827";
   const textSecondary = isDark ? "#A0A0A0" : "#6B7280";
+
+  const currentDayStats = useMemo(() => {
+    const idx = Number(selectedDate);
+    if (stats && stats[idx]) {
+      return stats[idx];
+    }
+    return { total: 0, checkedIn: 0, pending: 0 };
+  }, [stats, selectedDate]);
+
+  const handleToggleCheckIn = async (user: UserAccommodation) => {
+    const newStatus = !user.checkInStatus?.accommodation;
+    const hostelToSave =
+      editingHostelUser[user.userId] !== undefined
+        ? editingHostelUser[user.userId]
+        : user.checkInStatus?.Hostel || "";
+
+    try {
+      setUpdatingUser(user.userId);
+      await updateAccommodationCheckIn(user.userId, newStatus, hostelToSave);
+
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.userId === user.userId) {
+            return {
+              ...u,
+              checkInStatus: {
+                ...u.checkInStatus,
+                accommodation: newStatus,
+                Hostel: hostelToSave,
+              },
+            };
+          }
+          return u;
+        })
+      );
+      loadStats(true);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to update accommodation check-in");
+    } finally {
+      setUpdatingUser(null);
+    }
+  };
+
+  const handleSaveHostel = async (user: UserAccommodation) => {
+    const hostelToSave = editingHostelUser[user.userId];
+    if (hostelToSave === undefined) return;
+
+    try {
+      setUpdatingUser(user.userId);
+      const currentStatus = !!user.checkInStatus?.accommodation;
+      await updateAccommodationCheckIn(user.userId, currentStatus, hostelToSave);
+
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.userId === user.userId) {
+            return {
+              ...u,
+              checkInStatus: {
+                ...u.checkInStatus,
+                Hostel: hostelToSave,
+              },
+            };
+          }
+          return u;
+        })
+      );
+      Alert.alert("Success", "Hostel allotment updated successfully");
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to update hostel allotment");
+    } finally {
+      setUpdatingUser(null);
+    }
+  };
 
   useEffect(() => {
     loadStats();
@@ -368,6 +445,94 @@ const Accommodation: React.FC = () => {
                 </Text>
               </View>
             </View>
+
+            {/* Hostel Allotment Input */}
+            <View style={{ marginTop: 14, marginBottom: 12 }}>
+              <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 12, color: textPrimary, marginBottom: 6 }}>
+                Allot / Edit Hostel:
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.04)",
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    fontSize: 12,
+                    fontFamily: "Poppins_400Regular",
+                    color: textPrimary,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                  }}
+                  placeholder="Enter hostel (e.g. Boys Hostel 1)"
+                  placeholderTextColor={textSecondary}
+                  value={
+                    editingHostelUser[user.userId] !== undefined
+                      ? editingHostelUser[user.userId]
+                      : user.checkInStatus?.Hostel || ""
+                  }
+                  onChangeText={(text) =>
+                    setEditingHostelUser((prev) => ({ ...prev, [user.userId]: text }))
+                  }
+                />
+                <TouchableOpacity
+                  disabled={updatingUser === user.userId}
+                  onPress={() => handleSaveHostel(user)}
+                  style={{
+                    backgroundColor: "#41B8F0",
+                    borderRadius: 10,
+                    paddingHorizontal: 14,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 12, color: "#FFFFFF" }}>
+                    Save
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Check-In Action Button */}
+            <TouchableOpacity
+              disabled={updatingUser === user.userId}
+              onPress={() => handleToggleCheckIn(user)}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: user.checkInStatus?.accommodation ? "rgba(239, 68, 68, 0.15)" : "#10B981",
+                borderColor: user.checkInStatus?.accommodation ? "#EF4444" : "#10B981",
+                borderWidth: 1,
+                borderRadius: 12,
+                paddingVertical: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+              }}
+            >
+              {updatingUser === user.userId ? (
+                <ActivityIndicator size="small" color={user.checkInStatus?.accommodation ? "#EF4444" : "#FFFFFF"} />
+              ) : (
+                <>
+                  {user.checkInStatus?.accommodation ? (
+                    <>
+                      <XCircle size={15} color="#EF4444" style={{ marginRight: 6 }} />
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 13, color: "#EF4444" }}>
+                        Undo Check-In
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 13, color: "#FFFFFF" }}>
+                        Mark Checked In
+                      </Text>
+                    </>
+                  )}
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         )}
       </TouchableOpacity>
@@ -444,6 +609,69 @@ const Accommodation: React.FC = () => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16 }}
         />
+      </View>
+
+      {/* Daily Stats Overview Cards */}
+      <View style={{ flexDirection: "row", paddingHorizontal: 16, marginBottom: 14, gap: 10 }}>
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: cardBg,
+            borderRadius: 14,
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ fontFamily: "Poppins_400Regular", fontSize: 11, color: textSecondary }}>
+            Total Booked
+          </Text>
+          <Text style={{ fontFamily: "Poppins_700Bold", fontSize: 18, color: "#38BDF8", marginTop: 2 }}>
+            {currentDayStats.total}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: cardBg,
+            borderRadius: 14,
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ fontFamily: "Poppins_400Regular", fontSize: 11, color: textSecondary }}>
+            Checked In
+          </Text>
+          <Text style={{ fontFamily: "Poppins_700Bold", fontSize: 18, color: "#10B981", marginTop: 2 }}>
+            {currentDayStats.checkedIn}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: cardBg,
+            borderRadius: 14,
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderWidth: 1,
+            borderColor: cardBorder,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ fontFamily: "Poppins_400Regular", fontSize: 11, color: textSecondary }}>
+            Pending
+          </Text>
+          <Text style={{ fontFamily: "Poppins_700Bold", fontSize: 18, color: "#F59E0B", marginTop: 2 }}>
+            {currentDayStats.pending}
+          </Text>
+        </View>
       </View>
 
       {/* Tab Buttons */}
