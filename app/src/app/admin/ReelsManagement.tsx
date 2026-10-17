@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { showAlert, Input } from "@/components";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import {
   ArrowLeft,
   Upload,
@@ -88,15 +89,9 @@ export default function ReelsManagement() {
 
   const pickVideo = async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        showAlert("Permission Required", "Please allow gallery access to select a reel video.");
-        return;
-      }
+      // Android Photo Picker — no READ_MEDIA_VIDEO permission needed
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['videos'],
-        allowsEditing: true,
-        quality: 0.8,
         videoMaxDuration: 60,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -113,19 +108,33 @@ export default function ReelsManagement() {
 
   const pickThumbnail = async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        showAlert("Permission Required", "Please allow gallery access to select a thumbnail.");
-        return;
-      }
+      // Android Photo Picker — no READ_MEDIA_IMAGES permission needed
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
         quality: 0.8,
-        aspect: [9, 16],
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setThumbnailUri(result.assets[0].uri);
+        const asset = result.assets[0];
+        // Crop to 9:16 using expo-image-manipulator
+        const srcW = asset.width;
+        const srcH = asset.height;
+        const targetAspect = 9 / 16;
+        const srcAspect = srcW / srcH;
+        let cropW = srcW;
+        let cropH = srcH;
+        if (srcAspect > targetAspect) {
+          cropW = Math.round(srcH * targetAspect);
+        } else {
+          cropH = Math.round(srcW / targetAspect);
+        }
+        const originX = Math.round((srcW - cropW) / 2);
+        const originY = Math.round((srcH - cropH) / 2);
+        const cropped = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ crop: { originX, originY, width: cropW, height: cropH } }],
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        setThumbnailUri(cropped.uri);
       }
     } catch (err: any) {
       console.error("pickThumbnail error:", err);

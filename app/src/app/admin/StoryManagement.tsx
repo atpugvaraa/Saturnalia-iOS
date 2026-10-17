@@ -84,11 +84,7 @@ export default function StoryManagement() {
 
   const pickImages = async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        showAlert("Permission Required", "Please allow gallery access to pick story images.");
-        return;
-      }
+      // Android Photo Picker — no READ_MEDIA_IMAGES permission needed
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
