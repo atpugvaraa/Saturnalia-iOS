@@ -22,7 +22,6 @@ const ProfileDetailsScreen = () => {
   const router = useRouter();
   const { userData: userProfile } = useUserStore();
   const [isDelete, setIsDelete] = React.useState(false);
-  const [isDeleting, setIsDeleting] = React.useState(false);
 
   const bgColor = isDark ? '#131316' : '#E0E0E0';
   const cardBg = isDark ? '#1C1C20' : '#FFFFFF';
@@ -66,61 +65,8 @@ const ProfileDetailsScreen = () => {
     </View>
   );
 
-  const handleDeleteAccount = async () => {
-    if (!isDelete) {
-      Linking.openURL("https://saturnalia.in/deleteuser");
-      return;
-    }
-
-    if (!userProfile?.userId) {
-      showAlert(
-        "Error",
-        "Cannot delete account: user information not available"
-      );
-      return;
-    }
-
-    showAlert(
-      "Delete Account",
-      "Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setIsDeleting(true);
-            try {
-              /* Removed API call */
-              showAlert(
-                "Account Deleted",
-                "Your account has been successfully deleted.",
-                [
-                  {
-                    text: "OK",
-                    onPress: async () => {
-                      /* Removed API call */
-                    },
-                  },
-                ]
-              );
-            } catch (error: any) {
-              console.error("Account deletion error:", error);
-              showAlert(
-                "Deletion Failed",
-                error?.message ||
-                  "Failed to delete account. Please try again or contact support."
-              );
-            } finally {
-              setIsDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteAccount = () => {
+    Linking.openURL("https://www.saturnalia.in/deleteuser");
   };
 
   return (
@@ -396,7 +342,7 @@ const ProfileDetailsScreen = () => {
         </View>
 
         {/* Danger Zone */}
-        {/* <View
+        <View
           style={{
             backgroundColor: cardBg,
             borderWidth: 1,
@@ -423,7 +369,6 @@ const ProfileDetailsScreen = () => {
 
           <TouchableOpacity
             onPress={handleDeleteAccount}
-            disabled={isDeleting}
             style={{
               backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
               borderColor: '#EF4444',
@@ -434,10 +379,10 @@ const ProfileDetailsScreen = () => {
             }}
           >
             <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#EF4444', fontSize: 15 }}>
-              {isDeleting ? "Deleting Account..." : "Delete My Account"}
+              Delete My Account
             </Text>
           </TouchableOpacity>
-        </View> */}
+        </View>
       </ScrollView>
     </View>
   );

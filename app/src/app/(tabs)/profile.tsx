@@ -95,23 +95,7 @@ const ProfileScreen = () => {
   };
 
   const handleDeleteAccount = () => {
-    showAlert(
-      "Delete Account",
-      "Are you sure you want to delete your account? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            showAlert(
-              "Request Submitted",
-              "Your account deletion request has been submitted to administrators."
-            );
-          },
-        },
-      ]
-    );
+    Linking.openURL("https://www.saturnalia.in/deleteuser");
   };
 
   const handleCheckForUpdates = async () => {
@@ -422,7 +406,7 @@ const ProfileScreen = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* Delete Account Button
+            {/* Delete Account Button */}
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={handleDeleteAccount}
@@ -448,7 +432,7 @@ const ProfileScreen = () => {
               >
                 Delete Account
               </Text>
-            </TouchableOpacity> */}
+            </TouchableOpacity>
           </View>
         </View>
 
