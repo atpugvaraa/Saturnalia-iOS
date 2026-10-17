@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { showAlert, Input } from "@/components";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { ArrowLeft, Upload, Trash2, ExternalLink, ImagePlus, Eye, EyeOff } from "lucide-react-native";
 import {
   adminListBanners,
@@ -77,19 +78,34 @@ export default function BannerManagement() {
 
   const pickImage = async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        showAlert("Permission Required", "Please allow gallery access to upload banner images.");
-        return;
-      }
+      // Android Photo Picker — no READ_MEDIA_IMAGES permission needed
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
         quality: 0.85,
-        aspect: selectedRatio,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setSelectedImageUri(result.assets[0].uri);
+        // Crop to the selected aspect ratio using expo-image-manipulator
+        const asset = result.assets[0];
+        const srcW = asset.width;
+        const srcH = asset.height;
+        const [rW, rH] = selectedRatio;
+        const targetAspect = rW / rH;
+        const srcAspect = srcW / srcH;
+        let cropW = srcW;
+        let cropH = srcH;
+        if (srcAspect > targetAspect) {
+          cropW = Math.round(srcH * targetAspect);
+        } else {
+          cropH = Math.round(srcW / targetAspect);
+        }
+        const originX = Math.round((srcW - cropW) / 2);
+        const originY = Math.round((srcH - cropH) / 2);
+        const cropped = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ crop: { originX, originY, width: cropW, height: cropH } }],
+          { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        setSelectedImageUri(cropped.uri);
       }
     } catch (err: any) {
       console.error("pickImage error:", err);

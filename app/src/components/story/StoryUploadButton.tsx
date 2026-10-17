@@ -29,20 +29,11 @@ const StoryUploadButton: React.FC<StoryUploadButtonProps> = ({
 
   const pickMedia = async () => {
     try {
-      // Request permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (status !== 'granted') {
-        showAlert('Permission Required', 'Please allow access to your photo library to upload stories.');
-        return;
-      }
-
-      // Launch image picker with video support
+      // Android Photo Picker — no READ_MEDIA permissions needed
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images', 'videos'],
-        allowsEditing: true,
         quality: 0.8,
-        videoMaxDuration: 20, // 15 seconds max
+        videoMaxDuration: 20,
       });
 
       if (!result.canceled && result.assets[0]) {
