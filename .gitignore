@@ -78,3 +78,4 @@ serviceAccountKey.json
 export-schema.js
 *.md
 backend/imagekit.json
+backend/api
