@@ -41,13 +41,33 @@ export async function apiFetch(
     }
   }
 
-  return fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
   });
+
+  if (response.status >= 400) {
+    let responseBody = "";
+
+    try {
+      responseBody = (await response.clone().text()).slice(0, 4000);
+    } catch {
+      responseBody = "<unable to read response body>";
+    }
+
+    Sentry.logger.error("Backend request failed", {
+      method: init?.method ?? "GET",
+      path,
+      statusCode: response.status,
+      statusText: response.statusText,
+      responseBody,
+    });
+  }
+
+  return response;
 }
 
-async function _readError(
+async function readError(
   response: Response,
   fallback: string,
 ): Promise<string> {
@@ -61,19 +81,4 @@ async function _readError(
   } catch {
     return fallback;
   }
-}
-
-export async function readError(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  const message = await _readError(response, fallback);
-
-  Sentry.logger.error("Backend request failed", {
-    statusCode: response.status,
-    statusText: response.statusText,
-    errorMessage: message,
-  });
-
-  return message;
 }
