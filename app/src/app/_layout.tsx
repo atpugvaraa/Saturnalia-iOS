@@ -35,7 +35,7 @@ import SplashScreen from '@/components/SplashScreen';
 import { useThemeStore } from '@/state/themeStore';
 import ConnectivityWrapper from '@/components/system/ConnectivityWrapper';
 import Constants from 'expo-constants';
-import * as Sentry from "../config/sentry";
+import Sentry from '@/config/sentry';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -126,4 +126,4 @@ function RootLayout() {
   );
 }
 
-export default RootLayout;
+export default Sentry.wrap(RootLayout);

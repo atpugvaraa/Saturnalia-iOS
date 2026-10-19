@@ -5,4 +5,5 @@ Sentry.init({
   enableLogs: true,
 });
 
+export * from "@sentry/react-native";
 export default Sentry;

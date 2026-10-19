@@ -67,7 +67,7 @@ export async function apiFetch(
   return response;
 }
 
-async function readError(
+export async function readError(
   response: Response,
   fallback: string,
 ): Promise<string> {
