@@ -12,12 +12,18 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SENTRY_DSN": "https://c49248272a438590503186232ca5d35f@o4512281956843520.ingest.de.sentry.io/4512281964970064"
       }
     },
     "production": {
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_SENTRY_DSN": "https://c49248272a438590503186232ca5d35f@o4512281956843520.ingest.de.sentry.io/4512281964970064"
       }
     }
   },

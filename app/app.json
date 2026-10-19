@@ -88,6 +88,11 @@
       [
         "expo-build-properties",
         {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class com.swmansion.reanimated.** { *; }\n-keep class com.facebook.react.turbomodule.** { *; }\n-keep class com.easebuzz.** { *; }\n-dontwarn com.easebuzz.**\n-keep class in.easebuzz.** { *; }\n-dontwarn in.easebuzz.**\n-keep class com.mapbox.maps.** { *; }\n-dontwarn com.mapbox.maps.**\n-keep class com.mapbox.geojson.** { *; }\n-dontwarn com.mapbox.geojson.**\n-keep class com.mapbox.turf.** { *; }\n-dontwarn com.mapbox.turf.**\n-keep class com.rnmapbox.rnmbx.** { *; }\n-dontwarn com.rnmapbox.rnmbx.**\n-keepattributes *Annotation*\n-keepattributes Signature\n-keepattributes InnerClasses\n-keepattributes EnclosingMethod"
+          },
           "ios": {
             "useFrameworks": "dynamic"
           }

@@ -35,6 +35,7 @@ import SplashScreen from '@/components/SplashScreen';
 import { useThemeStore } from '@/state/themeStore';
 import ConnectivityWrapper from '@/components/system/ConnectivityWrapper';
 import Constants from 'expo-constants';
+import Sentry from '@/config/sentry';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,7 +52,7 @@ const asyncStoragePersister = createAsyncStoragePersister({
 
 ExpoSplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const lastExitPress = useRef(0);
@@ -124,3 +125,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);

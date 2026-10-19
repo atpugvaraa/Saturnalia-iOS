@@ -28,8 +28,27 @@ var ErrRosterChanged = errors.New("team roster changed")
 // initiate gets the same payment link back.
 const CheckoutTTL = 30 * time.Minute
 
-func (s *Store) GetPayment(ctx context.Context, merchantOrderID string) (*models.Payment, error) {
-	doc, err := s.FS.Collection(ColPayments).Doc(merchantOrderID).Get(ctx)
+func (s *Store) GetPayment(ctx context.Context, id string) (*models.Payment, error) {
+	doc, err := s.FS.Collection(ColPayments).Doc(id).Get(ctx)
+	if err == nil {
+		var p models.Payment
+		if err := doc.DataTo(&p); err != nil {
+			return nil, err
+		}
+		p.ID = doc.Ref.ID
+		return &p, nil
+	}
+	if wrap(err) != ErrNotFound {
+		return nil, wrap(err)
+	}
+
+	// Fallback to lookup by merchantOrderId field
+	iter := s.FS.Collection(ColPayments).Where("merchantOrderId", "==", id).Limit(1).Documents(ctx)
+	defer iter.Stop()
+	doc, err = iter.Next()
+	if err == iterator.Done {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, wrap(err)
 	}
@@ -423,7 +442,7 @@ func (s *Store) MarkPaymentFailed(ctx context.Context, id, txnID, adminID string
 		if err := psnap.DataTo(&p); err != nil {
 			return err
 		}
-		if p.Status == models.PaymentStatusSuccess {
+		if p.Status == models.PaymentStatusSuccess && adminID == "" {
 			return nil
 		}
 

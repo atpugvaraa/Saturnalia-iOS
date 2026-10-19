@@ -398,7 +398,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
               <View className="flex-row gap-3">
                 <TouchableOpacity
-                  onPress={() => onUpdateStatus(transaction.id, "success")}
+                  onPress={() => onUpdateStatus(transaction.merchantOrderId || transaction.id, "success")}
                   className="flex-1 bg-emerald-600 py-3.5 rounded-xl flex-row items-center justify-center shadow-sm"
                   activeOpacity={0.7}
                 >
@@ -412,7 +412,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => onUpdateStatus(transaction.id, "failed")}
+                  onPress={() => onUpdateStatus(transaction.merchantOrderId || transaction.id, "failed")}
                   className="flex-1 bg-rose-50 border border-rose-200 py-3.5 rounded-xl flex-row items-center justify-center"
                   activeOpacity={0.7}
                 >

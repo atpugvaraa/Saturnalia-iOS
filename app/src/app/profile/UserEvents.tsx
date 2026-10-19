@@ -1,6 +1,5 @@
-// src/screens/App/Profile/UserEventsScreen.tsx
 import React, { useState, useCallback } from "react";
-import { Text, View, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar } from "react-native";
+import { Text, View, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar, Alert } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,13 +33,25 @@ const UserEventsScreen: React.FC = () => {
     if (row.registration?.paymentStatus === 'pending') {
       displayStatus = 'payment_pending';
     }
+
+    // If event is missing (e.g. deleted or archived from DB), format the eventId into a human-readable title
+    const rawEventId = row.registration?.eventId || row.event?.eventId || row.event?.id || "";
+    const formattedSlugTitle = rawEventId
+      ? rawEventId
+          .split("-")
+          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ")
+      : "Archived Event";
+
+    const fallbackName = row.registration?.eventName || (formattedSlugTitle || "Archived Event");
     
     return {
       ...row.registration,
       eventId: row.event?.eventId || row.event?.id || row.registration?.eventId,
-      eventName: row.event?.title || row.registration?.eventName || 'Unknown Event',
-      eventCategory: row.event?.category || row.registration?.eventCategory || 'Uncategorized',
+      eventName: row.event?.title || fallbackName,
+      eventCategory: row.event?.category || row.registration?.eventCategory || (row.event ? "General" : "Archived"),
       event: row.event,
+      isUnavailable: !row.event,
       status: displayStatus,
     };
   });
@@ -242,7 +253,16 @@ const UserEventsScreen: React.FC = () => {
               return (
                 <TouchableOpacity
                   key={event.eventId || event.registrationId || `evt-${idx}`}
-                  onPress={() => router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } })}
+                  onPress={() => {
+                    if (event.isUnavailable) {
+                      Alert.alert(
+                        "Event Unavailable",
+                        "This event has been archived or removed from the festival schedule."
+                      );
+                      return;
+                    }
+                    router.push({ pathname: '/events/MyEventDetails', params: { eventId: event.eventId } });
+                  }}
                   style={{
                     backgroundColor: cardBg,
                     borderWidth: 1,
@@ -250,6 +270,7 @@ const UserEventsScreen: React.FC = () => {
                     borderRadius: 20,
                     padding: 18,
                     marginBottom: 14,
+                    opacity: event.isUnavailable ? 0.75 : 1,
                   }}
                   activeOpacity={0.7}
                 >
@@ -259,8 +280,8 @@ const UserEventsScreen: React.FC = () => {
                         {event.eventName}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={{ backgroundColor: isDark ? 'rgba(65, 184, 240, 0.12)' : 'rgba(65, 184, 240, 0.1)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                          <Text style={{ fontFamily: 'Poppins_500Medium', color: '#41B8F0', fontSize: 11, textTransform: 'capitalize' }}>
+                        <View style={{ backgroundColor: event.isUnavailable ? (isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2') : (isDark ? 'rgba(65, 184, 240, 0.12)' : 'rgba(65, 184, 240, 0.1)'), paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                          <Text style={{ fontFamily: 'Poppins_500Medium', color: event.isUnavailable ? '#EF4444' : '#41B8F0', fontSize: 11, textTransform: 'capitalize' }}>
                             {event.eventCategory}
                           </Text>
                         </View>

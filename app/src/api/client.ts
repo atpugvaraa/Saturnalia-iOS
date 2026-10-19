@@ -1,6 +1,7 @@
 import { getApp } from "@react-native-firebase/app";
 import { getAuth } from "@react-native-firebase/auth";
 import { API_BASE_URL } from "../config/api";
+import * as Sentry from "@sentry/react-native";
 
 export async function getIdTokenIfSignedIn(): Promise<string | null> {
   try {
@@ -40,17 +41,41 @@ export async function apiFetch(
     }
   }
 
-  return fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
   });
+
+  if (response.status >= 400) {
+    let responseBody = "";
+
+    try {
+      responseBody = (await response.clone().text()).slice(0, 4000);
+    } catch {
+      responseBody = "<unable to read response body>";
+    }
+
+    Sentry.logger.error("Backend request failed", {
+      method: init?.method ?? "GET",
+      path,
+      statusCode: response.status,
+      statusText: response.statusText,
+      responseBody,
+    });
+  }
+
+  return response;
 }
 
-export async function readError(response: Response, fallback: string): Promise<string> {
+export async function readError(
+  response: Response,
+  fallback: string,
+): Promise<string> {
   try {
     const errorData = await response.json();
     if (typeof errorData?.error === "string") return errorData.error;
-    if (typeof errorData?.error?.message === "string") return errorData.error.message;
+    if (typeof errorData?.error?.message === "string")
+      return errorData.error.message;
     if (typeof errorData?.message === "string") return errorData.message;
     return fallback;
   } catch {
