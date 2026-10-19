@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,10 @@ import {
   Plus,
   Trash2,
   Upload,
+  Mail,
+  Phone,
+  Check,
+  Search,
 } from "lucide-react-native";
 import MarkdownText from "@/components/display/MarkdownText";
 import { FirebaseEvent } from "@/types/models";
@@ -31,6 +35,7 @@ import {
   updateEventInfo,
   searchUsers,
   searchVenues,
+  listVenues,
   uploadFile,
 } from "@/api/admin";
 import { Input } from "@/components";
@@ -127,8 +132,34 @@ export default function EventInfo({
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [hasSearchedUser, setHasSearchedUser] = useState(false);
   const [venueSearchTerm, setVenueSearchTerm] = useState("");
   const [venueResults, setVenueResults] = useState<any[]>([]);
+  const [allVenues, setAllVenues] = useState<any[]>([]);
+
+  // Load venues catalog on mount
+  useEffect(() => {
+    listVenues()
+      .then((venues) => {
+        if (Array.isArray(venues)) {
+          setAllVenues(venues);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load venues list:", err);
+      });
+  }, []);
+
+  // Coordinator management state
+  const [showManualAddCoordinator, setShowManualAddCoordinator] = useState(false);
+  const [manualCoordName, setManualCoordName] = useState("");
+  const [manualCoordEmail, setManualCoordEmail] = useState("");
+  const [manualCoordPhone, setManualCoordPhone] = useState("");
+
+  const [editingCoordIndex, setEditingCoordIndex] = useState<number | null>(null);
+  const [editCoordName, setEditCoordName] = useState("");
+  const [editCoordEmail, setEditCoordEmail] = useState("");
+  const [editCoordPhone, setEditCoordPhone] = useState("");
 
   // Refs for search timeout
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -139,6 +170,14 @@ export default function EventInfo({
       showAlert("Access Denied", "You don't have permission to edit this event");
       return;
     }
+
+    setShowManualAddCoordinator(false);
+    setEditingCoordIndex(null);
+    setSearchTerm("");
+    setSearchResults([]);
+    setHasSearchedUser(false);
+    setVenueSearchTerm(event.venueName || "");
+    setVenueResults([]);
 
     setEditData({
       // Basic Information
@@ -157,13 +196,13 @@ export default function EventInfo({
       sameCollegeOnly: event.sameCollegeOnly || false,
 
       // Event Dates & Venue
-      registrationDeadline: event.registrationDeadline || "",
-      startDateTime: event.startDateTime || "",
-      endDateTime: event.endDateTime || "",
-      dateTime: event.dateTime || "",
+      registrationDeadline: parseInputDate(event.registrationDeadline) || event.registrationDeadline || "",
+      startDateTime: parseInputDate(event.startDateTime) || event.startDateTime || "",
+      endDateTime: parseInputDate(event.endDateTime) || event.endDateTime || "",
+      dateTime: parseInputDate(event.dateTime) || event.dateTime || "",
       venueName: event.venueName || "",
       venueId: event.venueId || "",
-      maxParticipants: (event as any).maxParticipants || "",
+      maxParticipants: (event as any).maxParticipants ? Number((event as any).maxParticipants) : 0,
 
       // Event Settings
       isPublic: event.isPublic !== false,
@@ -200,6 +239,13 @@ export default function EventInfo({
   const handleCancel = () => {
     setEditData({});
     setIsEditing(false);
+    setShowManualAddCoordinator(false);
+    setEditingCoordIndex(null);
+    setSearchTerm("");
+    setSearchResults([]);
+    setHasSearchedUser(false);
+    setVenueSearchTerm("");
+    setVenueResults([]);
   };
 
   const handleSave = async () => {
@@ -255,29 +301,144 @@ export default function EventInfo({
       }
     }
 
+    // Sanitize and convert date fields to RFC3339
+    const deadlineISO = parseInputDate(editData.registrationDeadline);
+    const startISO = parseInputDate(editData.startDateTime);
+    const endISO = parseInputDate(editData.endDateTime);
+    const dateTimeISO = parseInputDate(editData.dateTime) || startISO;
+
+    if (editData.registrationDeadline && editData.registrationDeadline.trim() && !deadlineISO) {
+      showAlert("Error", "Registration Deadline is invalid. Please use DD/MM/YYYY HH:MM format.");
+      return;
+    }
+
+    if (editData.startDateTime && editData.startDateTime.trim() && !startISO) {
+      showAlert("Error", "Start Date & Time is invalid. Please use DD/MM/YYYY HH:MM format.");
+      return;
+    }
+
+    if (editData.endDateTime && editData.endDateTime.trim() && !endISO) {
+      showAlert("Error", "End Date & Time is invalid. Please use DD/MM/YYYY HH:MM format.");
+      return;
+    }
+
+    if (startISO && endISO && new Date(endISO).getTime() < new Date(startISO).getTime()) {
+      showAlert("Error", "End Date & Time cannot be before Start Date & Time.");
+      return;
+    }
+
+    if (startISO && deadlineISO && new Date(startISO).getTime() < new Date(deadlineISO).getTime()) {
+      showAlert("Error", "Registration Deadline cannot be after Start Date & Time.");
+      return;
+    }
+
     setSaving(true);
     try {
-      // Clean up data before sending
+      // Prepare sanitized numeric values
+      const parsedMaxParticipants = editData.maxParticipants !== undefined && editData.maxParticipants !== null && editData.maxParticipants !== ""
+        ? parseInt(String(editData.maxParticipants), 10)
+        : 0;
+
+      const parsedMinTeamSize = editData.minTeamSize !== undefined && editData.minTeamSize !== null && editData.minTeamSize !== ""
+        ? parseInt(String(editData.minTeamSize), 10)
+        : 2;
+
+      const parsedMaxTeamSize = editData.maxTeamSize !== undefined && editData.maxTeamSize !== null && editData.maxTeamSize !== ""
+        ? parseInt(String(editData.maxTeamSize), 10)
+        : 5;
+
+      // Sanitize venue: backend rejects non-existent venueId with "no venue with that id"
+      let finalVenueName = (editData.venueName || "").trim();
+      let finalVenueId = (editData.venueId || "").trim();
+
+      if (!finalVenueName) {
+        finalVenueName = "";
+        finalVenueId = "";
+      } else {
+        let currentVenues = allVenues;
+        if (currentVenues.length === 0) {
+          try {
+            currentVenues = await listVenues();
+          } catch (e) {
+            console.warn("Could not fetch venues for validation:", e);
+          }
+        }
+
+        if (currentVenues && currentVenues.length > 0) {
+          const matchById = currentVenues.find((v: any) => v.venueId === finalVenueId);
+          if (!matchById) {
+            // Try matching by venue name or slug
+            const matchByName = currentVenues.find(
+              (v: any) =>
+                (v.venueName || "").toLowerCase() === finalVenueName.toLowerCase() ||
+                (v.venueId || "").toLowerCase() === finalVenueName.toLowerCase()
+            );
+            if (matchByName) {
+              finalVenueId = matchByName.venueId;
+              finalVenueName = matchByName.venueName;
+            } else {
+              // Custom or non-catalog venue:
+              // Backend strictly checks VenueExists if venueId != "".
+              // By sending venueId as "", backend safely stores venueName without rejecting.
+              finalVenueId = "";
+            }
+          } else {
+            finalVenueName = matchById.venueName || finalVenueName;
+          }
+        } else if (finalVenueId && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalVenueId)) {
+          finalVenueId = "";
+        }
+      }
+
       const cleanedData = {
         ...editData,
+        venueName: finalVenueName,
+        venueId: finalVenueId,
+        // Ensure date fields are valid RFC3339 timestamps (or empty string if not set)
+        registrationDeadline: deadlineISO,
+        startDateTime: startISO,
+        endDateTime: endISO,
+        dateTime: dateTimeISO,
+        // Ensure integer fields are numbers, never strings
+        maxParticipants: !isNaN(parsedMaxParticipants) && parsedMaxParticipants > 0 ? parsedMaxParticipants : 0,
+        minTeamSize: !isNaN(parsedMinTeamSize) && parsedMinTeamSize >= 1 ? parsedMinTeamSize : 2,
+        maxTeamSize: !isNaN(parsedMaxTeamSize) && parsedMaxTeamSize >= 1 ? parsedMaxTeamSize : 5,
+        registrationFee: {
+          host: Number(editData.registrationFee?.host) || 0,
+          other: Number(editData.registrationFee?.other) || 0,
+        },
         // Remove empty strings from arrays
-        images: (editData.images || []).filter((img: string) => img.trim()),
-        links: (editData.links || []).filter((link: string) => link.trim()),
-        reelsId: (editData.reelsId || []).filter((reel: string) => reel.trim()),
+        images: (editData.images || []).filter((img: any) => typeof img === "string" && img.trim()),
+        links: (editData.links || [])
+          .filter((link: any) => (typeof link === "string" ? link.trim() : (link?.url || link?.title)))
+          .map((link: any) => (typeof link === "string" ? { title: link.trim(), url: link.trim() } : link)),
+        reelsId: (editData.reelsId || []).filter((reel: any) => typeof reel === "string" && reel.trim()),
         // Ensure coordinators array is properly formatted
-        coordinators: editData.coordinators || [],
-        // Clean up custom fields
+        coordinators: (editData.coordinators || []).map((c: any) => ({
+          name: c.name || "",
+          email: c.email || "",
+          phone: c.phone || "",
+          userID: c.userID || c.userId || "",
+        })),
+        // Clean up custom fields ensuring fieldId is always set
         customFields: (editData.customFields || []).map(
-          (field: CustomField) => {
-            // Clean up options for select fields
+          (field: CustomField, idx: number) => {
+            const fieldId = field.fieldId && field.fieldId.trim()
+              ? field.fieldId.trim()
+              : `field_${Date.now()}_${idx}`;
+
             if (field.type === "select" || field.type === "multi-select") {
               return {
                 ...field,
-                options: field.options.filter((opt: string) => opt.trim()),
+                fieldId,
+                options: (field.options || []).filter((opt: string) => opt.trim()),
               };
             }
 
-            return field;
+            return {
+              ...field,
+              fieldId,
+            };
           }
         ),
       };
@@ -289,6 +450,8 @@ export default function EventInfo({
         onEventUpdate(updatedEvent);
         setIsEditing(false);
         setEditData({});
+        setVenueSearchTerm("");
+        setVenueResults([]);
         showAlert("Success", "Event updated successfully!");
       } else {
         showAlert("Error", result.error || "Failed to update event");
@@ -319,11 +482,15 @@ export default function EventInfo({
   };
 
   // Format date for display in input fields (DD/MM/YYYY HH:MM)
-  const formatDateForInput = (dateString: string) => {
+  const formatDateForInput = (dateString: string | undefined | null) => {
     if (!dateString) return "";
     try {
+      // If it doesn't contain "T" but already matches DD/MM/YYYY, return as-is
+      if (!dateString.includes("T") && /^\d{1,2}[/-]\d{1,2}[/-]\d{4}/.test(dateString.trim())) {
+        return dateString.trim();
+      }
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) return "";
+      if (isNaN(date.getTime())) return dateString;
 
       const day = date.getDate().toString().padStart(2, "0");
       const month = (date.getMonth() + 1).toString().padStart(2, "0");
@@ -333,34 +500,64 @@ export default function EventInfo({
 
       return `${day}/${month}/${year} ${hours}:${minutes}`;
     } catch {
-      return "";
+      return dateString || "";
     }
   };
 
-  // Parse DD/MM/YYYY HH:MM format back to ISO string
-  const parseInputDate = (inputString: string) => {
-    if (!inputString) return "";
-    try {
-      // If it's already in ISO format, return as is
-      if (inputString.includes("T")) return inputString;
+  // Robust date parser that converts any human or ISO date string to RFC3339 ISO string
+  const parseInputDate = (inputString: string | undefined | null): string => {
+    if (!inputString || !inputString.trim()) return "";
+    const s = inputString.trim();
 
-      // Parse DD/MM/YYYY HH:MM format
-      const [datePart, timePart] = inputString.split(" ");
-      if (!datePart || !timePart) return "";
-
-      const [day, month, year] = datePart.split("/");
-      const [hour, minute] = timePart.split(":");
-
-      if (!day || !month || !year || !hour || !minute) return "";
-
-      const date = new Date();
-      date.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
-      date.setHours(parseInt(hour), parseInt(minute), 0, 0);
-
-      return date.toISOString();
-    } catch {
-      return "";
+    // If it's already in ISO format, validate and return
+    if (s.includes("T")) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d.toISOString();
     }
+
+    // Match DD/MM/YYYY or DD-MM-YYYY with optional HH:MM or HH:MM:SS
+    const dmyMatch = s.match(
+      /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
+    );
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10);
+      const month = parseInt(dmyMatch[2], 10);
+      const year = parseInt(dmyMatch[3], 10);
+      const hour = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+      const min = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+      const sec = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+
+      const date = new Date(year, month - 1, day, hour, min, sec);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    }
+
+    // Match YYYY-MM-DD or YYYY/MM/DD with optional HH:MM or HH:MM:SS
+    const ymdMatch = s.match(
+      /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
+    );
+    if (ymdMatch) {
+      const year = parseInt(ymdMatch[1], 10);
+      const month = parseInt(ymdMatch[2], 10);
+      const day = parseInt(ymdMatch[3], 10);
+      const hour = ymdMatch[4] ? parseInt(ymdMatch[4], 10) : 0;
+      const min = ymdMatch[5] ? parseInt(ymdMatch[5], 10) : 0;
+      const sec = ymdMatch[6] ? parseInt(ymdMatch[6], 10) : 0;
+
+      const date = new Date(year, month - 1, day, hour, min, sec);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    }
+
+    // Generic Date fallback
+    const fallback = new Date(s);
+    if (!isNaN(fallback.getTime())) {
+      return fallback.toISOString();
+    }
+
+    return "";
   };
 
   // Custom DateTimeInput component (text input only)
@@ -369,59 +566,42 @@ export default function EventInfo({
     field: string,
     value: string,
     required: boolean = false
-  ) => (
-    <View className="mb-4">
-      <Input
-        label={`${label}${required ? " *" : ""}`}
-        value={value && value.includes("T") ? formatDateForInput(value) : value}
-        onChangeText={(inputValue) => {
-          // Store the raw input value directly to allow editing
-          // Only convert to ISO when the input is complete and valid
-          if (
-            inputValue.length === 16 &&
-            inputValue.includes("/") &&
-            inputValue.includes(" ") &&
-            inputValue.includes(":")
-          ) {
-            // Complete format: DD/MM/YYYY HH:MM
-            const isoDate = parseInputDate(inputValue);
-            if (isoDate) {
-              setEditData({ ...editData, [field]: isoDate });
-              return;
+  ) => {
+    const displayValue = formatDateForInput(value);
+
+    return (
+      <View className="mb-4">
+        <Input
+          label={`${label}${required ? " *" : ""}`}
+          value={displayValue}
+          onChangeText={(inputValue) => {
+            const iso = parseInputDate(inputValue);
+            if (iso) {
+              setEditData({ ...editData, [field]: iso });
+            } else {
+              setEditData({ ...editData, [field]: inputValue });
             }
-          }
-          // For incomplete input, store as-is to allow editing
-          setEditData({ ...editData, [field]: inputValue });
-        }}
-        placeholder="DD/MM/YYYY HH:MM (IST)"
-      />
-    </View>
-  );
-
-  // Phase 2: Helper Functions for Advanced Features
-
-  // Debounced search function for better performance
-  const debouncedUserSearch = (term: string) => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    searchTimeoutRef.current = setTimeout(() => {
-      handleUserSearch(term);
-    }, 300); // 300ms delay
+          }}
+          placeholder="DD/MM/YYYY HH:MM (IST)"
+        />
+      </View>
+    );
   };
 
-  // Search users using real API
+  // Search users using real API (triggered via Search button)
   const handleUserSearch = async (term: string) => {
-    if (!term || term.length < 2) {
+    const q = (term || "").trim();
+    if (!q) {
       setSearchResults([]);
       setSearching(false);
+      setHasSearchedUser(false);
       return;
     }
 
     setSearching(true);
+    setHasSearchedUser(true);
     try {
-      const users = await searchUsers(term);
+      const users = await searchUsers(q);
       setSearchResults(users);
     } catch (error) {
       console.error("User search error:", error);
@@ -431,48 +611,178 @@ export default function EventInfo({
     }
   };
 
-  // Search venues using real API
+  // Search venues using real API or loaded catalog
   const handleVenueSearch = async (term: string) => {
-    if (!term || term.length < 2) {
-      setVenueResults([]);
+    const q = (term || "").trim().toLowerCase();
+    if (!q) {
+      if (allVenues.length > 0) {
+        setVenueResults(allVenues.slice(0, 10));
+      } else {
+        setVenueResults([]);
+      }
       return;
     }
 
-    try {
-      const venues = await searchVenues(term);
-      setVenueResults(venues);
-    } catch (error) {
-      console.error("Venue search error:", error);
-      setVenueResults([]);
+    if (allVenues.length > 0) {
+      const filtered = allVenues.filter((v: any) =>
+        (v.venueName || "").toLowerCase().includes(q) ||
+        (v.venueId || "").toLowerCase().includes(q)
+      );
+      setVenueResults(filtered.slice(0, 15));
+    } else {
+      try {
+        const venues = await searchVenues(term);
+        setVenueResults(venues.slice(0, 15));
+      } catch (error) {
+        console.error("Venue search error:", error);
+        setVenueResults([]);
+      }
     }
   };
 
-  // Add coordinator
+  // Add coordinator from search
   const addCoordinator = (user: any) => {
-    if (editData.coordinators.some((c: any) => c.userID === user.userId))
+    const current = editData.coordinators || [];
+    const userEmail = (user.email || "").toLowerCase().trim();
+    const userId = user.userId || user.userID || "";
+
+    const alreadyExists = current.some((c: any) => {
+      const cEmail = (c.email || "").toLowerCase().trim();
+      const cId = c.userID || c.userId || "";
+      return (userEmail && cEmail && cEmail === userEmail) || (userId && cId && cId === userId);
+    });
+
+    if (alreadyExists) {
+      showAlert("Notice", "This coordinator is already added");
       return;
+    }
 
     setEditData({
       ...editData,
       coordinators: [
-        ...editData.coordinators,
+        ...current,
         {
-          name: user.displayName,
-          phone: user.phoneNumber,
-          email: user.email,
-          userID: user.userId,
+          name: user.displayName || user.name || "Coordinator",
+          phone: user.phoneNumber || user.phone || "",
+          email: user.email || "",
+          userID: userId,
         },
       ],
     });
     setSearchTerm("");
     setSearchResults([]);
+    setHasSearchedUser(false);
+  };
+
+  // Add coordinator manually
+  const handleManualAddCoordinator = () => {
+    const name = manualCoordName.trim();
+    const email = manualCoordEmail.trim().toLowerCase();
+    const phone = manualCoordPhone.trim();
+
+    if (!name) {
+      showAlert("Error", "Please enter the coordinator's name");
+      return;
+    }
+
+    if (!email || !email.includes("@")) {
+      showAlert("Error", "Please enter a valid email address");
+      return;
+    }
+
+    const current = editData.coordinators || [];
+    if (current.some((c: any) => (c.email || "").toLowerCase().trim() === email)) {
+      showAlert("Notice", "A coordinator with this email is already added");
+      return;
+    }
+
+    setEditData({
+      ...editData,
+      coordinators: [
+        ...current,
+        {
+          name,
+          email,
+          phone,
+          userID: "",
+        },
+      ],
+    });
+
+    setManualCoordName("");
+    setManualCoordEmail("");
+    setManualCoordPhone("");
+    setShowManualAddCoordinator(false);
+  };
+
+  // Start editing a coordinator
+  const startEditCoordinator = (index: number) => {
+    const coord = (editData.coordinators || [])[index];
+    if (!coord) return;
+    setEditingCoordIndex(index);
+    setEditCoordName(coord.name || "");
+    setEditCoordEmail(coord.email || "");
+    setEditCoordPhone(coord.phone || "");
+  };
+
+  // Save coordinator edit
+  const saveCoordinatorEdit = (index: number) => {
+    const name = editCoordName.trim();
+    const email = editCoordEmail.trim().toLowerCase();
+    const phone = editCoordPhone.trim();
+
+    if (!name) {
+      showAlert("Error", "Coordinator name cannot be empty");
+      return;
+    }
+
+    if (!email || !email.includes("@")) {
+      showAlert("Error", "Please enter a valid email address");
+      return;
+    }
+
+    const current = editData.coordinators || [];
+    const duplicate = current.some(
+      (c: any, i: number) => i !== index && (c.email || "").toLowerCase().trim() === email
+    );
+    if (duplicate) {
+      showAlert("Notice", "Another coordinator with this email already exists");
+      return;
+    }
+
+    const newCoordinators = [...current];
+    newCoordinators[index] = {
+      ...newCoordinators[index],
+      name,
+      email,
+      phone,
+    };
+
+    setEditData({ ...editData, coordinators: newCoordinators });
+    setEditingCoordIndex(null);
+  };
+
+  // Cancel coordinator edit
+  const cancelCoordinatorEdit = () => {
+    setEditingCoordIndex(null);
   };
 
   // Remove coordinator
   const removeCoordinator = (index: number) => {
-    const newCoordinators = [...editData.coordinators];
+    const current = editData.coordinators || [];
+    if (current.length <= 1) {
+      showAlert(
+        "Cannot Remove",
+        "An event must have at least one coordinator. Please add the new coordinator before removing this one, or edit their details directly."
+      );
+      return;
+    }
+    const newCoordinators = [...current];
     newCoordinators.splice(index, 1);
     setEditData({ ...editData, coordinators: newCoordinators });
+    if (editingCoordIndex === index) {
+      setEditingCoordIndex(null);
+    }
   };
 
   // Add array item (for images, links, reels)
@@ -795,6 +1105,62 @@ export default function EventInfo({
           </MarkdownText>
         </View>
       )}
+
+      {/* Coordinators */}
+      {event.coordinators && event.coordinators.length > 0 && (
+        <View style={{ backgroundColor: cardBg, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: cardBorder }}>
+          <Text style={{ fontFamily: "Poppins_600SemiBold", color: '#41B8F0', fontSize: 17, marginBottom: 12 }}>
+            Coordinators
+          </Text>
+          <View style={{ gap: 10 }}>
+            {event.coordinators.map((coordinator, idx) => (
+              <View
+                key={idx}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: isDark ? '#26262B' : '#F9FAFB',
+                  padding: 12,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: cardBorder,
+                }}
+              >
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: '#41B8F0',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 12,
+                  }}
+                >
+                  <Text style={{ color: '#FFFFFF', fontFamily: 'Poppins_700Bold', fontSize: 15 }}>
+                    {coordinator.name?.charAt(0)?.toUpperCase() || '?'}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', color: textColor, fontSize: 14 }}>
+                    {coordinator.name}
+                  </Text>
+                  {coordinator.email ? (
+                    <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, fontSize: 12 }}>
+                      {coordinator.email}
+                    </Text>
+                  ) : null}
+                  {coordinator.phone ? (
+                    <Text style={{ fontFamily: 'Poppins_400Regular', color: subTextColor, fontSize: 12 }}>
+                      {coordinator.phone}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 
@@ -878,7 +1244,7 @@ export default function EventInfo({
                   updates.sameCollegeOnly = undefined;
                   updates.venueName = "";
                   updates.venueId = "";
-                  updates.maxParticipants = "";
+                  updates.maxParticipants = 0;
                 } else if (type === "team") {
                   updates.externalUrl = "";
                   if (!editData.minTeamSize) updates.minTeamSize = 2;
@@ -1031,145 +1397,465 @@ export default function EventInfo({
     </View>
   );
 
-  const renderCoordinatorSearch = () => (
-    <View className="mb-4">
-      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15, marginBottom: 8 }}>
-        Coordinators
-      </Text>
+  const renderCoordinatorSearch = () => {
+    const currentCoordinators = editData.coordinators || [];
 
-      {/* Current coordinators */}
-      {(editData.coordinators || []).map((coordinator: any, index: number) => (
-        <View
-          key={index}
-          style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
-          className="rounded-xl p-4 mb-3 flex-row items-center"
-        >
-          <View className="w-10 h-10 bg-[#41B8F0] rounded-full items-center justify-center mr-3">
-            <Text className="text-white font-bold">
-              {coordinator.name?.charAt(0) || "?"}
-            </Text>
-          </View>
-          <View className="flex-1">
-            <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor }}>{coordinator.name}</Text>
-            <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 13 }}>{coordinator.email}</Text>
-            {coordinator.phone && (
-              <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>{coordinator.phone}</Text>
-            )}
-          </View>
+    return (
+      <View className="mb-4">
+        {/* Header with counter & Add Manually button */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15 }}>
+            Coordinators ({currentCoordinators.length})
+          </Text>
           <TouchableOpacity
-            className="bg-red-500/20 border border-red-500/40 p-2 rounded-lg"
-            onPress={() => removeCoordinator(index)}
-            disabled={editData.coordinators?.length <= 1}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE",
+              borderColor: "#41B8F0",
+              borderWidth: 1,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 12,
+            }}
+            onPress={() => {
+              const nextVal = !showManualAddCoordinator;
+              setShowManualAddCoordinator(nextVal);
+              if (nextVal && searchTerm && searchTerm.includes("@")) {
+                setManualCoordEmail(searchTerm.trim());
+              }
+            }}
+            activeOpacity={0.7}
           >
-            <Trash2 size={16} color="#EF4444" />
+            {showManualAddCoordinator ? (
+              <>
+                <X size={14} color="#41B8F0" />
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 12, marginLeft: 4 }}>
+                  Cancel
+                </Text>
+              </>
+            ) : (
+              <>
+                <Plus size={14} color="#41B8F0" />
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 12, marginLeft: 4 }}>
+                  Add Manually
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
-      ))}
 
-      {/* Search for new coordinators */}
-      <View className="mb-3">
-        <Input
-          value={searchTerm}
-          onChangeText={(value) => {
-            setSearchTerm(value);
-            debouncedUserSearch(value);
-          }}
-          placeholder="Search user by name, email, college, or phone..."
-        />
-      </View>
+        {/* Current coordinators list */}
+        {currentCoordinators.length === 0 ? (
+          <View
+            style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+            className="rounded-xl p-4 mb-4 items-center justify-center"
+          >
+            <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 13, textAlign: "center" }}>
+              No coordinators assigned yet. Please add at least one coordinator.
+            </Text>
+          </View>
+        ) : (
+          currentCoordinators.map((coordinator: any, index: number) => {
+            const isEditingThis = editingCoordIndex === index;
 
-      {searching && (
-        <View className="flex-row items-center mb-3">
-          <ActivityIndicator size="small" color="#41B8F0" />
-          <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, marginLeft: 8 }}>Searching users...</Text>
-        </View>
-      )}
+            if (isEditingThis) {
+              return (
+                <View
+                  key={index}
+                  style={{
+                    backgroundColor: isDark ? "#232328" : "#F8FAFC",
+                    borderColor: "#41B8F0",
+                    borderWidth: 1.5,
+                  }}
+                  className="rounded-xl p-4 mb-3"
+                >
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 14, marginBottom: 10 }}>
+                    Edit Coordinator #{index + 1}
+                  </Text>
+                  <Input
+                    label="Full Name *"
+                    value={editCoordName}
+                    onChangeText={setEditCoordName}
+                    placeholder="Coordinator Name"
+                    className="mb-2"
+                  />
+                  <Input
+                    label="Email Address *"
+                    value={editCoordEmail}
+                    onChangeText={setEditCoordEmail}
+                    placeholder="email@thapar.edu"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    className="mb-2"
+                  />
+                  <Input
+                    label="Phone Number"
+                    value={editCoordPhone}
+                    onChangeText={setEditCoordPhone}
+                    placeholder="e.g. +91 9876543210"
+                    keyboardType="phone-pad"
+                    className="mb-3"
+                  />
+                  <View className="flex-row gap-2">
+                    <TouchableOpacity
+                      style={{ backgroundColor: "#41B8F0" }}
+                      className="flex-1 py-3 rounded-xl items-center justify-center flex-row"
+                      onPress={() => saveCoordinatorEdit(index)}
+                      activeOpacity={0.8}
+                    >
+                      <Check size={16} color="#FFFFFF" />
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 6, fontSize: 13 }}>
+                        Done
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ backgroundColor: isDark ? "#2A2A30" : "#E5E7EB" }}
+                      className="px-4 py-3 rounded-xl items-center justify-center"
+                      onPress={cancelCoordinatorEdit}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 13 }}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }
 
-      {searchResults.length > 0 && (
-        <View className="mb-3">
-          <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13, marginBottom: 8 }}>
-            Found {searchResults.length} user
-            {searchResults.length !== 1 ? "s" : ""} matching "{searchTerm}"
-          </Text>
-          <ScrollView style={{ maxHeight: 200 }}>
-            {searchResults.map((user) => (
-              <TouchableOpacity
-                key={user.userId}
+            return (
+              <View
+                key={index}
                 style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
-                className="rounded-xl p-3 mb-2 flex-row items-center"
-                onPress={() => addCoordinator(user)}
+                className="rounded-xl p-4 mb-3 flex-row items-center"
               >
-                <View className="w-8 h-8 bg-[#41B8F0] rounded-full items-center justify-center mr-3">
-                  <Text className="text-white font-bold text-xs">
-                    {user.displayName?.charAt(0) || "?"}
+                <View className="w-10 h-10 bg-[#41B8F0] rounded-full items-center justify-center mr-3">
+                  <Text className="text-white font-bold text-base">
+                    {coordinator.name?.charAt(0)?.toUpperCase() || "?"}
                   </Text>
                 </View>
-                <View className="flex-1">
-                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor }}>
-                    {user.displayName}
+                <View className="flex-1 mr-2">
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 14 }}>
+                    {coordinator.name}
                   </Text>
-                  <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>{user.email}</Text>
+                  <View className="flex-row items-center mt-0.5">
+                    <Mail size={12} color={subTextColor} />
+                    <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12, marginLeft: 4 }}>
+                      {coordinator.email}
+                    </Text>
+                  </View>
+                  {coordinator.phone ? (
+                    <View className="flex-row items-center mt-0.5">
+                      <Phone size={12} color={subTextColor} />
+                      <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12, marginLeft: 4 }}>
+                        {coordinator.phone}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-                <View className="bg-[#41B8F0]/20 border border-[#41B8F0]/30 px-2 py-1 rounded">
-                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 11 }}>
-                    {user.collegeName}
-                  </Text>
+                <View className="flex-row items-center gap-1.5">
+                  <TouchableOpacity
+                    style={{ backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE", borderColor: "#41B8F0", borderWidth: 1 }}
+                    className="p-2 rounded-lg"
+                    onPress={() => startEditCoordinator(index)}
+                    activeOpacity={0.7}
+                  >
+                    <Edit size={15} color="#41B8F0" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="bg-red-500/20 border border-red-500/40 p-2 rounded-lg"
+                    onPress={() => removeCoordinator(index)}
+                    activeOpacity={0.7}
+                  >
+                    <Trash2 size={15} color="#EF4444" />
+                  </TouchableOpacity>
                 </View>
+              </View>
+            );
+          })
+        )}
+
+        {/* Manual Add Form */}
+        {showManualAddCoordinator && (
+          <View
+            style={{
+              backgroundColor: isDark ? "#232328" : "#F8FAFC",
+              borderColor: "#41B8F0",
+              borderWidth: 1.5,
+            }}
+            className="rounded-xl p-4 mb-4"
+          >
+            <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 14, marginBottom: 10 }}>
+              Add Coordinator Manually
+            </Text>
+            <Input
+              label="Full Name *"
+              value={manualCoordName}
+              onChangeText={setManualCoordName}
+              placeholder="e.g. John Doe"
+              className="mb-2"
+            />
+            <Input
+              label="Email Address *"
+              value={manualCoordEmail}
+              onChangeText={setManualCoordEmail}
+              placeholder="e.g. jdoe_be24@thapar.edu"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              className="mb-2"
+            />
+            <Input
+              label="Phone Number"
+              value={manualCoordPhone}
+              onChangeText={setManualCoordPhone}
+              placeholder="e.g. +91 9876543210"
+              keyboardType="phone-pad"
+              className="mb-3"
+            />
+            <View className="flex-row gap-2">
+              <TouchableOpacity
+                style={{ backgroundColor: "#41B8F0" }}
+                className="flex-1 py-3 rounded-xl items-center justify-center flex-row"
+                onPress={handleManualAddCoordinator}
+                activeOpacity={0.8}
+              >
+                <Plus size={16} color="#FFFFFF" />
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", marginLeft: 6, fontSize: 13 }}>
+                  Add to Coordinators
+                </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+              <TouchableOpacity
+                style={{ backgroundColor: isDark ? "#2A2A30" : "#E5E7EB" }}
+                className="px-4 py-3 rounded-xl items-center justify-center"
+                onPress={() => {
+                  setShowManualAddCoordinator(false);
+                  setManualCoordName("");
+                  setManualCoordEmail("");
+                  setManualCoordPhone("");
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 13 }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Search for new coordinators */}
+        <View className="mb-2">
+          <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13, marginBottom: 6 }}>
+            Or Search Registered User by Email
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Input
+                value={searchTerm}
+                onChangeText={(value) => {
+                  setSearchTerm(value);
+                  setHasSearchedUser(false);
+                  if (!value.trim()) {
+                    setSearchResults([]);
+                  }
+                }}
+                placeholder="Enter email (e.g. user@thapar.edu)..."
+                autoCapitalize="none"
+                keyboardType="email-address"
+                containerStyle={{ marginBottom: 0 }}
+              />
+            </View>
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#41B8F0",
+                height: 48,
+                paddingHorizontal: 16,
+                borderRadius: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: searching || !searchTerm.trim() ? 0.6 : 1,
+              }}
+              onPress={() => handleUserSearch(searchTerm)}
+              disabled={searching || !searchTerm.trim()}
+              activeOpacity={0.7}
+            >
+              {searching ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Search size={16} color="#FFFFFF" />
+                  <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#FFFFFF", fontSize: 13, marginLeft: 6 }}>
+                    Search
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
-    </View>
-  );
+
+        {searching && (
+          <View className="flex-row items-center mb-3 mt-1">
+            <ActivityIndicator size="small" color="#41B8F0" />
+            <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, marginLeft: 8, fontSize: 13 }}>
+              Searching users...
+            </Text>
+          </View>
+        )}
+
+        {searchResults.length > 0 && (
+          <View className="mb-3 mt-1">
+            <Text style={{ fontFamily: "Poppins_500Medium", color: subTextColor, fontSize: 13, marginBottom: 8 }}>
+              Found {searchResults.length} user
+              {searchResults.length !== 1 ? "s" : ""}
+            </Text>
+            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+              {searchResults.map((user) => (
+                <TouchableOpacity
+                  key={user.userId || user.email}
+                  style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
+                  className="rounded-xl p-3 mb-2 flex-row items-center"
+                  onPress={() => addCoordinator(user)}
+                  activeOpacity={0.7}
+                >
+                  <View className="w-9 h-9 bg-[#41B8F0] rounded-full items-center justify-center mr-3">
+                    <Text className="text-white font-bold text-xs">
+                      {user.displayName?.charAt(0)?.toUpperCase() || "?"}
+                    </Text>
+                  </View>
+                  <View className="flex-1 mr-2">
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 13 }}>
+                      {user.displayName}
+                    </Text>
+                    <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>
+                      {user.email}
+                    </Text>
+                    {user.phoneNumber ? (
+                      <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 11 }}>
+                        {user.phoneNumber}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View className="bg-[#41B8F0]/20 border border-[#41B8F0]/30 px-2.5 py-1.5 rounded-lg flex-row items-center">
+                    <Plus size={12} color="#41B8F0" />
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 11, marginLeft: 3 }}>
+                      Add
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {!searching && hasSearchedUser && searchResults.length === 0 && (
+          <View style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }} className="rounded-xl p-3 mb-3">
+            <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12, marginBottom: 6 }}>
+              No registered user found for "{searchTerm}".
+            </Text>
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                alignSelf: "flex-start",
+                backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE",
+                borderColor: "#41B8F0",
+                borderWidth: 1,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 8,
+              }}
+              onPress={() => {
+                setShowManualAddCoordinator(true);
+                if (searchTerm.includes("@")) {
+                  setManualCoordEmail(searchTerm.trim());
+                } else {
+                  setManualCoordName(searchTerm.trim());
+                }
+              }}
+            >
+              <Plus size={12} color="#41B8F0" />
+              <Text style={{ fontFamily: "Poppins_600SemiBold", color: "#41B8F0", fontSize: 12, marginLeft: 4 }}>
+                Add "{searchTerm}" Manually
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderVenueSearch = () => (
     <View className="mb-4">
-      <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15, marginBottom: 8 }}>Venue</Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor, fontSize: 15 }}>Venue</Text>
+        {editData.venueId ? (
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+            <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 11, color: "#41B8F0" }}>
+              ID: {editData.venueId}
+            </Text>
+          </View>
+        ) : null}
+      </View>
       <Input
-        value={venueSearchTerm || editData.venueName || ""}
+        value={venueSearchTerm !== "" ? venueSearchTerm : (editData.venueName || "")}
         onChangeText={(value) => {
           setVenueSearchTerm(value);
+          const q = value.trim().toLowerCase();
+          const matched = allVenues.find(
+            (v: any) =>
+              (v.venueName || "").toLowerCase() === q ||
+              (v.venueId || "").toLowerCase() === q
+          );
+
           setEditData({
             ...editData,
             venueName: value,
+            venueId: matched ? matched.venueId : "",
           });
 
-          if (value.length > 2) {
-            handleVenueSearch(value);
-          } else {
-            setVenueResults([]);
-          }
+          handleVenueSearch(value);
         }}
-        placeholder="Search for venue..."
+        placeholder="Search for venue (e.g. Main Auditorium, OAT, Online)..."
       />
 
       {venueResults.length > 0 && (
         <View className="mt-2">
-          <ScrollView style={{ maxHeight: 150 }}>
-            {venueResults.map((venue) => (
-              <TouchableOpacity
-                key={venue.venueId}
-                style={{ backgroundColor: cardBg, borderColor: cardBorder, borderWidth: 1 }}
-                className="rounded-xl p-3 mb-2"
-                onPress={() => {
-                  setEditData({
-                    ...editData,
-                    venueName: venue.venueName,
-                    venueId: venue.venueId,
-                  });
-                  setVenueSearchTerm(venue.venueName);
-                  setVenueResults([]);
-                }}
-              >
-                <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor }}>
-                  {venue.venueName}
-                </Text>
-                <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>
-                  ID: {venue.venueId}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
+            {venueResults.map((venue) => {
+              const isSelected = editData.venueId === venue.venueId;
+              return (
+                <TouchableOpacity
+                  key={venue.venueId}
+                  style={{
+                    backgroundColor: isSelected ? (isDark ? "rgba(65, 184, 240, 0.15)" : "#E0F2FE") : cardBg,
+                    borderColor: isSelected ? "#41B8F0" : cardBorder,
+                    borderWidth: 1,
+                  }}
+                  className="rounded-xl p-3 mb-2 flex-row justify-between items-center"
+                  onPress={() => {
+                    setEditData({
+                      ...editData,
+                      venueName: venue.venueName,
+                      venueId: venue.venueId,
+                    });
+                    setVenueSearchTerm(venue.venueName);
+                    setVenueResults([]);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: "Poppins_600SemiBold", color: textColor }}>
+                      {venue.venueName}
+                    </Text>
+                    <Text style={{ fontFamily: "Poppins_400Regular", color: subTextColor, fontSize: 12 }}>
+                      ID: {venue.venueId}
+                    </Text>
+                  </View>
+                  {isSelected && <Check size={18} color="#41B8F0" />}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       )}
@@ -1578,13 +2264,17 @@ export default function EventInfo({
 
               <Input
                 label="Max Participants"
-                value={editData.maxParticipants?.toString() || ""}
+                value={
+                  editData.maxParticipants && Number(editData.maxParticipants) > 0
+                    ? editData.maxParticipants.toString()
+                    : ""
+                }
                 onChangeText={(value) => {
                   if (value === "" || /^\d+$/.test(value)) {
                     setEditData({
                       ...editData,
                       maxParticipants:
-                        value === "" ? undefined : parseInt(value) || undefined,
+                        value === "" ? 0 : parseInt(value, 10) || 0,
                     });
                   }
                 }}

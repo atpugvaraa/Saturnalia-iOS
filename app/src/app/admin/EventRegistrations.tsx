@@ -15,6 +15,7 @@ import {
   getAllEventRegistrations,
   getAllTeamRegistrationsWithMembers,
   updateTeamRegistrationStatus,
+  updatePaymentStatus,
   TeamSummary,
 } from "@/api/admin";
 import { getRegistrationTransaction } from "@/api/admin";
@@ -491,6 +492,19 @@ export default function EventRegistrations({
         onClose={() => {
           setShowPaymentModal(false);
           setSelectedTransaction(null);
+        }}
+        onUpdateStatus={async (orderId, newStatus) => {
+          try {
+            await updatePaymentStatus(orderId, newStatus);
+            if (selectedTransaction) {
+              setSelectedTransaction({ ...selectedTransaction, status: newStatus });
+            }
+            showAlert("Success", `Payment status updated to ${newStatus}`);
+            loadAllRegistrations();
+          } catch (err: any) {
+            console.error("Error updating payment status:", err);
+            showAlert("Error", err?.message || "Failed to update payment status");
+          }
         }}
       />
     </View>

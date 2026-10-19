@@ -176,9 +176,9 @@ const Transactions: React.FC = () => {
         } else {
           showAlert("Error", "Failed to update transaction status");
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error updating status:", err);
-        showAlert("Error", "Failed to update transaction status");
+        showAlert("Error", err?.message || "Failed to update transaction status");
       }
     },
     [selectedTransaction]

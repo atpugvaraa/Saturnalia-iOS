@@ -468,7 +468,49 @@ export const updateEventInfo = async (id: string, data: Record<string, any>) => 
   }
 };
 
-export const searchUsers = async (_term: string) => [] as any[];
+export const searchUsers = async (term: string) => {
+  const q = term?.trim();
+  if (!q) return [];
+  try {
+    const { apiFetch } = await import('./client');
+    // If search term looks like an email or partial email
+    if (q.includes('@')) {
+      const res = await apiFetch(`/admin/users/by-email/${encodeURIComponent(q)}`, {}, 'required');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          return [{
+            userId: data.user.userId || data.user.id || '',
+            displayName: data.user.displayName || data.user.name || '',
+            email: data.user.email || '',
+            phoneNumber: data.user.phoneNumber || data.user.phone || '',
+            collegeName: data.user.collegeName || '',
+          }];
+        }
+      }
+    } else if (q.length >= 8 && !q.includes(' ')) {
+      // Try by userId
+      try {
+        const res = await apiFetch(`/admin/users/${encodeURIComponent(q)}`, {}, 'required');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            return [{
+              userId: data.user.userId || data.user.id || '',
+              displayName: data.user.displayName || data.user.name || '',
+              email: data.user.email || '',
+              phoneNumber: data.user.phoneNumber || data.user.phone || '',
+              collegeName: data.user.collegeName || '',
+            }];
+          }
+        }
+      } catch {}
+    }
+  } catch (e) {
+    console.error('searchUsers error:', e);
+  }
+  return [] as any[];
+};
 export const searchVenues = async (term: string) => {
   const venues = await listVenues();
   const q = term.toLowerCase();

@@ -56,7 +56,7 @@ func (a *API) AdminUpdatePaymentStatus(c *gin.Context) {
 	}
 
 	if body.Status == models.PaymentStatusSuccess {
-		already, err := a.Store.SettlePayment(ctx, id, store.SettleInfo{AdminID: admin.UserID})
+		already, err := a.Store.SettlePayment(ctx, payment.ID, store.SettleInfo{AdminID: admin.UserID})
 		if err != nil {
 			apierr.Respond(c, apierr.Internal("could not settle payment"))
 			return
@@ -68,13 +68,10 @@ func (a *API) AdminUpdatePaymentStatus(c *gin.Context) {
 		return
 	}
 
-	if payment.Status == models.PaymentStatusSuccess {
-		apierr.Respond(c, apierr.Conflict("already_paid", "a successful payment cannot be marked failed; refund it instead"))
-		return
-	}
-	if err := a.Store.MarkPaymentFailed(ctx, id, "", admin.UserID); err != nil && !errors.Is(err, store.ErrNotFound) {
+	if err := a.Store.MarkPaymentFailed(ctx, payment.ID, "", admin.UserID); err != nil && !errors.Is(err, store.ErrNotFound) {
 		apierr.Respond(c, apierr.Internal("could not update payment status"))
 		return
 	}
+	a.Cache.Invalidate()
 	c.JSON(http.StatusOK, gin.H{"message": "payment updated successfully"})
 }
