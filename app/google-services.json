@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "427621506808-m47uks8aadu3g8q990330aib9vvfscq4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gauransh.saturnaliaapp2026",
+            "certificate_hash": "5f325407702722a1fd5e4925737df96722ee9f85"
+          }
+        },
+        {
+          "client_id": "427621506808-o6d2m92cdfa65hhrnrait7k994abj7hc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gauransh.saturnaliaapp2026",
+            "certificate_hash": "7f218b69e1991594c290626cf7be717c91e74f77"
+          }
+        },
+        {
           "client_id": "427621506808-tthtpvb0mdr9a77u11s87ameg3eq7e84.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
