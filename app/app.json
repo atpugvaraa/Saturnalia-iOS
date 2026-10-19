@@ -89,7 +89,15 @@
       "expo-video",
       "react-native-video",
       "expo-image",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "thapar-hn"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

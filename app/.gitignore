@@ -43,3 +43,7 @@ example
 /android
 
 credentials.json
+
+
+
+.env.local
