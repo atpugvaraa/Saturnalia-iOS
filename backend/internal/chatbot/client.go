@@ -98,6 +98,10 @@ func NewService(apiKey string) *Service {
 }
 
 func (s *Service) AskGroq(ctx context.Context, message string) (string, error) {
+	if s.apiKey == "" {
+		return "", fmt.Errorf("GROQ_API_KEY is not configured")
+	}
+
 	requestBody := groqRequest{
 		Model: "openai/gpt-oss-20b",
 		Messages: []groqMessage{
@@ -111,7 +115,6 @@ func (s *Service) AskGroq(ctx context.Context, message string) (string, error) {
 			},
 		},
 	}
-
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal request: %w", err)
