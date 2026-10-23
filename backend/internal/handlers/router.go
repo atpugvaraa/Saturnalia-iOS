@@ -52,6 +52,7 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	open.GET("/events/:id", api.GetEvent)
 	open.GET("/faqs", api.ListFaqs)
 	open.GET("/venues", api.ListVenues)
+	open.GET("/venues/:id", api.GetVenue)
 	open.GET("/banners", api.ListBanners)
 	open.GET("/banners/:id", api.GetBanner)
 	open.GET("/reels", api.ListReels)
@@ -95,8 +96,15 @@ func Router(cfg *config.Config, clients *fb.Clients, s *store.Store, cache *stor
 	admin.PATCH("/admin/faqs/:id", api.UpdateFaq)
 	admin.DELETE("/admin/faqs/:id", api.DeleteFaq)
 
+	admin.GET("/admin/venues", api.ListVenues)
+	admin.GET("/admin/venues/:id", api.GetVenue)
 	admin.POST("/admin/venues", api.CreateVenue)
 	admin.PATCH("/admin/venues/:id", api.UpdateVenue)
+	admin.PUT("/admin/venues/:id", api.UpdateVenue)
+	admin.PATCH("/admin/venues/:id/coordinates", api.UpdateVenueCoordinates)
+	admin.PUT("/admin/venues/:id/coordinates", api.UpdateVenueCoordinates)
+	admin.PATCH("/admin/venues/batch", api.BatchUpdateVenues)
+	admin.PUT("/admin/venues/batch", api.BatchUpdateVenues)
 	admin.DELETE("/admin/venues/:id", api.DeleteVenue)
 
 	// Banners
