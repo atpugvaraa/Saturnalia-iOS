@@ -51,6 +51,7 @@ export interface UserProfile {
   referredBy?: string;
   createdAt: string;
   gender: 'male' | 'female' | 'other';
+  age?: string;
   sessionToken: string;
   accommodationNeeded: boolean;
   accommodation?: Record<string, boolean>;
